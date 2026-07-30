@@ -1,8 +1,6 @@
- import React, { useState, useEffect, createContext, useContext } from "react";
+import React, { useState, useEffect, createContext, useContext } from "react";
 import { supabase } from "./lib/supabaseClient";
 
-// Any part of the app can call useAuth() to find out who is logged in
-// and what role/profile they have, once Phase 2 role based features are added.
 const AuthContext = createContext(null);
 export function useAuth() {
   return useContext(AuthContext);
@@ -11,7 +9,7 @@ export function useAuth() {
 const BRAND_BURGUNDY = "#801524";
 
 export default function LoginGate({ children }) {
-  const [session, setSession] = useState(undefined); // undefined = still checking
+  const [session, setSession] = useState(undefined);
   const [profile, setProfile] = useState(null);
   const [profileError, setProfileError] = useState("");
   const [email, setEmail] = useState("");
@@ -70,7 +68,7 @@ export default function LoginGate({ children }) {
     });
     setSubmitting(false);
     if (error) {
-      setFormError("Email or password is incorrect. Please try again.");
+      setFormError(`${error.message} (code: ${error.status || "unknown"})`);
     }
   }
 
@@ -78,7 +76,6 @@ export default function LoginGate({ children }) {
     await supabase.auth.signOut();
   }
 
-  // Still checking whether a session exists
   if (session === undefined) {
     return (
       <div style={styles.centerScreen}>
@@ -87,7 +84,6 @@ export default function LoginGate({ children }) {
     );
   }
 
-  // Not logged in: show the login form
   if (!session) {
     return (
       <div style={styles.centerScreen}>
@@ -134,7 +130,6 @@ export default function LoginGate({ children }) {
     );
   }
 
-  // Logged in, but no profile row set up yet
   if (profileError) {
     return (
       <div style={styles.centerScreen}>
@@ -149,7 +144,6 @@ export default function LoginGate({ children }) {
     );
   }
 
-  // Still loading the profile row
   if (!profile) {
     return (
       <div style={styles.centerScreen}>
@@ -158,7 +152,6 @@ export default function LoginGate({ children }) {
     );
   }
 
-  // Logged in with a valid profile: show the app
   return (
     <AuthContext.Provider value={{ session, profile, signOut: handleSignOut }}>
       {children}
