@@ -848,14 +848,23 @@ const emptyPlanForm = {
   centralIdea: "",
   keyConcepts: "",
   linesOfInquiry: "",
+  keyVocabulary: "",
+  learningOutcomes: "",
+  atlSkills: "",
+  learnerProfileFocus: "",
+  differentiation: "",
+  resources: "",
   startDate: "",
   endDate: "",
   lessonPlanText: "",
   lessonPlanLink: "",
   lessonPlanFiles: [],
+  assessmentFormative: "",
   evidenceLink: "",
   evidenceNotes: "",
   evidenceFiles: [],
+  assessmentSummative: "",
+  studentAction: "",
   reflection: "",
   comments: []
 };
@@ -863,8 +872,11 @@ const emptyPlanForm = {
 function PlanDetailModal({ plan, onClose, onUpdate }) {
   const [lessonPlanText, setLessonPlanText] = useState(plan.lessonPlanText || "");
   const [lessonPlanLink, setLessonPlanLink] = useState(plan.lessonPlanLink || "");
+  const [assessmentFormative, setAssessmentFormative] = useState(plan.assessmentFormative || "");
   const [evidenceLink, setEvidenceLink] = useState(plan.evidenceLink || "");
   const [evidenceNotes, setEvidenceNotes] = useState(plan.evidenceNotes || "");
+  const [assessmentSummative, setAssessmentSummative] = useState(plan.assessmentSummative || "");
+  const [studentAction, setStudentAction] = useState(plan.studentAction || "");
   const [reflection, setReflection] = useState(plan.reflection || "");
   const [commentAuthor, setCommentAuthor] = useState("");
   const [commentText, setCommentText] = useState("");
@@ -926,6 +938,15 @@ function PlanDetailModal({ plan, onClose, onUpdate }) {
           onChange={(files) => saveField({ lessonPlanFiles: files })}
         />
       </Field>
+      <Field label="Assessment (formative)">
+        <textarea
+          rows={3}
+          value={assessmentFormative}
+          onChange={(e) => setAssessmentFormative(e.target.value)}
+          onBlur={() => saveField({ assessmentFormative })}
+          placeholder="Quick checks along the way to see how understanding is developing"
+        />
+      </Field>
 
       <hr className="bsf-divider" />
 
@@ -953,8 +974,27 @@ function PlanDetailModal({ plan, onClose, onUpdate }) {
           onChange={(files) => saveField({ evidenceFiles: files })}
         />
       </Field>
+      <Field label="Assessment (summative)">
+        <textarea
+          rows={3}
+          value={assessmentSummative}
+          onChange={(e) => setAssessmentSummative(e.target.value)}
+          onBlur={() => saveField({ assessmentSummative })}
+          placeholder="The final task or product that shows understanding"
+        />
+      </Field>
 
       <hr className="bsf-divider" />
+
+      <Field label="Student action">
+        <textarea
+          rows={3}
+          value={studentAction}
+          onChange={(e) => setStudentAction(e.target.value)}
+          onBlur={() => saveField({ studentAction })}
+          placeholder="How learning connects to something students do or change beyond the classroom"
+        />
+      </Field>
 
       <Field label="Reflection">
         <textarea
@@ -1123,6 +1163,24 @@ function PlanningTab({ data, persist }) {
           </Field>
           <Field label="Lines of inquiry">
             <textarea rows={3} value={form.linesOfInquiry} onChange={(e) => setForm({ ...form, linesOfInquiry: e.target.value })} placeholder="One idea per line" />
+          </Field>
+          <Field label="Key vocabulary">
+            <textarea rows={2} value={form.keyVocabulary} onChange={(e) => setForm({ ...form, keyVocabulary: e.target.value })} placeholder="Important words students should know by the end" />
+          </Field>
+          <Field label="Learning outcomes">
+            <textarea rows={3} value={form.learningOutcomes} onChange={(e) => setForm({ ...form, learningOutcomes: e.target.value })} placeholder="What students should know or be able to do" />
+          </Field>
+          <Field label="Approaches to learning skills">
+            <textarea rows={2} value={form.atlSkills} onChange={(e) => setForm({ ...form, atlSkills: e.target.value })} placeholder="e.g. Research, communication, self management" />
+          </Field>
+          <Field label="Learner profile focus">
+            <input value={form.learnerProfileFocus} onChange={(e) => setForm({ ...form, learnerProfileFocus: e.target.value })} placeholder="e.g. Curious, caring, reflective" />
+          </Field>
+          <Field label="Differentiation">
+            <textarea rows={3} value={form.differentiation} onChange={(e) => setForm({ ...form, differentiation: e.target.value })} placeholder="How the unit adapts for different learners" />
+          </Field>
+          <Field label="Resources and materials">
+            <textarea rows={2} value={form.resources} onChange={(e) => setForm({ ...form, resources: e.target.value })} placeholder="Books, websites, supplies needed" />
           </Field>
           <div className="bsf-two-col">
             <Field label="Start date">
