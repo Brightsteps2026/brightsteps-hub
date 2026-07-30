@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, Plus, X, Trash2, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Flag, Percent, Briefcase, FolderOpen, Award, Sparkles, Send } from "lucide-react";
+import AttachmentField from "./AttachmentField";
 
 let GRADES = [
   "Pre Nursery", "PreK", "Kindergarten",
@@ -708,7 +709,7 @@ function StudentsTab({ data, persist }) {
 
 function PortfolioTab({ data, persist }) {
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ studentId: "", tag: TAGS[0], note: "", author: "teacher" });
+  const [form, setForm] = useState({ studentId: "", tag: TAGS[0], note: "", author: "teacher", files: [] });
   const [formError, setFormError] = useState("");
 
   const entries = [...data.portfolio].sort((a, b) => b.date.localeCompare(a.date));
@@ -730,10 +731,11 @@ function PortfolioTab({ data, persist }) {
       tag: form.tag,
       note: form.note,
       author: form.author,
+      files: form.files,
       date: new Date().toISOString().slice(0, 10)
     };
     persist({ ...data, portfolio: [...data.portfolio, entry] });
-    setForm({ studentId: "", tag: TAGS[0], note: "", author: "teacher" });
+    setForm({ studentId: "", tag: TAGS[0], note: "", author: "teacher", files: [] });
     setFormError("");
     setShowAdd(false);
   };
@@ -763,6 +765,15 @@ function PortfolioTab({ data, persist }) {
                 </span>
               </div>
               <p>{p.note}</p>
+              {(p.files || []).length > 0 && (
+                <AttachmentField
+                  folder="portfolio"
+                  files={p.files}
+                  onChange={(files) =>
+                    persist({ ...data, portfolio: data.portfolio.map((e) => (e.id === p.id ? { ...e, files } : e)) })
+                  }
+                />
+              )}
             </div>
             <button className="bsf-iconbtn" onClick={() => removeEntry(p.id)} aria-label="Remove"><Trash2 size={16} /></button>
           </div>
@@ -807,6 +818,9 @@ function PortfolioTab({ data, persist }) {
               onChange={(e) => setForm({ ...form, note: e.target.value })}
               placeholder={form.author === "student" ? "In the student's own words" : "Describe the learning moment"}
             />
+          </Field>
+          <Field label="Attachments (optional)">
+            <AttachmentField folder="portfolio" files={form.files} onChange={(files) => setForm({ ...form, files })} />
           </Field>
           <button className="bsf-btn bsf-btn-block" onClick={addEntry}>Save entry</button>
           {formError && <p className="bsf-formerror">{formError}</p>}
@@ -1945,7 +1959,7 @@ function AdmissionsTab({ data, persist }) {
   );
 }
 
-const emptyAssignmentForm = { title: "", description: "", grades: [], subject: "", dueDate: "", link: "" };
+const emptyAssignmentForm = { title: "", description: "", grades: [], subject: "", dueDate: "", link: "", files: [] };
 
 function AssignmentsTab({ data, persist }) {
   const [showForm, setShowForm] = useState(false);
@@ -2008,6 +2022,17 @@ function AssignmentsTab({ data, persist }) {
         <strong>{a.title}</strong>
         {a.description && <p>{a.description}</p>}
         {a.link && <p className="bsf-muted">{a.link}</p>}
+        {(a.files || []).length > 0 && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <AttachmentField
+              folder="assignments"
+              files={a.files}
+              onChange={(files) =>
+                persist({ ...data, assignments: (data.assignments || []).map((x) => (x.id === a.id ? { ...x, files } : x)) })
+              }
+            />
+          </div>
+        )}
       </div>
       <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeAssignment(a.id); }} aria-label="Remove"><Trash2 size={16} /></button>
     </div>
@@ -2073,6 +2098,9 @@ function AssignmentsTab({ data, persist }) {
           </Field>
           <Field label="Link (optional)">
             <input value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} placeholder="Link to a worksheet or resource" />
+          </Field>
+          <Field label="Attachments (optional)">
+            <AttachmentField folder="assignments" files={form.files} onChange={(files) => setForm({ ...form, files })} />
           </Field>
           <button className="bsf-btn bsf-btn-block" onClick={saveAssignment}>{editingId ? "Save changes" : "Post assignment"}</button>
           {formError && <p className="bsf-formerror">{formError}</p>}
@@ -3988,6 +4016,13 @@ export default function BrightStepsHub() {
         .bsf-menu-item.active { background: var(--sand-deep); color: var(--gold-dark); }
         .bsf-alert-note { color: #B5473B; font-weight: 600; font-size: 12.5px; margin-top: 4px; }
         .bsf-formerror { color: #B5473B; font-weight: 600; font-size: 13px; margin-top: 8px; text-align: center; }
+        .bsf-attachments { margin-top: 8px; }
+        .bsf-attachment-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+        .bsf-attachment-chip { display: flex; align-items: center; justify-content: space-between; background: #F7F3F2; border-radius: 8px; padding: 6px 10px; }
+        .bsf-attachment-open { display: flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; font-size: 13px; color: #801524; padding: 0; }
+        .bsf-attachment-upload { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #801524; cursor: pointer; border: 1px dashed #cbb; border-radius: 8px; padding: 6px 10px; }
+        .bsf-spin { animation: bsf-spin 1s linear infinite; }
+        @keyframes bsf-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .bsf-resource-link { display: inline-block; color: var(--teal); font-size: 12.5px; word-break: break-all; margin-top: 4px; }
         .bsf-ai-screen { display: flex; flex-direction: column; }
         .bsf-ai-thread { display: flex; flex-direction: column; gap: 10px; padding: 4px; flex: 1; }
