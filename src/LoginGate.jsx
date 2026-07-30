@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext } from "react";
+ import React, { useState, useEffect, createContext, useContext } from "react";
 import { supabase } from "./lib/supabaseClient";
 
 // Any part of the app can call useAuth() to find out who is logged in
@@ -16,6 +16,7 @@ export default function LoginGate({ children }) {
   const [profileError, setProfileError] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -63,7 +64,10 @@ export default function LoginGate({ children }) {
     e.preventDefault();
     setFormError("");
     setSubmitting(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
     setSubmitting(false);
     if (error) {
       setFormError("Email or password is incorrect. Please try again.");
@@ -102,13 +106,21 @@ export default function LoginGate({ children }) {
             />
             <label style={styles.label}>Password</label>
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               style={styles.input}
               autoComplete="current-password"
             />
+            <label style={styles.checkboxRow}>
+              <input
+                type="checkbox"
+                checked={showPassword}
+                onChange={(e) => setShowPassword(e.target.checked)}
+              />
+              <span style={{ marginLeft: 6 }}>Show password</span>
+            </label>
             {formError && <p style={styles.error}>{formError}</p>}
             <button type="submit" disabled={submitting} style={styles.button}>
               {submitting ? "Signing in..." : "Sign In"}
@@ -204,5 +216,12 @@ const styles = {
     cursor: "pointer",
   },
   error: { color: "#c0392b", fontSize: 13, marginTop: 10 },
+  checkboxRow: {
+    display: "flex",
+    alignItems: "center",
+    marginTop: 8,
+    fontSize: 13,
+    color: "#555",
+  },
   footnote: { fontSize: 12, color: "#999", marginTop: 20 },
 };
