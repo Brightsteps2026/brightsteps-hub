@@ -1038,8 +1038,12 @@ function PlanningTab({ data, persist }) {
   const [detailId, setDetailId] = useState(null);
   const [form, setForm] = useState(emptyPlanForm);
   const [formError, setFormError] = useState("");
+  const [gradeFilter, setGradeFilter] = useState(null);
 
   const plans = [...data.plans].sort((a, b) => (a.startDate || "").localeCompare(b.startDate || ""));
+  const filtered = gradeFilter
+    ? plans.filter((p) => (p.grades || []).includes(gradeFilter))
+    : plans;
   const allSelected = form.grades.length === GRADES.length;
   const detailPlan = data.plans.find((p) => p.id === detailId);
 
@@ -1087,9 +1091,16 @@ function PlanningTab({ data, persist }) {
         <button className="bsf-btn" onClick={() => setShowAdd(true)}><Plus size={16} /> Add</button>
       </div>
 
+      <div className="bsf-chiprow">
+        <button className={`bsf-chip ${gradeFilter === null ? "active" : ""}`} onClick={() => setGradeFilter(null)}>All</button>
+        {GRADES.map((g) => (
+          <button key={g} className={`bsf-chip ${gradeFilter === g ? "active" : ""}`} onClick={() => setGradeFilter(g)}>{g}</button>
+        ))}
+      </div>
+
       <section className="bsf-list">
-        {plans.length === 0 && <p className="bsf-empty">No units planned yet.</p>}
-        {plans.map((p) => (
+        {filtered.length === 0 && <p className="bsf-empty">No units planned yet.</p>}
+        {filtered.map((p) => (
           <div key={p.id} className="bsf-card bsf-student bsf-clickable" onClick={() => setDetailId(p.id)}>
             <div>
               <div className="bsf-row-head">
