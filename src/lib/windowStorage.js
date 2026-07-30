@@ -25,7 +25,7 @@ async function get(key, shared = false) {
     .maybeSingle();
 
   if (error) throw error;
-  if (!data) throw new Error(`No value found for key: ${key}`);
+  if (!data) return null; // No row yet is a normal, expected case, not a failure.
   return { key, value: data.value, shared };
 }
 
