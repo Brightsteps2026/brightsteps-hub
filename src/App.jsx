@@ -7,7 +7,7 @@ import { useAuth } from "./LoginGate";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
 
 let GRADES = [
-  "Pre Nursery", "PreK", "Kindergarten",
+  "Pre-N", "PreK", "Kindergarten",
   "Grade 1", "Grade 2", "Grade 3", "Grade 4",
   "Grade 5", "Grade 6", "Grade 7"
 ];
@@ -52,6 +52,18 @@ const DEFAULT_SETTINGS = {
 const STORAGE_KEY = "brightsteps-hub-data";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+
+// Generates the next student ID number for the current year, e.g. 2026001, 2026002...
+// Numbering restarts at 001 each new calendar year.
+function nextStudentIdNumber(existingIdNumbers) {
+  const year = new Date().getFullYear();
+  const used = existingIdNumbers
+    .filter((n) => n && n.startsWith(String(year)))
+    .map((n) => parseInt(n.slice(String(year).length), 10))
+    .filter((n) => !isNaN(n));
+  const next = used.length ? Math.max(...used) + 1 : 1;
+  return `${year}${String(next).padStart(3, "0")}`;
+}
 
 const EVENT_TYPES = ["Academic", "Holiday", "Staff", "Event", "Meeting"];
 const EVENT_TYPE_COLOR = { Academic: "#2F6B7A", Holiday: "#B8842F", Staff: "#6E4E9E", Event: "#2F7A5C", Meeting: "#B5473B" };
@@ -136,7 +148,41 @@ function useSchoolData() {
             parsed.settings = { ...parsed.settings, branding: { ...parsed.settings.branding, logoUrl: BRIGHTSTEPS_LOGO_DATA_URI } };
           }
           syncGlobalsFromSettings(parsed.settings);
+
+          // Rename the old "Pre Nursery" grade name to the new "Pre-N" everywhere it is saved.
+          let renamedGrade = false;
+          if (parsed.settings && parsed.settings.grades && parsed.settings.grades.includes("Pre Nursery")) {
+            parsed.settings = {
+              ...parsed.settings,
+              grades: parsed.settings.grades.map((g) => (g === "Pre Nursery" ? "Pre-N" : g))
+            };
+            renamedGrade = true;
+          }
+          parsed.students = (parsed.students || []).map((s) => {
+            if (s.grade === "Pre Nursery") { renamedGrade = true; return { ...s, grade: "Pre-N" }; }
+            return s;
+          });
+          if (renamedGrade) {
+            syncGlobalsFromSettings(parsed.settings);
+          }
+
+          // Give every existing student a student ID number if they don't have one yet.
+          let studentsChanged = false;
+          const assignedSoFar = (parsed.students || []).map((s) => s.studentIdNumber).filter(Boolean);
+          parsed.students = (parsed.students || []).map((s) => {
+            if (s.studentIdNumber) return s;
+            const newIdNumber = nextStudentIdNumber(assignedSoFar);
+            assignedSoFar.push(newIdNumber);
+            studentsChanged = true;
+            return { ...s, studentIdNumber: newIdNumber };
+          });
+
           setData(parsed);
+          if (studentsChanged || renamedGrade) {
+            window.storage.set(STORAGE_KEY, JSON.stringify(parsed), true).catch((e) => {
+              console.error("Failed to save backfilled student ID numbers", e);
+            });
+          }
         }
         // No saved row yet is fine (brand new school), that is not an error.
         setLoaded(true);
@@ -581,7 +627,8 @@ function StudentMessages({ student, data, persist }) {
 }
 
 function ParentStudentView({ data, persist, profile }) {
-  const myStudents = data.students.filter((s) => s.id === profile?.student_id);
+  const linkedIds = profile?.student_ids || [];
+  const myStudents = data.students.filter((s) => linkedIds.includes(s.id));
 
   if (myStudents.length === 0) {
     return (
@@ -656,7 +703,9 @@ function StudentsTab({ data, persist }) {
     if (editingId) {
       persist({ ...data, students: data.students.map((s) => (s.id === editingId ? { ...s, ...record } : s)) });
     } else {
-      persist({ ...data, students: [...data.students, { id: uid(), ...record }] });
+      const existingIdNumbers = data.students.map((s) => s.studentIdNumber).filter(Boolean);
+      const studentIdNumber = nextStudentIdNumber(existingIdNumbers);
+      persist({ ...data, students: [...data.students, { id: uid(), studentIdNumber, ...record }] });
       setActiveGrade(null);
     }
     setForm(emptyStudentForm);
@@ -690,6 +739,7 @@ function StudentsTab({ data, persist }) {
             <div>
               <strong>{s.name}</strong>
               <p className="bsf-muted">{s.grade}{(s.nationalities && s.nationalities.length) ? ` · ${s.nationalities.join(", ")}` : (s.nationality ? ` · ${s.nationality}` : "")}</p>
+              {s.studentIdNumber && <p className="bsf-muted">ID: {s.studentIdNumber}</p>}
               {s.guardian1Name && <p className="bsf-muted">Guardian: {s.guardian1Name}{s.guardian1Phone ? ` · ${s.guardian1Phone}` : ""}</p>}
               {s.allergies && <p className="bsf-alert-note">Allergies: {s.allergies}</p>}
             </div>
