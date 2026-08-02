@@ -740,6 +740,7 @@ function StudentsTab({ data, persist }) {
               <strong>{s.name}</strong>
               <p className="bsf-muted">{s.grade}{(s.nationalities && s.nationalities.length) ? ` · ${s.nationalities.join(", ")}` : (s.nationality ? ` · ${s.nationality}` : "")}</p>
               {s.studentIdNumber && <p className="bsf-muted">ID: {s.studentIdNumber}</p>}
+              <p className="bsf-muted" style={{ fontSize: 11, opacity: 0.6 }}>Account link code: {s.id}</p>
               {s.guardian1Name && <p className="bsf-muted">Guardian: {s.guardian1Name}{s.guardian1Phone ? ` · ${s.guardian1Phone}` : ""}</p>}
               {s.allergies && <p className="bsf-alert-note">Allergies: {s.allergies}</p>}
             </div>
