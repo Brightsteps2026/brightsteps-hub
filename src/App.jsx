@@ -4075,6 +4075,17 @@ function BrightStepsHubInner() {
         .bsf-app h1, .bsf-app h2 { font-family: 'Fraunces', serif; margin: 0; }
         .bsf-app * { box-sizing: border-box; }
 
+        @media (min-width: 768px) {
+          .bsf-app {
+            max-width: 900px;
+          }
+        }
+        @media (min-width: 1200px) {
+          .bsf-app {
+            max-width: 1100px;
+          }
+        }
+
         .bsf-topbar {
           padding: 18px 20px 12px;
           background: var(--teal);
