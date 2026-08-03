@@ -289,6 +289,45 @@ function GradeLadder({ counts, activeGrade, onSelect }) {
   );
 }
 
+const SHORT_GRADE_LABEL = {
+  "Pre-N": "Pre-N", "PreK": "PreK", "Kindergarten": "K",
+  "Grade 1": "1", "Grade 2": "2", "Grade 3": "3", "Grade 4": "4",
+  "Grade 5": "5", "Grade 6": "6", "Grade 7": "7"
+};
+
+function EnrollmentStairs({ counts }) {
+  const max = Math.max(1, ...GRADES.map((g) => counts[g] || 0));
+  return (
+    <div className="bsf-stairs">
+      {GRADES.map((g) => {
+        const count = counts[g] || 0;
+        const heightPct = count === 0 ? 6 : 18 + (count / max) * 82;
+        return (
+          <div key={g} className="bsf-stair">
+            <span className="bsf-stair-count">{count > 0 ? count : ""}</span>
+            <span className="bsf-stair-bar" style={{ height: `${heightPct}%` }} />
+            <span className="bsf-stair-label">{SHORT_GRADE_LABEL[g] || g}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function AvatarStack({ students }) {
+  if (!students.length) return null;
+  return (
+    <div className="bsf-avatar-stack">
+      {students.slice(0, 6).map((s, i) => (
+        <div key={s.id} className="bsf-avatar-stack-item" style={{ zIndex: 10 - i }}>
+          <StudentThumb photo={s.photo} />
+        </div>
+      ))}
+      {students.length > 6 && <div className="bsf-avatar-stack-more">+{students.length - 6}</div>}
+    </div>
+  );
+}
+
 function Dashboard({ data, profile }) {
   const { t, language } = useLanguage();
   const settings = data.settings || DEFAULT_SETTINGS;
@@ -315,19 +354,27 @@ function Dashboard({ data, profile }) {
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 2);
 
+  const recentStudents = isParent
+    ? myStudents
+    : [...data.students].sort((a, b) => (b.studentIdNumber || "").localeCompare(a.studentIdNumber || "")).slice(0, 6);
+
   return (
     <div className="bsf-screen">
       <div className="bsf-hero">
         <p className="bsf-eyebrow">{t("dashboard.eyebrow")}</p>
         <h1>{isParent ? "Welcome back" : "BrightSteps at a glance"}</h1>
         {isParent ? (
-          <p className="bsf-hero-sub">
-            {myStudents.length === 0
-              ? "No child linked to your account yet."
-              : myStudents.map((s) => s.name).join(" · ")}
-          </p>
+          myStudents.length === 0 ? (
+            <p className="bsf-hero-sub">No child linked to your account yet.</p>
+          ) : null
         ) : (
           <p className="bsf-hero-sub">{total} student{total === 1 ? "" : "s"} across {Object.keys(counts).length} grade level{Object.keys(counts).length === 1 ? "" : "s"}</p>
+        )}
+        {recentStudents.length > 0 && (
+          <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 12 }}>
+            <AvatarStack students={recentStudents} />
+            {isParent && <span className="bsf-hero-names">{myStudents.map((s) => s.name.split(" ")[0]).join(" & ")}</span>}
+          </div>
         )}
         {settings.branding.mission && <p className="bsf-mission">{settings.branding.mission}</p>}
         {(settings.academicYear.startDate || settings.academicYear.endDate) && (
@@ -336,55 +383,63 @@ function Dashboard({ data, profile }) {
       </div>
 
       {!isParent && (
-        <section className="bsf-card">
+        <section className="bsf-card bsf-stairs-card">
           <h2>Enrollment by grade</h2>
-          <GradeLadder counts={counts} activeGrade={null} onSelect={() => {}} />
+          <EnrollmentStairs counts={counts} />
         </section>
       )}
 
-      <section className="bsf-card">
-        <h2>Next up</h2>
-        {nextEvents.length === 0 && <p className="bsf-empty">Nothing scheduled yet. Add one from the Calendar tab.</p>}
-        {nextEvents.map((e) => (
-          <div key={e.id} className="bsf-row">
-            <span
-              className="bsf-status-pill"
-              style={{ background: `${EVENT_TYPE_COLOR[e.type]}1A`, color: EVENT_TYPE_COLOR[e.type] }}
-            >
-              {e.type}
-            </span>
-            <div>
-              <strong>{e.title}</strong>
-              <p>{e.date}{e.endDate && e.endDate !== e.date ? ` to ${e.endDate}` : ""}</p>
+      <div className="bsf-dashboard-grid">
+        <section className="bsf-card">
+          <h2>Next up</h2>
+          {nextEvents.length === 0 && <p className="bsf-empty">Nothing scheduled yet.{!isParent && " Add one from the Calendar tab."}</p>}
+          {nextEvents.map((e) => (
+            <div key={e.id} className="bsf-row">
+              <span
+                className="bsf-status-pill"
+                style={{ background: `${EVENT_TYPE_COLOR[e.type]}1A`, color: EVENT_TYPE_COLOR[e.type] }}
+              >
+                {e.type}
+              </span>
+              <div>
+                <strong>{e.title}</strong>
+                <p>{e.date}{e.endDate && e.endDate !== e.date ? ` to ${e.endDate}` : ""}</p>
+              </div>
             </div>
-          </div>
-        ))}
-      </section>
+          ))}
+        </section>
+
+        <section className="bsf-card">
+          <h2>Family updates</h2>
+          {recentAnnouncements.length === 0 && <p className="bsf-empty">Nothing posted yet.{!isParent && " Share one from Family Updates."}</p>}
+          {recentAnnouncements.map((a) => {
+            const showFrench = isParent && language === "fr" && a.titleFr;
+            return (
+              <div key={a.id} className="bsf-row">
+                <div>
+                  <strong>{showFrench ? a.titleFr : a.titleEn}</strong>
+                  <p>{showFrench ? a.bodyFr : a.bodyEn}</p>
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      </div>
 
       <section className="bsf-card">
         <h2>{isParent ? "Latest portfolio entries for your child" : "Latest portfolio entries"}</h2>
         {recentPortfolio.length === 0 && <p className="bsf-empty">No entries yet.{!isParent && " Add one from the Portfolio tab."}</p>}
-        {recentPortfolio.map((p) => (
-          <div key={p.id} className="bsf-row">
-            <span className="bsf-tag">{p.tag}</span>
-            <div>
-              <strong>{p.studentName}</strong>
-              <p>{p.note}</p>
-            </div>
-          </div>
-        ))}
-      </section>
-
-      <section className="bsf-card">
-        <h2>Latest family updates</h2>
-        {recentAnnouncements.length === 0 && <p className="bsf-empty">Nothing posted yet.{!isParent && " Share one from Family Updates."}</p>}
-        {recentAnnouncements.map((a) => {
-          const showFrench = isParent && language === "fr" && a.titleFr;
+        {recentPortfolio.map((p) => {
+          const student = data.students.find((s) => s.id === p.studentId);
           return (
-            <div key={a.id} className="bsf-row">
-              <div>
-                <strong>{showFrench ? a.titleFr : a.titleEn}</strong>
-                <p>{showFrench ? a.bodyFr : a.bodyEn}</p>
+            <div key={p.id} className="bsf-row bsf-portfolio-row">
+              {student && <StudentThumb photo={student.photo} />}
+              <div style={{ flex: 1 }}>
+                <div className="bsf-row-head">
+                  <strong>{p.studentName}</strong>
+                  <span className="bsf-tag">{p.tag}</span>
+                </div>
+                <p>{p.note}</p>
               </div>
             </div>
           );
@@ -4593,6 +4648,42 @@ function BrightStepsHubInner() {
         .bsf-eyebrow { font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold-dark); font-weight: 700; margin: 0 0 6px; }
         .bsf-hero h1 { font-size: 27px; line-height: 1.15; font-weight: 600; }
         .bsf-hero-sub { margin: 8px 0 0; color: var(--teal-light); font-weight: 500; }
+        .bsf-hero-names { font-family: 'Fraunces', serif; font-size: 16px; font-weight: 600; color: var(--ink); }
+
+        .bsf-avatar-stack { display: flex; align-items: center; }
+        .bsf-avatar-stack-item {
+          margin-left: -10px; border: 2.5px solid var(--white); border-radius: 50%;
+          box-shadow: var(--shadow-sm); background: var(--white);
+        }
+        .bsf-avatar-stack-item:first-child { margin-left: 0; }
+        .bsf-avatar-stack-item .bsf-student-thumb { width: 38px; height: 38px; }
+        .bsf-avatar-stack-more {
+          margin-left: -10px; width: 38px; height: 38px; border-radius: 50%;
+          background: var(--sand-deep); color: var(--gold-dark); border: 2.5px solid var(--white);
+          display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;
+        }
+
+        .bsf-stairs-card { padding-bottom: 20px; }
+        .bsf-stairs {
+          display: flex; align-items: flex-end; gap: 5px; height: 130px; margin-top: 8px;
+          padding: 0 2px;
+        }
+        .bsf-stair { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+        .bsf-stair-count { font-size: 10.5px; font-weight: 700; color: #8A9698; margin-bottom: 4px; height: 13px; }
+        .bsf-stair-bar {
+          width: 100%; max-width: 30px; border-radius: 7px 7px 3px 3px;
+          background: linear-gradient(180deg, var(--teal-light) 0%, var(--teal) 100%);
+          transition: height 0.4s ease;
+        }
+        .bsf-stair-label { font-size: 9.5px; font-weight: 600; color: #8A9698; margin-top: 6px; white-space: nowrap; }
+
+        .bsf-dashboard-grid { display: flex; flex-direction: column; gap: 14px; }
+        .bsf-dashboard-grid .bsf-card { margin-bottom: 0; }
+        @media (min-width: 640px) {
+          .bsf-dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+        }
+
+        .bsf-portfolio-row { display: flex; align-items: flex-start; gap: 10px; }
 
         .bsf-screen-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding: 4px; }
         .bsf-screen-head h1 { font-size: 22px; font-weight: 600; }
@@ -4678,10 +4769,10 @@ function BrightStepsHubInner() {
           cursor: pointer;
           text-align: left;
         }
-        .bsf-rung.active { border-color: var(--gold); background: #FBF6E9; }
+        .bsf-rung.active { border-color: var(--teal-light); background: var(--sand-deep); }
         .bsf-rung-label { font-size: 12px; color: var(--ink); font-weight: 500; }
         .bsf-rung-track { height: 8px; background: var(--sand-deep); border-radius: 6px; overflow: hidden; }
-        .bsf-rung-fill { display: block; height: 100%; background: linear-gradient(90deg, var(--teal-light), var(--gold)); border-radius: 6px; }
+        .bsf-rung-fill { display: block; height: 100%; background: linear-gradient(90deg, var(--teal-light), var(--teal)); border-radius: 6px; }
         .bsf-rung-count { font-size: 12px; color: #6E7B7D; text-align: right; }
 
         .bsf-tabbar {
