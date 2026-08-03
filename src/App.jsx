@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, Plus, X, Trash2, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Flag, Percent, Briefcase, FolderOpen, Award, Sparkles, Send } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, Plus, X, Trash2, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Flag, Percent, Briefcase, FolderOpen, Award, Sparkles, Send, LogOut } from "lucide-react";
 import AttachmentField from "./AttachmentField";
 import StudentPhotoField from "./StudentPhotoField";
 import { getAttachmentUrl } from "./lib/attachments";
@@ -629,6 +629,9 @@ function StudentMessages({ student, data, persist }) {
 function ParentStudentView({ data, persist, profile }) {
   const linkedIds = profile?.student_ids || [];
   const myStudents = data.students.filter((s) => linkedIds.includes(s.id));
+  const [activeChildId, setActiveChildId] = useState(null);
+
+  const activeStudent = myStudents.find((s) => s.id === activeChildId) || myStudents[0];
 
   if (myStudents.length === 0) {
     return (
@@ -642,21 +645,46 @@ function ParentStudentView({ data, persist, profile }) {
   return (
     <div className="bsf-screen">
       <div className="bsf-screen-head"><h1>My child</h1></div>
-      {myStudents.map((student) => (
-        <section key={student.id} className="bsf-card">
+
+      {myStudents.length > 1 && (
+        <div className="bsf-card" style={{ display: "flex", gap: 10, overflowX: "auto", padding: 12 }}>
+          {myStudents.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setActiveChildId(s.id)}
+              style={{
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                background: "none", border: "none", cursor: "pointer", flexShrink: 0,
+                opacity: (activeStudent && activeStudent.id === s.id) ? 1 : 0.5
+              }}
+            >
+              <div style={{
+                border: (activeStudent && activeStudent.id === s.id) ? "2px solid #801524" : "2px solid transparent",
+                borderRadius: "50%", padding: 2
+              }}>
+                <StudentThumb photo={s.photo} />
+              </div>
+              <span style={{ fontSize: 12 }}>{s.firstName || s.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {activeStudent && (
+        <section key={activeStudent.id} className="bsf-card">
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-            <StudentThumb photo={student.photo} />
+            <StudentThumb photo={activeStudent.photo} />
             <div>
-              <strong>{student.name}</strong>
-              <p className="bsf-muted">{student.grade}</p>
+              <strong>{activeStudent.name}</strong>
+              <p className="bsf-muted">{activeStudent.grade}</p>
             </div>
           </div>
-          {student.allergies && <p className="bsf-alert-note">Allergies: {student.allergies}</p>}
-          {student.medicalConditions && <p className="bsf-alert-note">Medical: {student.medicalConditions}</p>}
+          {activeStudent.allergies && <p className="bsf-alert-note">Allergies: {activeStudent.allergies}</p>}
+          {activeStudent.medicalConditions && <p className="bsf-alert-note">Medical: {activeStudent.medicalConditions}</p>}
           <hr className="bsf-divider" />
-          <StudentMessages student={student} data={data} persist={persist} />
+          <StudentMessages student={activeStudent} data={data} persist={persist} />
         </section>
-      ))}
+      )}
     </div>
   );
 }
@@ -4039,7 +4067,7 @@ export default function BrightStepsHub() {
 }
 
 function BrightStepsHubInner() {
-  const { profile } = useAuth();
+  const { profile, signOut } = useAuth();
   const { data, persist, loaded, saving, loadError } = useSchoolData();
   const { t, language, canSwitch, setLanguage } = useLanguage();
   const [tab, setTab] = useState("dashboard");
@@ -4544,26 +4572,29 @@ function BrightStepsHubInner() {
           <button className="bsf-iconbtn bsf-settingsbtn" onClick={() => setShowSettings(true)} aria-label={t("top.settings")}>
             <SettingsIcon size={18} />
           </button>
+          <button className="bsf-iconbtn bsf-settingsbtn" onClick={() => signOut()} aria-label={t("settings.signOut")} title={t("settings.signOut")}>
+            <LogOut size={18} />
+          </button>
         </div>
       </div>
 
       {tab === "dashboard" && <Dashboard data={data} />}
       {tab === "students" && (isParent ? <ParentStudentView data={data} persist={persist} profile={profile} /> : <StudentsTab data={data} persist={persist} />)}
-      {tab === "classes" && <ClassesTab data={data} persist={persist} />}
-      {tab === "staff" && <StaffTab data={data} persist={persist} />}
+      {tab === "classes" && !isParent && <ClassesTab data={data} persist={persist} />}
+      {tab === "staff" && !isParent && <StaffTab data={data} persist={persist} />}
       {tab === "attendance" && <AttendanceTab data={data} persist={persist} />}
       {tab === "portfolio" && <PortfolioTab data={data} persist={persist} />}
       {tab === "assessment" && <AssessmentTab data={data} persist={persist} />}
       {tab === "gradebook" && <GradebookTab data={data} persist={persist} onNavigate={goTo} />}
       {tab === "planning" && <PlanningTab data={data} persist={persist} />}
       {tab === "calendar" && <CalendarTab data={data} persist={persist} />}
-      {tab === "admissions" && <AdmissionsTab data={data} persist={persist} />}
+      {tab === "admissions" && !isParent && <AdmissionsTab data={data} persist={persist} />}
       {tab === "assignments" && <AssignmentsTab data={data} persist={persist} />}
-      {tab === "reports" && <ReportsTab data={data} persist={persist} />}
-      {tab === "behavior" && <BehaviorTab data={data} persist={persist} />}
-      {tab === "resources" && <ResourcesTab data={data} persist={persist} />}
-      {tab === "accreditation" && <AccreditationTab data={data} persist={persist} />}
-      {tab === "ai" && <AIAssistantTab data={data} />}
+      {tab === "reports" && !isParent && <ReportsTab data={data} persist={persist} />}
+      {tab === "behavior" && !isParent && <BehaviorTab data={data} persist={persist} />}
+      {tab === "resources" && !isParent && <ResourcesTab data={data} persist={persist} />}
+      {tab === "accreditation" && !isParent && <AccreditationTab data={data} persist={persist} />}
+      {tab === "ai" && !isParent && <AIAssistantTab data={data} />}
       {tab === "updates" && <UpdatesTab data={data} persist={persist} />}
 
       {showSettings && <SettingsModal data={data} persist={persist} onClose={() => setShowSettings(false)} />}
