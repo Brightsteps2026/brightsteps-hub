@@ -290,7 +290,7 @@ function GradeLadder({ counts, activeGrade, onSelect }) {
 }
 
 function Dashboard({ data, profile }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const settings = data.settings || DEFAULT_SETTINGS;
   const isParent = profile?.role === "parent";
   const linkedIds = profile?.student_ids || [];
@@ -378,14 +378,17 @@ function Dashboard({ data, profile }) {
       <section className="bsf-card">
         <h2>Latest family updates</h2>
         {recentAnnouncements.length === 0 && <p className="bsf-empty">Nothing posted yet.{!isParent && " Share one from Family Updates."}</p>}
-        {recentAnnouncements.map((a) => (
-          <div key={a.id} className="bsf-row">
-            <div>
-              <strong>{a.titleEn}</strong>
-              <p>{a.bodyEn}</p>
+        {recentAnnouncements.map((a) => {
+          const showFrench = isParent && language === "fr" && a.titleFr;
+          return (
+            <div key={a.id} className="bsf-row">
+              <div>
+                <strong>{showFrench ? a.titleFr : a.titleEn}</strong>
+                <p>{showFrench ? a.bodyFr : a.bodyEn}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </section>
     </div>
   );
@@ -1742,55 +1745,136 @@ function PlanningTab({ data, persist }) {
 }
 
 function UpdatesTab({ data, persist }) {
+  const { profile } = useAuth();
+  const { language } = useLanguage();
+  const isParent = profile?.role === "parent";
+  const isTeacherRole = profile?.role === "teacher" || profile?.role === "learning_assistant";
+  const myAssignedGrades = profile?.grades_assigned || [];
+  const linkedIds = profile?.student_ids || [];
+  const myChildGrades = isParent ? [...new Set(data.students.filter((s) => linkedIds.includes(s.id)).map((s) => s.grade))] : [];
+
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ titleEn: "", bodyEn: "", titleFr: "", bodyFr: "" });
+  const [form, setForm] = useState({ titleEn: "", bodyEn: "", titleFr: "", bodyFr: "", grades: [] });
   const [formError, setFormError] = useState("");
 
-  const posts = [...data.announcements].sort((a, b) => b.date.localeCompare(a.date));
+  const allPosts = [...data.announcements].sort((a, b) => b.date.localeCompare(a.date));
+  const posts = isParent
+    ? allPosts.filter((a) => !a.grades || a.grades.length === 0 || a.grades.some((g) => myChildGrades.includes(g)))
+    : allPosts;
+
+  const toggleGrade = (g) => {
+    setForm((f) => ({ ...f, grades: f.grades.includes(g) ? f.grades.filter((x) => x !== g) : [...f.grades, g] }));
+  };
 
   const addPost = () => {
     if (!form.titleEn.trim()) {
       setFormError("Please add an English title before posting.");
       return;
     }
+    if (isTeacherRole && form.grades.length === 0) {
+      setFormError("Please choose at least one of your grades to send this to.");
+      return;
+    }
     const post = { id: uid(), ...form, date: new Date().toISOString().slice(0, 10) };
     persist({ ...data, announcements: [...data.announcements, post] });
-    setForm({ titleEn: "", bodyEn: "", titleFr: "", bodyFr: "" });
+    setForm({ titleEn: "", bodyEn: "", titleFr: "", bodyFr: "", grades: [] });
     setFormError("");
     setShowAdd(false);
   };
 
   const removePost = (id) => persist({ ...data, announcements: data.announcements.filter((a) => a.id !== id) });
 
+  const audienceLabel = (a) => {
+    if (!a.grades || a.grades.length === 0) return "Whole school";
+    return a.grades.join(", ");
+  };
+
   return (
     <div className="bsf-screen">
       <div className="bsf-screen-head">
         <h1>Family Updates</h1>
-        <button className="bsf-btn" onClick={() => { setFormError(""); setShowAdd(true); }}><Plus size={16} /> Post</button>
+        {!isParent && <button className="bsf-btn" onClick={() => { setFormError(""); setForm({ titleEn: "", bodyEn: "", titleFr: "", bodyFr: "", grades: isTeacherRole ? [] : [] }); setShowAdd(true); }}><Plus size={16} /> Post</button>}
       </div>
 
       <section className="bsf-list">
         {posts.length === 0 && <p className="bsf-empty">Nothing posted yet.</p>}
-        {posts.map((a) => (
-          <div key={a.id} className="bsf-card bsf-student">
-            <div>
-              <span className="bsf-muted">{a.date}</span>
-              <strong>{a.titleEn}</strong>
-              <p>{a.bodyEn}</p>
-              {a.titleFr && (
-                <div className="bsf-fr-block">
-                  <strong>{a.titleFr}</strong>
-                  <p>{a.bodyFr}</p>
+        {posts.map((a) => {
+          if (isParent) {
+            const showFrench = language === "fr" && a.titleFr;
+            return (
+              <div key={a.id} className="bsf-card bsf-student">
+                <div>
+                  <span className="bsf-muted">{a.date}</span>
+                  <strong>{showFrench ? a.titleFr : a.titleEn}</strong>
+                  <p>{showFrench ? a.bodyFr : a.bodyEn}</p>
                 </div>
-              )}
+              </div>
+            );
+          }
+          return (
+            <div key={a.id} className="bsf-card bsf-student">
+              <div>
+                <div className="bsf-row-head">
+                  <span className="bsf-muted">{a.date}</span>
+                  <span className="bsf-tag">{audienceLabel(a)}</span>
+                </div>
+                <strong>{a.titleEn}</strong>
+                <p>{a.bodyEn}</p>
+                {a.titleFr && (
+                  <div className="bsf-fr-block">
+                    <strong>{a.titleFr}</strong>
+                    <p>{a.bodyFr}</p>
+                  </div>
+                )}
+              </div>
+              <button className="bsf-iconbtn" onClick={() => removePost(a.id)} aria-label="Remove"><Trash2 size={16} /></button>
             </div>
-            <button className="bsf-iconbtn" onClick={() => removePost(a.id)} aria-label="Remove"><Trash2 size={16} /></button>
-          </div>
-        ))}
+          );
+        })}
       </section>
 
       {showAdd && (
         <Modal title="New family update" onClose={() => setShowAdd(false)}>
+          <Field label={isTeacherRole ? "Send to (choose your grade or grades)" : "Send to"}>
+            <div className="bsf-chiprow">
+              {isTeacherRole ? (
+                myAssignedGrades.length === 0 ? (
+                  <p className="bsf-empty">You don't have any grades assigned yet. Ask your administrator.</p>
+                ) : (
+                  myAssignedGrades.map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      className={`bsf-chip ${form.grades.includes(g) ? "active" : ""}`}
+                      onClick={() => toggleGrade(g)}
+                    >
+                      {g}
+                    </button>
+                  ))
+                )
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className={`bsf-chip ${form.grades.length === 0 ? "active" : ""}`}
+                    onClick={() => setForm({ ...form, grades: [] })}
+                  >
+                    Whole school
+                  </button>
+                  {GRADES.map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      className={`bsf-chip ${form.grades.includes(g) ? "active" : ""}`}
+                      onClick={() => toggleGrade(g)}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+          </Field>
           <Field label="Title (English)">
             <input value={form.titleEn} onChange={(e) => setForm({ ...form, titleEn: e.target.value })} />
           </Field>
@@ -1815,12 +1899,17 @@ const STATUS_CYCLE = ["present", "absent", "late"];
 const STATUS_LABEL = { present: "Present", absent: "Absent", late: "Late" };
 const STATUS_COLOR = { present: "#2F7A5C", absent: "#B5473B", late: "#B8842F" };
 
-function AttendanceTab({ data, persist }) {
+function AttendanceTab({ data, persist, profile }) {
   const [date, setDate] = useState(todayStr());
-  const [activeGrade, setActiveGrade] = useState(GRADES[0]);
+  const isParent = profile?.role === "parent";
+  const linkedIds = profile?.student_ids || [];
+  const myGrades = isParent ? [...new Set(data.students.filter((s) => linkedIds.includes(s.id)).map((s) => s.grade))] : [];
+  const [activeGrade, setActiveGrade] = useState(isParent ? (myGrades[0] || null) : GRADES[0]);
 
   const dayRecord = data.attendance[date] || {};
-  const gradeStudents = data.students.filter((s) => s.grade === activeGrade);
+  const gradeStudents = isParent
+    ? data.students.filter((s) => linkedIds.includes(s.id) && s.grade === activeGrade)
+    : data.students.filter((s) => s.grade === activeGrade);
 
   const setStatus = (studentId, status) => {
     const nextDay = { ...dayRecord, [studentId]: status };
@@ -1828,6 +1917,7 @@ function AttendanceTab({ data, persist }) {
   };
 
   const cycleStatus = (studentId) => {
+    if (isParent) return;
     const current = dayRecord[studentId];
     const idx = current ? STATUS_CYCLE.indexOf(current) : -1;
     const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
@@ -1856,32 +1946,60 @@ function AttendanceTab({ data, persist }) {
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bsf-dateinput" />
       </div>
 
-      <section className="bsf-card">
-        <h2>Grade</h2>
-        <div className="bsf-chiprow">
-          {GRADES.map((g) => (
-            <button key={g} className={`bsf-chip ${activeGrade === g ? "active" : ""}`} onClick={() => setActiveGrade(g)}>
-              {g}
-            </button>
-          ))}
-        </div>
-      </section>
+      {isParent && myGrades.length > 1 && (
+        <section className="bsf-card">
+          <h2>Grade</h2>
+          <div className="bsf-chiprow">
+            {myGrades.map((g) => (
+              <button key={g} className={`bsf-chip ${activeGrade === g ? "active" : ""}`} onClick={() => setActiveGrade(g)}>
+                {g}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!isParent && (
+        <section className="bsf-card">
+          <h2>Grade</h2>
+          <div className="bsf-chiprow">
+            {GRADES.map((g) => (
+              <button key={g} className={`bsf-chip ${activeGrade === g ? "active" : ""}`} onClick={() => setActiveGrade(g)}>
+                {g}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="bsf-card">
         <div className="bsf-row-head">
           <h2>{activeGrade}</h2>
-          <button className="bsf-btn" onClick={markAllPresent} disabled={gradeStudents.length === 0}>Mark all present</button>
+          {!isParent && <button className="bsf-btn" onClick={markAllPresent} disabled={gradeStudents.length === 0}>Mark all present</button>}
         </div>
         <p className="bsf-muted">
-          {summary.present} present · {summary.absent} absent · {summary.late} late · {summary.unmarked} unmarked
+          {summary.present} present · {summary.absent} absent · {summary.late} late{!isParent ? ` · ${summary.unmarked} unmarked` : ""}
         </p>
       </section>
 
       <section className="bsf-list">
-        {gradeStudents.length === 0 && <p className="bsf-empty">No students in this grade yet.</p>}
+        {gradeStudents.length === 0 && <p className="bsf-empty">{isParent ? "No attendance recorded yet." : "No students in this grade yet."}</p>}
         {gradeStudents.map((s) => {
           const status = dayRecord[s.id];
-          return (
+          return isParent ? (
+            <div key={s.id} className="bsf-card bsf-attend-row">
+              <span><strong>{s.name}</strong></span>
+              <span
+                className="bsf-status-pill"
+                style={{
+                  background: status ? `${STATUS_COLOR[status]}1A` : "#EEE6D2",
+                  color: status ? STATUS_COLOR[status] : "#8A9698"
+                }}
+              >
+                {status ? STATUS_LABEL[status] : "Not marked yet"}
+              </span>
+            </div>
+          ) : (
             <button key={s.id} className="bsf-card bsf-attend-row" onClick={() => cycleStatus(s.id)}>
               <span>
                 <strong>{s.name}</strong>
@@ -2025,6 +2143,7 @@ function AssessmentTab({ data, persist, profile }) {
 
   const isParent = profile?.role === "parent";
   const linkedIds = profile?.student_ids || [];
+  const myGrades = isParent ? [...new Set(data.students.filter((s) => linkedIds.includes(s.id)).map((s) => s.grade))] : [];
 
   const assessments = [...(data.assessments || [])]
     .filter((a) => !isParent || linkedIds.includes(a.studentId))
@@ -2109,12 +2228,12 @@ function AssessmentTab({ data, persist, profile }) {
       {data.students.length === 0 && !isParent && <p className="bsf-empty">Add students first, then record assessments here.</p>}
       {isParent && filtered.length === 0 && <p className="bsf-empty">No assessment records yet for your child.</p>}
 
-      {data.students.length > 0 && (
+      {data.students.length > 0 && (!isParent || myGrades.length > 1) && (
         <section className="bsf-card">
           <h2>Filter by grade</h2>
           <div className="bsf-chiprow">
             <button className={`bsf-chip ${gradeFilter === null ? "active" : ""}`} onClick={() => setGradeFilter(null)}>All</button>
-            {GRADES.map((g) => (
+            {(isParent ? myGrades : GRADES).map((g) => (
               <button key={g} className={`bsf-chip ${gradeFilter === g ? "active" : ""}`} onClick={() => setGradeFilter(g)}>{g}</button>
             ))}
           </div>
@@ -4934,7 +5053,7 @@ function BrightStepsHubInner() {
       {tab === "students" && (isParent ? <ParentStudentView data={data} persist={persist} profile={profile} /> : <StudentsTab data={data} persist={persist} />)}
       {tab === "classes" && !isParent && <ClassesTab data={data} persist={persist} />}
       {tab === "staff" && !isParent && <StaffTab data={data} persist={persist} />}
-      {tab === "attendance" && <AttendanceTab data={data} persist={persist} />}
+      {tab === "attendance" && <AttendanceTab data={data} persist={persist} profile={profile} />}
       {tab === "portfolio" && <PortfolioTab data={data} persist={persist} />}
       {tab === "assessment" && <AssessmentTab data={data} persist={persist} profile={profile} />}
       {tab === "gradebook" && !isParent && <GradebookTab data={data} persist={persist} onNavigate={goTo} />}

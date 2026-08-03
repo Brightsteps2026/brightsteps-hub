@@ -124,7 +124,8 @@ export default function LoginGate({ children }) {
   if (session === undefined) {
     return (
       <div style={styles.centerScreen}>
-        <p style={{ color: "#666" }}>Loading BrightSteps Hub...</p>
+        <BrandStyles />
+        <p style={{ color: "#F0D9DD", fontFamily: "'Work Sans', sans-serif" }}>Loading BrightSteps Hub...</p>
       </div>
     );
   }
@@ -132,7 +133,9 @@ export default function LoginGate({ children }) {
   if (!session) {
     return (
       <div style={styles.centerScreen}>
+        <BrandStyles />
         <div style={styles.card}>
+          <Logo />
           <h1 style={styles.title}>BrightSteps Hub</h1>
           <p style={styles.subtitle}>Please sign in to continue</p>
           <form onSubmit={handleSubmit}>
@@ -143,6 +146,7 @@ export default function LoginGate({ children }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               style={styles.input}
+              className="bsh-input"
               autoComplete="username"
             />
             <label style={styles.label}>Password</label>
@@ -152,6 +156,7 @@ export default function LoginGate({ children }) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               style={styles.input}
+              className="bsh-input"
               autoComplete="current-password"
             />
             <label style={styles.checkboxRow}>
@@ -163,8 +168,8 @@ export default function LoginGate({ children }) {
               <span style={{ marginLeft: 6 }}>Show password</span>
             </label>
             {formError && <p style={styles.error}>{formError}</p>}
-            <button type="submit" disabled={submitting} style={styles.button}>
-              {submitting ? "Signing in..." : "Sign In"}
+            <button type="submit" disabled={submitting} style={styles.button} className="bsh-btn">
+              {submitting ? "Signing in..." : "Sign in"}
             </button>
           </form>
           <p style={styles.footnote}>
@@ -178,11 +183,13 @@ export default function LoginGate({ children }) {
   if (profileError) {
     return (
       <div style={styles.centerScreen}>
+        <BrandStyles />
         <div style={styles.card}>
+          <Logo />
           <h1 style={styles.title}>BrightSteps Hub</h1>
-          <p style={{ color: "#801524", marginTop: 16 }}>{profileError}</p>
-          <button onClick={handleSignOut} style={{ ...styles.button, marginTop: 20 }}>
-            Sign Out
+          <p style={{ color: "#801524", marginTop: 16, fontFamily: "'Work Sans', sans-serif", fontSize: 14 }}>{profileError}</p>
+          <button onClick={handleSignOut} style={{ ...styles.button, marginTop: 20 }} className="bsh-btn">
+            Sign out
           </button>
         </div>
       </div>
@@ -192,7 +199,8 @@ export default function LoginGate({ children }) {
   if (!profile) {
     return (
       <div style={styles.centerScreen}>
-        <p style={{ color: "#666" }}>Loading your account...</p>
+        <BrandStyles />
+        <p style={{ color: "#F0D9DD", fontFamily: "'Work Sans', sans-serif" }}>Loading your account...</p>
       </div>
     );
   }
@@ -200,7 +208,9 @@ export default function LoginGate({ children }) {
   if (!profile.password_changed) {
     return (
       <div style={styles.centerScreen}>
+        <BrandStyles />
         <div style={styles.card}>
+          <Logo />
           <h1 style={styles.title}>Welcome to BrightSteps Hub</h1>
           <p style={styles.subtitle}>
             For your security, please choose your own password before continuing.
@@ -213,6 +223,7 @@ export default function LoginGate({ children }) {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               style={styles.input}
+              className="bsh-input"
               autoComplete="new-password"
               placeholder="At least 6 characters"
             />
@@ -223,16 +234,18 @@ export default function LoginGate({ children }) {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               style={styles.input}
+              className="bsh-input"
               autoComplete="new-password"
             />
             {passwordSetError && <p style={styles.error}>{passwordSetError}</p>}
-            <button type="submit" disabled={settingPassword} style={styles.button}>
+            <button type="submit" disabled={settingPassword} style={styles.button} className="bsh-btn">
               {settingPassword ? "Setting password..." : "Set password and continue"}
             </button>
           </form>
           <button
             onClick={handleSignOut}
-            style={{ ...styles.button, marginTop: 12, background: "transparent", color: "#801524", border: "1px solid #801524" }}
+            style={{ ...styles.button, marginTop: 12, background: "transparent", color: "#801524", border: "1px solid #E2C6CB", boxShadow: "none" }}
+            className="bsh-btn-ghost"
           >
             Sign out
           </button>
@@ -248,62 +261,100 @@ export default function LoginGate({ children }) {
   );
 }
 
+function BrandStyles() {
+  return (
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;0,700&family=Work+Sans:wght@400;500;600;700&display=swap');
+      .bsh-input:focus {
+        outline: none;
+        border-color: #801524 !important;
+        box-shadow: 0 0 0 3px rgba(128, 21, 36, 0.12);
+      }
+      .bsh-btn:hover { box-shadow: 0 6px 16px rgba(128, 21, 36, 0.38); transform: translateY(-1px); }
+      .bsh-btn:active { transform: translateY(0); }
+      .bsh-btn-ghost:hover { background: #FBF1F2 !important; }
+    `}</style>
+  );
+}
+
+function Logo() {
+  return (
+    <div
+      style={{
+        width: 52, height: 52, borderRadius: 14, margin: "0 auto 16px",
+        background: "linear-gradient(135deg, #801524, #A02E3B)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 22, color: "#fff",
+        boxShadow: "0 6px 16px rgba(128, 21, 36, 0.35)"
+      }}
+    >
+      B
+    </div>
+  );
+}
+
 const styles = {
   centerScreen: {
     minHeight: "100vh",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "#f7f3f2",
+    background: "linear-gradient(165deg, #801524 0%, #5C0F1A 55%, #2A0A10 100%)",
     padding: 20,
-    fontFamily: "system-ui, sans-serif",
+    fontFamily: "'Work Sans', sans-serif",
   },
   card: {
     background: "#fff",
-    borderRadius: 12,
-    padding: "32px 28px",
+    borderRadius: 20,
+    padding: "36px 30px",
     width: "100%",
-    maxWidth: 360,
-    boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+    maxWidth: 380,
+    boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
     textAlign: "center",
   },
-  title: { color: BRAND_BURGUNDY, margin: 0, fontSize: 24 },
-  subtitle: { color: "#666", marginTop: 8, marginBottom: 20, fontSize: 14 },
+  title: { color: "#241012", margin: 0, fontSize: 25, fontFamily: "'Fraunces', serif", fontWeight: 600 },
+  subtitle: { color: "#7A6A6C", marginTop: 8, marginBottom: 22, fontSize: 14, lineHeight: 1.4 },
   label: {
     display: "block",
     textAlign: "left",
-    fontSize: 13,
-    color: "#444",
-    marginTop: 12,
-    marginBottom: 4,
+    fontSize: 12.5,
+    fontWeight: 600,
+    color: "#3B2426",
+    marginTop: 14,
+    marginBottom: 5,
   },
   input: {
     width: "100%",
-    padding: "10px 12px",
-    borderRadius: 8,
-    border: "1px solid #ddd",
+    padding: "11px 13px",
+    borderRadius: 10,
+    border: "1px solid #E5D9DA",
     fontSize: 15,
+    fontFamily: "'Work Sans', sans-serif",
     boxSizing: "border-box",
+    transition: "border-color 0.15s ease, box-shadow 0.15s ease",
   },
   button: {
     width: "100%",
-    marginTop: 20,
-    padding: "12px",
-    borderRadius: 8,
+    marginTop: 22,
+    padding: "13px",
+    borderRadius: 10,
     border: "none",
-    background: BRAND_BURGUNDY,
+    background: "linear-gradient(135deg, #801524, #9c1c2c)",
     color: "#fff",
     fontSize: 15,
     fontWeight: 600,
+    fontFamily: "'Work Sans', sans-serif",
     cursor: "pointer",
+    boxShadow: "0 4px 12px rgba(128, 21, 36, 0.3)",
+    transition: "box-shadow 0.15s ease, transform 0.15s ease",
   },
   error: { color: "#c0392b", fontSize: 13, marginTop: 10 },
   checkboxRow: {
     display: "flex",
     alignItems: "center",
-    marginTop: 8,
+    marginTop: 10,
     fontSize: 13,
-    color: "#555",
+    color: "#7A6A6C",
   },
-  footnote: { fontSize: 12, color: "#999", marginTop: 20 },
+  footnote: { fontSize: 12.5, color: "#A69698", marginTop: 22, lineHeight: 1.5 },
 };
