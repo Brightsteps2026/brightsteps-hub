@@ -2453,13 +2453,19 @@ const OFFICIAL_CALENDAR_2026_27 = [
   { title: "Last Day of School", type: "Academic", date: "2027-06-08" }
 ];
 
-function CalendarTab({ data, persist }) {
+function CalendarTab({ data, persist, profile }) {
   const [showAdd, setShowAdd] = useState(false);
   const [typeFilter, setTypeFilter] = useState(null);
   const [formError, setFormError] = useState("");
   const [form, setForm] = useState({ title: "", type: EVENT_TYPES[0], date: "", endDate: "", grades: [], description: "" });
 
-  const events = [...(data.events || [])].sort((a, b) => a.date.localeCompare(b.date));
+  const isParent = profile?.role === "parent";
+  const linkedIds = profile?.student_ids || [];
+  const myGrades = isParent ? [...new Set(data.students.filter((s) => linkedIds.includes(s.id)).map((s) => s.grade))] : [];
+
+  const events = [...(data.events || [])]
+    .filter((e) => !isParent || !e.grades || e.grades.length === 0 || e.grades.some((g) => myGrades.includes(g)))
+    .sort((a, b) => a.date.localeCompare(b.date));
   const today = todayStr();
   const filtered = typeFilter ? events.filter((e) => e.type === typeFilter) : events;
   const upcoming = filtered.filter((e) => (e.endDate || e.date) >= today);
@@ -2516,7 +2522,7 @@ function CalendarTab({ data, persist }) {
         <p className="bsf-muted">{e.grades && e.grades.length > 0 ? e.grades.join(", ") : "Whole school"}</p>
         {e.description && <p>{e.description}</p>}
       </div>
-      <button className="bsf-iconbtn" onClick={() => removeEvent(e.id)} aria-label="Remove"><Trash2 size={16} /></button>
+      {!isParent && <button className="bsf-iconbtn" onClick={() => removeEvent(e.id)} aria-label="Remove"><Trash2 size={16} /></button>}
     </div>
   );
 
@@ -2524,10 +2530,10 @@ function CalendarTab({ data, persist }) {
     <div className="bsf-screen">
       <div className="bsf-screen-head">
         <h1>Calendar</h1>
-        <button className="bsf-btn" onClick={() => setShowAdd(true)}><Plus size={16} /> Add</button>
+        {!isParent && <button className="bsf-btn" onClick={() => setShowAdd(true)}><Plus size={16} /> Add</button>}
       </div>
 
-      {!alreadyLoaded && (
+      {!isParent && !alreadyLoaded && (
         <button type="button" className="bsf-templatebtn" onClick={importOfficialCalendar}>
           Load the 2026–27 academic calendar
         </button>
@@ -4633,7 +4639,7 @@ function BrightStepsHubInner() {
         .bsf-slogan { font-size: 11px; color: #F0D9DD; margin-top: 2px; }
         .bsf-topbar-actions { display: flex; align-items: center; gap: 10px; }
         .bsf-savestate { font-size: 11px; color: #F0D9DD; opacity: 0.85; }
-        .bsf-settingsbtn { color: var(--white); }
+        .bsf-topbar .bsf-settingsbtn { color: var(--white); }
         .bsf-settingsbtn:hover { background: rgba(255,255,255,0.15); }
 
         .bsf-screen { padding: 16px 16px 90px; flex: 1; overflow-y: auto; }
@@ -5149,7 +5155,7 @@ function BrightStepsHubInner() {
       {tab === "assessment" && <AssessmentTab data={data} persist={persist} profile={profile} />}
       {tab === "gradebook" && !isParent && <GradebookTab data={data} persist={persist} onNavigate={goTo} />}
       {tab === "planning" && !isParent && <PlanningTab data={data} persist={persist} />}
-      {tab === "calendar" && <CalendarTab data={data} persist={persist} />}
+      {tab === "calendar" && <CalendarTab data={data} persist={persist} profile={profile} />}
       {tab === "admissions" && !isParent && <AdmissionsTab data={data} persist={persist} />}
       {tab === "assignments" && <AssignmentsTab data={data} persist={persist} profile={profile} />}
       {tab === "reports" && !isParent && <ReportsTab data={data} persist={persist} />}
