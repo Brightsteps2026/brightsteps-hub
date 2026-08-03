@@ -219,6 +219,12 @@ export default function LoginGate({ children }) {
               {settingPassword ? "Setting password..." : "Set password and continue"}
             </button>
           </form>
+          <button
+            onClick={handleSignOut}
+            style={{ ...styles.button, marginTop: 12, background: "transparent", color: "#801524", border: "1px solid #801524" }}
+          >
+            Sign out
+          </button>
         </div>
       </div>
     );
