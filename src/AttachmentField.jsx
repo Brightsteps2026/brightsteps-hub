@@ -7,7 +7,7 @@ const MAX_SIZE = 50 * 1024 * 1024; // 50MB, matches the Supabase bucket limit
 // Reusable file attachment control. Pass in the current list of attachments
 // and a folder name (e.g. "portfolio", "assignments") and it handles
 // uploading, listing, opening, and removing files.
-export default function AttachmentField({ folder, files, onChange }) {
+export default function AttachmentField({ folder, files, onChange, readOnly = false }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
@@ -60,25 +60,29 @@ export default function AttachmentField({ folder, files, onChange }) {
                 <span>{f.name}</span>
                 <span className="bsf-muted">{formatFileSize(f.size)}</span>
               </button>
-              <button type="button" className="bsf-iconbtn" onClick={() => removeFile(f.path)} aria-label="Remove file">
-                <X size={14} />
-              </button>
+              {!readOnly && (
+                <button type="button" className="bsf-iconbtn" onClick={() => removeFile(f.path)} aria-label="Remove file">
+                  <X size={14} />
+                </button>
+              )}
             </div>
           ))}
         </div>
       )}
 
-      <label className="bsf-attachment-upload">
-        {uploading ? <Loader2 size={16} className="bsf-spin" /> : <Paperclip size={16} />}
-        <span>{uploading ? "Uploading..." : "Attach a file"}</span>
-        <input
-          type="file"
-          multiple
-          hidden
-          disabled={uploading}
-          onChange={(e) => handleFiles(e.target.files)}
-        />
-      </label>
+      {!readOnly && (
+        <label className="bsf-attachment-upload">
+          {uploading ? <Loader2 size={16} className="bsf-spin" /> : <Paperclip size={16} />}
+          <span>{uploading ? "Uploading..." : "Attach a file"}</span>
+          <input
+            type="file"
+            multiple
+            hidden
+            disabled={uploading}
+            onChange={(e) => handleFiles(e.target.files)}
+          />
+        </label>
+      )}
       {error && <p className="bsf-formerror">{error}</p>}
     </div>
   );
