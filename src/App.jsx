@@ -5,6 +5,7 @@ import StudentPhotoField from "./StudentPhotoField";
 import { getAttachmentUrl } from "./lib/attachments";
 import { useAuth } from "./LoginGate";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
+import { supabase } from "./lib/supabaseClient";
 
 let GRADES = [
   "Pre-N", "PreK", "Kindergarten",
@@ -663,23 +664,38 @@ function StudentMessages({ student, data, persist }) {
     <>
       <h3 className="bsf-subheading">Messages</h3>
       <p className="bsf-muted" style={{ marginBottom: 8 }}>A private thread between parents and teachers about {student.name}.</p>
-      <div className="bsf-comments">
-        {(student.messages || []).length === 0 && <p className="bsf-empty">No messages yet.</p>}
-        {(student.messages || []).map((m) => (
-          <div key={m.id} className="bsf-comment">
-            <div className="bsf-row-head">
-              <strong>{m.author}{m.role ? ` · ${m.role}` : ""}</strong>
-              <span className="bsf-muted">{m.date}</span>
+      <div className="bsf-chatthread">
+        {(student.messages || []).length === 0 && <p className="bsf-empty">No messages yet. Say hello below.</p>}
+        {(student.messages || []).map((m) => {
+          const isMine = profile && m.author === profile.full_name && m.role === profile.role;
+          return (
+            <div key={m.id} className={`bsf-chatrow ${isMine ? "mine" : ""}`}>
+              <div className="bsf-chatbubble">
+                {!isMine && <div className="bsf-chatauthor">{m.author}{m.role ? ` · ${m.role}` : ""}</div>}
+                <p>{m.text}</p>
+                <div className="bsf-chatmeta">
+                  <span>{m.date}</span>
+                  <button className="bsf-textbtn" onClick={() => removeMessage(m.id)}>Remove</button>
+                </div>
+              </div>
             </div>
-            <p>{m.text}</p>
-            <button className="bsf-textbtn" onClick={() => removeMessage(m.id)}>Remove</button>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      <Field label="Write a message">
-        <textarea rows={2} value={messageText} onChange={(e) => setMessageText(e.target.value)} placeholder="Share an update or ask a question" />
-      </Field>
-      <button className="bsf-btn bsf-btn-block" onClick={addMessage} style={{ marginBottom: 16 }}>Send message</button>
+      <div className="bsf-chatinputbar">
+        <textarea
+          rows={1}
+          value={messageText}
+          onChange={(e) => setMessageText(e.target.value)}
+          placeholder="Write a message..."
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addMessage(); }
+          }}
+        />
+        <button className="bsf-chatsendbtn" onClick={addMessage} aria-label="Send message" disabled={!messageText.trim()}>
+          <Send size={18} />
+        </button>
+      </div>
     </>
   );
 }
@@ -4168,6 +4184,32 @@ function SettingsModal({ data, persist, onClose }) {
   const { signOut, profile } = useAuth();
   const { t } = useLanguage();
   const settings = data.settings || DEFAULT_SETTINGS;
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordStatus, setPasswordStatus] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+
+  const changePassword = async () => {
+    setPasswordStatus("");
+    if (newPassword.length < 6) {
+      setPasswordStatus("Password must be at least 6 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordStatus("Passwords don't match.");
+      return;
+    }
+    setPasswordSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setPasswordSaving(false);
+    if (error) {
+      setPasswordStatus("Could not update password. Please try again.");
+    } else {
+      setPasswordStatus("Password updated.");
+      setNewPassword("");
+      setConfirmPassword("");
+    }
+  };
   const update = (patch) => persist({ ...data, settings: { ...settings, ...patch } });
   const updateBranding = (patch) => update({ branding: { ...settings.branding, ...patch } });
   const updateYear = (patch) => update({ academicYear: { ...settings.academicYear, ...patch } });
@@ -4265,9 +4307,21 @@ function SettingsModal({ data, persist, onClose }) {
       <hr className="bsf-divider" />
       <h3 className="bsf-subheading">{t("settings.account")}</h3>
       {profile?.email && <p className="bsf-muted">{t("settings.signedInAs")} {profile.email}</p>}
+
+      <Field label="New password">
+        <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 6 characters" />
+      </Field>
+      <Field label="Confirm new password">
+        <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+      </Field>
+      {passwordStatus && <p className={passwordStatus === "Password updated." ? "bsf-muted" : "bsf-formerror"}>{passwordStatus}</p>}
+      <button className="bsf-btn bsf-btn-block bsf-btn-ghost" onClick={changePassword} disabled={passwordSaving || !newPassword}>
+        {passwordSaving ? "Updating..." : "Update password"}
+      </button>
+
       <button
         className="bsf-btn bsf-btn-block"
-        style={{ background: "#801524" }}
+        style={{ background: "#801524", marginTop: 10 }}
         onClick={() => { onClose(); signOut(); }}
       >
         {t("settings.signOut")}
@@ -4623,6 +4677,43 @@ function BrightStepsHubInner() {
         .bsf-comments { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
         .bsf-comment { background: #FCFAF4; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
         .bsf-comment p { margin: 4px 0 6px; font-size: 13px; }
+
+        .bsf-chatthread {
+          display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px;
+          max-height: 420px; overflow-y: auto; padding: 4px 2px;
+        }
+        .bsf-chatrow { display: flex; justify-content: flex-start; }
+        .bsf-chatrow.mine { justify-content: flex-end; }
+        .bsf-chatbubble {
+          max-width: 78%; background: #F2EFE8; border-radius: 16px 16px 16px 4px;
+          padding: 8px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        }
+        .bsf-chatrow.mine .bsf-chatbubble {
+          background: #801524; color: #fff; border-radius: 16px 16px 4px 16px;
+        }
+        .bsf-chatauthor { font-size: 11px; font-weight: 700; color: #801524; margin-bottom: 2px; }
+        .bsf-chatbubble p { margin: 0; font-size: 14px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+        .bsf-chatmeta {
+          display: flex; align-items: center; gap: 8px; margin-top: 4px;
+          font-size: 10px; opacity: 0.7;
+        }
+        .bsf-chatrow.mine .bsf-chatmeta { color: #f3e6ea; }
+        .bsf-chatrow.mine .bsf-chatmeta .bsf-textbtn { color: #f3e6ea; text-decoration: underline; }
+        .bsf-chatinputbar {
+          display: flex; align-items: flex-end; gap: 8px;
+          background: #FCFAF4; border: 1px solid var(--line); border-radius: 22px;
+          padding: 6px 6px 6px 14px; margin-bottom: 16px;
+        }
+        .bsf-chatinputbar textarea {
+          flex: 1; border: none; background: transparent; resize: none; outline: none;
+          font-size: 14px; line-height: 1.4; padding: 6px 0; max-height: 100px; font-family: inherit;
+        }
+        .bsf-chatsendbtn {
+          flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: none;
+          background: #801524; color: #fff; display: flex; align-items: center; justify-content: center;
+          cursor: pointer;
+        }
+        .bsf-chatsendbtn:disabled { opacity: 0.4; cursor: not-allowed; }
         .bsf-textbtn {
           background: none;
           border: none;
