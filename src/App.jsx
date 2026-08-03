@@ -295,19 +295,27 @@ const SHORT_GRADE_LABEL = {
   "Grade 5": "5", "Grade 6": "6", "Grade 7": "7"
 };
 
-function EnrollmentStairs({ counts }) {
+function EnrollmentStairs({ counts, activeGrade = null, onSelect = null }) {
   const max = Math.max(1, ...GRADES.map((g) => counts[g] || 0));
+  const interactive = !!onSelect;
   return (
     <div className="bsf-stairs">
       {GRADES.map((g) => {
         const count = counts[g] || 0;
         const heightPct = count === 0 ? 6 : 18 + (count / max) * 82;
+        const isActive = activeGrade === g;
+        const Tag = interactive ? "button" : "div";
         return (
-          <div key={g} className="bsf-stair">
+          <Tag
+            key={g}
+            type={interactive ? "button" : undefined}
+            className={`bsf-stair ${interactive ? "bsf-stair-interactive" : ""} ${isActive ? "active" : ""}`}
+            onClick={interactive ? () => onSelect(isActive ? null : g) : undefined}
+          >
             <span className="bsf-stair-count">{count > 0 ? count : ""}</span>
             <span className="bsf-stair-bar" style={{ height: `${heightPct}%` }} />
             <span className="bsf-stair-label">{SHORT_GRADE_LABEL[g] || g}</span>
-          </div>
+          </Tag>
         );
       })}
     </div>
@@ -362,7 +370,7 @@ function Dashboard({ data, profile }) {
     <div className="bsf-screen">
       <div className="bsf-hero">
         <p className="bsf-eyebrow">{t("dashboard.eyebrow")}</p>
-        <h1>{isParent ? "Welcome back" : "BrightSteps at a glance"}</h1>
+        <h1>{isParent ? `Welcome back${profile?.full_name ? `, ${profile.full_name.split(" ")[0]}` : ""}` : "BrightSteps at a glance"}</h1>
         {isParent ? (
           myStudents.length === 0 ? (
             <p className="bsf-hero-sub">No child linked to your account yet.</p>
@@ -815,7 +823,12 @@ function ParentStudentView({ data, persist, profile }) {
 
   return (
     <div className="bsf-screen">
-      <div className="bsf-screen-head"><h1>My child</h1></div>
+      <div className="bsf-screen-head">
+        <div>
+          <h1>My child</h1>
+          {profile?.full_name && <p className="bsf-muted" style={{ marginTop: 2 }}>Signed in as {profile.full_name}</p>}
+        </div>
+      </div>
 
       {myStudents.length > 1 && (
         <div className="bsf-card" style={{ display: "flex", gap: 10, overflowX: "auto", padding: 12 }}>
@@ -1035,41 +1048,75 @@ function StudentsTab({ data, persist, profile }) {
   };
 
   const editingStudent = data.students.find((s) => s.id === editingId);
+  const total = visibleStudents.length;
+  const recentStudents = [...visibleStudents].sort((a, b) => (b.studentIdNumber || "").localeCompare(a.studentIdNumber || "")).slice(0, 6);
+
+  const grouped = useMemo(() => {
+    const groups = {};
+    filtered.forEach((s) => {
+      if (!groups[s.grade]) groups[s.grade] = [];
+      groups[s.grade].push(s);
+    });
+    return GRADES.filter((g) => groups[g]).map((g) => ({ grade: g, students: groups[g] }));
+  }, [filtered]);
+
+  const renderStudentCard = (s) => (
+    <div key={s.id} className={`bsf-card bsf-student ${canEditStudents ? "bsf-clickable" : ""}`} onClick={() => openEdit(s)}>
+      <StudentThumb photo={s.photo} />
+      <div>
+        <strong>{s.name}</strong>
+        <p className="bsf-muted">{(s.nationalities && s.nationalities.length) ? s.nationalities.join(" - ") : (s.nationality || "")}{s.studentIdNumber ? `${(s.nationalities?.length || s.nationality) ? " · " : ""}ID ${s.studentIdNumber}` : ""}</p>
+        {s.guardian1Name && <p className="bsf-muted">{s.guardian1Name}{s.guardian1Phone ? ` · ${s.guardian1Phone}` : ""}</p>}
+        {s.allergies && <span className="bsf-tag bsf-tag-alert">Allergy: {s.allergies}</span>}
+      </div>
+      <div className="bsf-student-actions">
+        <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); setFamilyViewId(s.id); }} aria-label="Family view"><UserCheck size={16} /></button>
+        {canEditStudents && <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeStudent(s.id); }} aria-label="Remove"><Trash2 size={16} /></button>}
+      </div>
+    </div>
+  );
 
   return (
     <div className="bsf-screen">
-      <div className="bsf-screen-head">
-        <h1>Students</h1>
+      <div className="bsf-hero">
+        <p className="bsf-eyebrow">Students</p>
+        <h1>{total} student{total === 1 ? "" : "s"} enrolled</h1>
+        {recentStudents.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <AvatarStack students={recentStudents} />
+          </div>
+        )}
+      </div>
+
+      <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
+        <span />
         {canEditStudents && <button className="bsf-btn" onClick={openAdd}><Plus size={16} /> Add</button>}
       </div>
 
-      <section className="bsf-card">
-        <GradeLadder counts={counts} activeGrade={activeGrade} onSelect={setActiveGrade} />
+      <section className="bsf-card bsf-stairs-card">
+        <h2>{activeGrade ? `Showing ${activeGrade}` : "Tap a grade to filter"}</h2>
+        <EnrollmentStairs counts={counts} activeGrade={activeGrade} onSelect={setActiveGrade} />
       </section>
 
-      <section className="bsf-list">
-        {filtered.length === 0 && <p className="bsf-empty">No students in this view yet.</p>}
-        {filtered.map((s) => (
-          <div key={s.id} className={`bsf-card bsf-student ${canEditStudents ? "bsf-clickable" : ""}`} onClick={() => openEdit(s)}>
-            <StudentThumb photo={s.photo} />
-            <div>
-              <strong>{s.name}</strong>
-              <p className="bsf-muted">{s.grade}{(s.nationalities && s.nationalities.length) ? ` · ${s.nationalities.join(" - ")}` : (s.nationality ? ` · ${s.nationality}` : "")}</p>
-              {s.studentIdNumber && <p className="bsf-muted">ID: {s.studentIdNumber}</p>}
-              <p className="bsf-muted" style={{ fontSize: 11, opacity: 0.6 }}>Account link code: {s.id}</p>
-              {s.guardian1Name && <p className="bsf-muted">Guardian: {s.guardian1Name}{s.guardian1Phone ? ` · ${s.guardian1Phone}` : ""}</p>}
-              {s.allergies && <p className="bsf-alert-note">Allergies: {s.allergies}</p>}
-            </div>
-            <div className="bsf-student-actions">
-              <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); setFamilyViewId(s.id); }} aria-label="Family view"><UserCheck size={16} /></button>
-              {canEditStudents && <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeStudent(s.id); }} aria-label="Remove"><Trash2 size={16} /></button>}
-            </div>
-          </div>
-        ))}
-      </section>
+      {filtered.length === 0 && <p className="bsf-empty">No students in this view yet.</p>}
+
+      {activeGrade
+        ? <section className="bsf-list">{filtered.map(renderStudentCard)}</section>
+        : grouped.map(({ grade, students }) => (
+            <section key={grade} className="bsf-list" style={{ marginBottom: 18 }}>
+              <p className="bsf-group-label">{grade} · {students.length} student{students.length === 1 ? "" : "s"}</p>
+              {students.map(renderStudentCard)}
+            </section>
+          ))
+      }
 
       {showForm && canEditStudents && (
         <Modal title={editingId ? "Edit student" : "Add student"} onClose={() => setShowForm(false)}>
+          {editingId && (
+            <div className="bsf-inlinenote">
+              Account link code for parent setup: <code>{editingId}</code>
+            </div>
+          )}
           <h3 className="bsf-subheading">Basic info</h3>
           <Field label="First name">
             <input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} placeholder="First name" />
@@ -1384,45 +1431,71 @@ function PortfolioTab({ data, persist, profile }) {
 
   const removeEntry = (id) => persist({ ...data, portfolio: data.portfolio.filter((p) => p.id !== id) });
 
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const recentEntries = entries.filter((p) => p.date >= sevenDaysAgo);
+  const earlierEntries = entries.filter((p) => p.date < sevenDaysAgo);
+
+  const renderEntry = (p) => {
+    const student = data.students.find((s) => s.id === p.studentId);
+    return (
+      <div key={p.id} className="bsf-card bsf-portfolio-entry">
+        <StudentThumb photo={student?.photo} />
+        <div style={{ flex: 1 }}>
+          <div className="bsf-row-head">
+            <strong>{p.studentName}</strong>
+            <span className={`bsf-author-badge ${p.author === "student" ? "student" : "teacher"}`}>
+              {p.author === "student" ? t("portfolio.studentReflection") : t("portfolio.teacherNote")}
+            </span>
+          </div>
+          <div className="bsf-row-head" style={{ marginTop: 2 }}>
+            <span className="bsf-tag">{t(`tag.${p.tag}`)}</span>
+            <span className="bsf-muted">{p.date}</span>
+          </div>
+          <p style={{ marginTop: 8 }}>{p.note}</p>
+          {(p.files || []).length > 0 && (
+            <AttachmentField
+              folder="portfolio"
+              files={p.files}
+              onChange={(files) =>
+                persist({ ...data, portfolio: data.portfolio.map((e) => (e.id === p.id ? { ...e, files } : e)) })
+              }
+              readOnly={isParent}
+            />
+          )}
+        </div>
+        {!isParent && <button className="bsf-iconbtn" onClick={() => removeEntry(p.id)} aria-label={t("common.remove")}><Trash2 size={16} /></button>}
+      </div>
+    );
+  };
+
   return (
     <div className="bsf-screen">
-      <div className="bsf-screen-head">
-        <h1>{t("portfolio.title")}</h1>
+      <div className="bsf-hero">
+        <p className="bsf-eyebrow">{t("portfolio.title")}</p>
+        <h1>{entries.length} entr{entries.length === 1 ? "y" : "ies"}</h1>
+        {recentEntries.length > 0 && <p className="bsf-hero-sub">{recentEntries.length} added in the last 7 days</p>}
+      </div>
+
+      <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
+        <span />
         {!isParent && <button className="bsf-btn" onClick={() => { setFormError(""); setShowAdd(true); }} disabled={data.students.length === 0}><Plus size={16} /> {t("common.add")}</button>}
       </div>
+
       {data.students.length === 0 && !isParent && <p className="bsf-empty">{t("portfolio.emptyStudents")}</p>}
       {isParent && entries.length === 0 && <p className="bsf-empty">No portfolio entries yet for your child.</p>}
 
-      <section className="bsf-list">
-        {entries.map((p) => (
-          <div key={p.id} className="bsf-card bsf-student">
-            <div>
-              <div className="bsf-row-head">
-                <span className="bsf-tag">{t(`tag.${p.tag}`)}</span>
-                <span className="bsf-muted">{p.date}</span>
-              </div>
-              <div className="bsf-row-head">
-                <strong>{p.studentName}</strong>
-                <span className={`bsf-author-badge ${p.author === "student" ? "student" : "teacher"}`}>
-                  {p.author === "student" ? t("portfolio.studentReflection") : t("portfolio.teacherNote")}
-                </span>
-              </div>
-              <p>{p.note}</p>
-              {(p.files || []).length > 0 && (
-                <AttachmentField
-                  folder="portfolio"
-                  files={p.files}
-                  onChange={(files) =>
-                    persist({ ...data, portfolio: data.portfolio.map((e) => (e.id === p.id ? { ...e, files } : e)) })
-                  }
-                  readOnly={isParent}
-                />
-              )}
-            </div>
-            {!isParent && <button className="bsf-iconbtn" onClick={() => removeEntry(p.id)} aria-label={t("common.remove")}><Trash2 size={16} /></button>}
-          </div>
-        ))}
-      </section>
+      {recentEntries.length > 0 && (
+        <section className="bsf-list" style={{ marginBottom: 18 }}>
+          <p className="bsf-group-label">This week</p>
+          {recentEntries.map(renderEntry)}
+        </section>
+      )}
+      {earlierEntries.length > 0 && (
+        <section className="bsf-list">
+          <p className="bsf-group-label">Earlier</p>
+          {earlierEntries.map(renderEntry)}
+        </section>
+      )}
 
       {showAdd && (
         <Modal title={t("portfolio.newEntry")} onClose={() => setShowAdd(false)}>
@@ -4797,6 +4870,11 @@ function BrightStepsHubInner() {
           transition: height 0.4s ease;
         }
         .bsf-stair-label { font-size: 9.5px; font-weight: 600; color: #8A9698; margin-top: 6px; white-space: nowrap; }
+        .bsf-stair-interactive { background: none; border: none; cursor: pointer; padding: 0; font-family: inherit; }
+        .bsf-stair-interactive .bsf-stair-bar { transition: height 0.4s ease, opacity 0.15s ease; opacity: 0.55; }
+        .bsf-stair-interactive:hover .bsf-stair-bar { opacity: 0.8; }
+        .bsf-stair-interactive.active .bsf-stair-bar { opacity: 1; }
+        .bsf-stair-interactive.active .bsf-stair-label { color: var(--teal); }
 
         .bsf-dashboard-grid { display: flex; flex-direction: column; gap: 14px; }
         .bsf-dashboard-grid .bsf-card { margin-bottom: 0; }
@@ -4805,6 +4883,7 @@ function BrightStepsHubInner() {
         }
 
         .bsf-portfolio-row { display: flex; align-items: flex-start; gap: 10px; }
+        .bsf-portfolio-entry { display: flex; align-items: flex-start; gap: 12px; }
 
         .bsf-screen-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding: 4px; }
         .bsf-screen-head-wrap { flex-wrap: wrap; row-gap: 10px; }
@@ -4848,6 +4927,16 @@ function BrightStepsHubInner() {
           border-radius: 100px;
           white-space: nowrap;
         }
+        .bsf-tag-alert { background: #FCE8E8; color: #B23A3A; margin-top: 4px; }
+        .bsf-group-label {
+          font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+          color: var(--gold-dark); margin: 4px 4px 8px;
+        }
+        .bsf-inlinenote {
+          background: var(--sand-deep); border-radius: 10px; padding: 8px 12px;
+          font-size: 12px; color: var(--ink); margin-bottom: 14px;
+        }
+        .bsf-inlinenote code { font-size: 11px; background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px; }
         .bsf-muted { color: #6E7B7D; font-size: 12px; }
         .bsf-empty { color: #6E7B7D; font-size: 14px; padding: 8px 2px; }
 
