@@ -1302,13 +1302,17 @@ function ClassesTab({ data, persist }) {
   );
 }
 
-function PortfolioTab({ data, persist }) {
+function PortfolioTab({ data, persist, profile }) {
   const { t } = useLanguage();
+  const isParent = profile?.role === "parent";
+  const linkedIds = profile?.student_ids || [];
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ studentId: "", tag: TAGS[0], note: "", author: "teacher", files: [] });
   const [formError, setFormError] = useState("");
 
-  const entries = [...data.portfolio].sort((a, b) => b.date.localeCompare(a.date));
+  const entries = [...data.portfolio]
+    .filter((p) => !isParent || linkedIds.includes(p.studentId))
+    .sort((a, b) => b.date.localeCompare(a.date));
 
   const addEntry = () => {
     const student = data.students.find((s) => s.id === form.studentId);
@@ -1342,9 +1346,10 @@ function PortfolioTab({ data, persist }) {
     <div className="bsf-screen">
       <div className="bsf-screen-head">
         <h1>{t("portfolio.title")}</h1>
-        <button className="bsf-btn" onClick={() => { setFormError(""); setShowAdd(true); }} disabled={data.students.length === 0}><Plus size={16} /> {t("common.add")}</button>
+        {!isParent && <button className="bsf-btn" onClick={() => { setFormError(""); setShowAdd(true); }} disabled={data.students.length === 0}><Plus size={16} /> {t("common.add")}</button>}
       </div>
-      {data.students.length === 0 && <p className="bsf-empty">{t("portfolio.emptyStudents")}</p>}
+      {data.students.length === 0 && !isParent && <p className="bsf-empty">{t("portfolio.emptyStudents")}</p>}
+      {isParent && entries.length === 0 && <p className="bsf-empty">No portfolio entries yet for your child.</p>}
 
       <section className="bsf-list">
         {entries.map((p) => (
@@ -1368,10 +1373,11 @@ function PortfolioTab({ data, persist }) {
                   onChange={(files) =>
                     persist({ ...data, portfolio: data.portfolio.map((e) => (e.id === p.id ? { ...e, files } : e)) })
                   }
+                  readOnly={isParent}
                 />
               )}
             </div>
-            <button className="bsf-iconbtn" onClick={() => removeEntry(p.id)} aria-label={t("common.remove")}><Trash2 size={16} /></button>
+            {!isParent && <button className="bsf-iconbtn" onClick={() => removeEntry(p.id)} aria-label={t("common.remove")}><Trash2 size={16} /></button>}
           </div>
         ))}
       </section>
@@ -5151,7 +5157,7 @@ function BrightStepsHubInner() {
       {tab === "classes" && !isParent && <ClassesTab data={data} persist={persist} />}
       {tab === "staff" && !isParent && <StaffTab data={data} persist={persist} />}
       {tab === "attendance" && <AttendanceTab data={data} persist={persist} profile={profile} />}
-      {tab === "portfolio" && <PortfolioTab data={data} persist={persist} />}
+      {tab === "portfolio" && <PortfolioTab data={data} persist={persist} profile={profile} />}
       {tab === "assessment" && <AssessmentTab data={data} persist={persist} profile={profile} />}
       {tab === "gradebook" && !isParent && <GradebookTab data={data} persist={persist} onNavigate={goTo} />}
       {tab === "planning" && !isParent && <PlanningTab data={data} persist={persist} />}
