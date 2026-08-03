@@ -1891,8 +1891,8 @@ function PlanningTab({ data, persist }) {
               {p.linesOfInquiry && <p className="bsf-loi">{p.linesOfInquiry}</p>}
               {(p.startDate || p.endDate) && <p className="bsf-muted">{p.startDate || "?"} to {p.endDate || "?"}</p>}
               <div className="bsf-chiprow bsf-status-chips">
-                {p.lessonPlanText || p.lessonPlanLink ? <span className="bsf-minitag">Lesson plan</span> : null}
-                {p.evidenceLink || p.evidenceNotes ? <span className="bsf-minitag">Evidence</span> : null}
+                {p.lessonPlanText || p.lessonPlanLink || (p.lessonPlanFiles || []).length > 0 ? <span className="bsf-minitag">Lesson plan</span> : null}
+                {p.evidenceLink || p.evidenceNotes || (p.evidenceFiles || []).length > 0 ? <span className="bsf-minitag">Evidence</span> : null}
                 {p.reflection ? <span className="bsf-minitag">Reflection</span> : null}
                 {(p.comments || []).length > 0 ? <span className="bsf-minitag">{p.comments.length} note{p.comments.length === 1 ? "" : "s"}</span> : null}
               </div>
@@ -1935,6 +1935,13 @@ function PlanningTab({ data, persist }) {
           </Field>
           <Field label="Unit title">
             <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. How the World Works" />
+          </Field>
+          <Field label="Attachments">
+            <AttachmentField
+              folder="planning"
+              files={form.lessonPlanFiles}
+              onChange={(files) => setForm({ ...form, lessonPlanFiles: files })}
+            />
           </Field>
 
           <button type="button" className="bsf-templatebtn" onClick={applyTemplate}>Fill in unit plan template</button>
@@ -1998,6 +2005,8 @@ function UpdatesTab({ data, persist }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ titleEn: "", bodyEn: "", titleFr: "", bodyFr: "", grades: [] });
   const [formError, setFormError] = useState("");
+  const [translatingId, setTranslatingId] = useState(null);
+  const [translateForm, setTranslateForm] = useState({ titleFr: "", bodyFr: "" });
 
   const allPosts = [...data.announcements].sort((a, b) => b.date.localeCompare(a.date));
   const posts = isParent
@@ -2025,6 +2034,21 @@ function UpdatesTab({ data, persist }) {
   };
 
   const removePost = (id) => persist({ ...data, announcements: data.announcements.filter((a) => a.id !== id) });
+
+  const openTranslate = (post) => {
+    setTranslateForm({ titleFr: post.titleFr || "", bodyFr: post.bodyFr || "" });
+    setTranslatingId(post.id);
+  };
+
+  const saveTranslation = () => {
+    persist({
+      ...data,
+      announcements: data.announcements.map((a) => (a.id === translatingId ? { ...a, ...translateForm } : a))
+    });
+    setTranslatingId(null);
+  };
+
+  const translatingPost = data.announcements.find((a) => a.id === translatingId);
 
   const audienceLabel = (a) => {
     if (!a.grades || a.grades.length === 0) return "Whole school";
@@ -2068,6 +2092,9 @@ function UpdatesTab({ data, persist }) {
                     <p>{a.bodyFr}</p>
                   </div>
                 )}
+                <button className="bsf-textbtn" onClick={() => openTranslate(a)} style={{ marginTop: 6 }}>
+                  {a.titleFr ? "Edit French translation" : "Add French translation"}
+                </button>
               </div>
               <button className="bsf-iconbtn" onClick={() => removePost(a.id)} aria-label="Remove"><Trash2 size={16} /></button>
             </div>
@@ -2123,14 +2150,26 @@ function UpdatesTab({ data, persist }) {
           <Field label="Message (English)">
             <textarea rows={3} value={form.bodyEn} onChange={(e) => setForm({ ...form, bodyEn: e.target.value })} />
           </Field>
-          <Field label="Titre (Francais)">
-            <input value={form.titleFr} onChange={(e) => setForm({ ...form, titleFr: e.target.value })} placeholder="Optional" />
-          </Field>
-          <Field label="Message (Francais)">
-            <textarea rows={3} value={form.bodyFr} onChange={(e) => setForm({ ...form, bodyFr: e.target.value })} placeholder="Optional" />
-          </Field>
+          <p className="bsf-muted" style={{ marginBottom: 12 }}>
+            You can add the French translation afterward, once it's ready, from the post itself.
+          </p>
           <button className="bsf-btn bsf-btn-block" onClick={addPost}>Publish update</button>
           {formError && <p className="bsf-formerror">{formError}</p>}
+        </Modal>
+      )}
+
+      {translatingPost && (
+        <Modal title="French translation" onClose={() => setTranslatingId(null)}>
+          <p className="bsf-muted" style={{ marginBottom: 12 }}>
+            English version: <strong>{translatingPost.titleEn}</strong>
+          </p>
+          <Field label="Titre (Francais)">
+            <input value={translateForm.titleFr} onChange={(e) => setTranslateForm({ ...translateForm, titleFr: e.target.value })} />
+          </Field>
+          <Field label="Message (Francais)">
+            <textarea rows={3} value={translateForm.bodyFr} onChange={(e) => setTranslateForm({ ...translateForm, bodyFr: e.target.value })} />
+          </Field>
+          <button className="bsf-btn bsf-btn-block" onClick={saveTranslation}>Save translation</button>
         </Modal>
       )}
     </div>
