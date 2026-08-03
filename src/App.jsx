@@ -4409,12 +4409,15 @@ function BrightStepsHubInner() {
           --ink: #241012;
           --teal: #801524;
           --teal-light: #A02E3B;
-          --sand: #FFFFFF;
+          --sand: #FBF7F3;
           --sand-deep: #F5E4E6;
-          --gold: #801524;
-          --gold-dark: #5C0F1A;
+          --gold: #C9A227;
+          --gold-dark: #8A6A2E;
           --line: #EAD7DA;
           --white: #FFFFFF;
+          --shadow-sm: 0 1px 3px rgba(36, 16, 18, 0.06), 0 1px 2px rgba(36, 16, 18, 0.04);
+          --shadow-md: 0 8px 24px rgba(36, 16, 18, 0.10), 0 2px 6px rgba(36, 16, 18, 0.06);
+          --shadow-lift: 0 14px 32px rgba(36, 16, 18, 0.14), 0 4px 10px rgba(36, 16, 18, 0.08);
           font-family: 'Work Sans', sans-serif;
           background: var(--sand);
           color: var(--ink);
@@ -4441,11 +4444,14 @@ function BrightStepsHubInner() {
 
         .bsf-topbar {
           padding: 18px 20px 12px;
-          background: var(--teal);
+          background: linear-gradient(135deg, var(--teal) 0%, var(--teal-light) 130%);
           color: var(--white);
           display: flex;
           justify-content: space-between;
           align-items: center;
+          box-shadow: 0 4px 16px rgba(36, 16, 18, 0.18);
+          position: relative;
+          z-index: 2;
         }
         .bsf-brand { display: flex; align-items: center; gap: 10px; }
         .bsf-topbar-logo { width: 32px; height: 32px; border-radius: 8px; object-fit: cover; background: var(--white); }
@@ -4458,9 +4464,15 @@ function BrightStepsHubInner() {
 
         .bsf-screen { padding: 16px 16px 90px; flex: 1; overflow-y: auto; }
 
-        .bsf-hero { padding: 6px 4px 18px; }
-        .bsf-eyebrow { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold-dark); font-weight: 600; margin: 0 0 6px; }
-        .bsf-hero h1 { font-size: 26px; line-height: 1.15; font-weight: 600; }
+        .bsf-hero {
+          padding: 20px 18px;
+          margin-bottom: 14px;
+          background: linear-gradient(160deg, var(--white) 0%, var(--sand-deep) 160%);
+          border-radius: 18px;
+          box-shadow: var(--shadow-sm);
+        }
+        .bsf-eyebrow { font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold-dark); font-weight: 700; margin: 0 0 6px; }
+        .bsf-hero h1 { font-size: 27px; line-height: 1.15; font-weight: 600; }
         .bsf-hero-sub { margin: 8px 0 0; color: var(--teal-light); font-weight: 500; }
 
         .bsf-screen-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding: 4px; }
@@ -4469,9 +4481,15 @@ function BrightStepsHubInner() {
         .bsf-card {
           background: var(--white);
           border: 1px solid var(--line);
-          border-radius: 14px;
+          border-radius: 16px;
           padding: 16px;
           margin-bottom: 14px;
+          box-shadow: var(--shadow-sm);
+          transition: box-shadow 0.18s ease, transform 0.18s ease;
+        }
+        .bsf-card.bsf-clickable:hover, .bsf-card.bsf-clickable:active {
+          box-shadow: var(--shadow-md);
+          transform: translateY(-1px);
         }
         .bsf-card h2 { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
 
@@ -4504,15 +4522,19 @@ function BrightStepsHubInner() {
           color: var(--white);
           border: none;
           border-radius: 10px;
-          padding: 9px 14px;
+          padding: 10px 16px;
           font-size: 14px;
           font-weight: 600;
           display: inline-flex;
           align-items: center;
           gap: 6px;
           cursor: pointer;
+          box-shadow: 0 2px 6px rgba(128, 21, 36, 0.28);
+          transition: box-shadow 0.15s ease, transform 0.15s ease;
         }
-        .bsf-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .bsf-btn:hover { box-shadow: 0 4px 12px rgba(128, 21, 36, 0.34); transform: translateY(-1px); }
+        .bsf-btn:active { transform: translateY(0); }
+        .bsf-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; transform: none; }
         .bsf-btn-block { width: 100%; justify-content: center; margin-top: 6px; }
         .bsf-iconbtn {
           background: transparent;
@@ -4550,6 +4572,7 @@ function BrightStepsHubInner() {
           border-top: 1px solid var(--line);
           display: flex;
           padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+          box-shadow: 0 -6px 20px rgba(36, 16, 18, 0.08);
         }
         .bsf-tab {
           flex: 1;
@@ -4564,13 +4587,16 @@ function BrightStepsHubInner() {
           font-size: 10.5px;
           font-weight: 600;
           cursor: pointer;
+          border-radius: 10px;
+          transition: background 0.15s ease, color 0.15s ease;
         }
-        .bsf-tab.active { color: var(--teal); }
+        .bsf-tab.active { color: var(--teal); background: var(--sand-deep); }
 
         .bsf-modal-backdrop {
           position: fixed;
           inset: 0;
           background: rgba(43, 18, 22, 0.45);
+          backdrop-filter: blur(2px);
           display: flex;
           align-items: flex-end;
           z-index: 40;
@@ -4580,11 +4606,12 @@ function BrightStepsHubInner() {
           width: 100%;
           max-height: 85vh;
           overflow-y: auto;
-          border-radius: 18px 18px 0 0;
+          border-radius: 20px 20px 0 0;
           padding: 18px 18px 24px;
+          box-shadow: var(--shadow-lift);
         }
         .bsf-modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .bsf-modal-head h3 { font-family: 'Fraunces', serif; font-size: 18px; font-weight: 600; }
+        .bsf-modal-head h3 { font-family: 'Fraunces', serif; font-size: 19px; font-weight: 600; }
 
         .bsf-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; font-size: 13px; font-weight: 600; color: #3B4A4C; }
         .bsf-field input, .bsf-field select, .bsf-field textarea {
