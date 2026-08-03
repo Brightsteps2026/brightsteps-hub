@@ -95,7 +95,7 @@ export default function LoginGate({ children }) {
     const { error: pwError } = await supabase.auth.updateUser({ password: newPassword });
     if (pwError) {
       setSettingPassword(false);
-      setPasswordSetError("Could not set password. Please try again.");
+      setPasswordSetError(`Could not set password: ${pwError.message} (code: ${pwError.status || "unknown"})`);
       return;
     }
     const { error: profileUpdateError } = await supabase
