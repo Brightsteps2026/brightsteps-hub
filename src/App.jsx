@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, Plus, X, Trash2, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Flag, Percent, Briefcase, FolderOpen, Award, Sparkles, Send, LogOut, Bell } from "lucide-react";
 import AttachmentField from "./AttachmentField";
 import StudentPhotoField from "./StudentPhotoField";
@@ -726,25 +726,40 @@ function StudentMessages({ student, data, persist }) {
     });
   };
 
+  const initials = (name) =>
+    (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("");
+
+  const messages = student.messages || [];
+  let lastDate = null;
+
   return (
     <>
-      <h3 className="bsf-subheading">Messages</h3>
-      <p className="bsf-muted" style={{ marginBottom: 8 }}>A private thread between parents and teachers about {student.name}.</p>
+      <div className="bsf-msg-header">
+        <div>
+          <h3 className="bsf-subheading" style={{ margin: 0 }}>Messages</h3>
+          <p className="bsf-muted">A private thread between parents and teachers about {student.name}.</p>
+        </div>
+      </div>
       <div className="bsf-chatthread">
-        {(student.messages || []).length === 0 && <p className="bsf-empty">No messages yet. Say hello below.</p>}
-        {(student.messages || []).map((m) => {
+        {messages.length === 0 && <p className="bsf-empty">No messages yet. Say hello below.</p>}
+        {messages.map((m) => {
           const isMine = profile && m.author === profile.full_name && m.role === profile.role;
+          const showDateDivider = m.date !== lastDate;
+          lastDate = m.date;
           return (
-            <div key={m.id} className={`bsf-chatrow ${isMine ? "mine" : ""}`}>
-              <div className="bsf-chatbubble">
-                {!isMine && <div className="bsf-chatauthor">{m.author}{m.role ? ` · ${m.role}` : ""}</div>}
-                <p>{m.text}</p>
-                <div className="bsf-chatmeta">
-                  <span>{m.date}</span>
-                  <button className="bsf-textbtn" onClick={() => removeMessage(m.id)}>Remove</button>
+            <Fragment key={m.id}>
+              {showDateDivider && <div className="bsf-chatdate">{m.date}</div>}
+              <div className={`bsf-chatrow ${isMine ? "mine" : ""}`}>
+                {!isMine && <div className="bsf-chatavatar">{initials(m.author)}</div>}
+                <div className="bsf-chatbubble">
+                  {!isMine && <div className="bsf-chatauthor">{m.author}{m.role ? ` · ${m.role}` : ""}</div>}
+                  <p>{m.text}</p>
+                  <button className="bsf-chatremove" onClick={() => removeMessage(m.id)} aria-label="Remove message">
+                    <X size={12} />
+                  </button>
                 </div>
               </div>
-            </div>
+            </Fragment>
           );
         })}
       </div>
@@ -5130,27 +5145,45 @@ function BrightStepsHubInner() {
         .bsf-comment { background: #FCFAF4; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
         .bsf-comment p { margin: 4px 0 6px; font-size: 13px; }
 
+        .bsf-msg-header { margin-bottom: 10px; }
+        .bsf-msg-header .bsf-muted { margin-top: 3px; }
+
         .bsf-chatthread {
-          display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px;
+          display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px;
           max-height: 420px; overflow-y: auto; padding: 4px 2px;
         }
-        .bsf-chatrow { display: flex; justify-content: flex-start; }
+        .bsf-chatdate {
+          text-align: center; font-size: 11px; font-weight: 600; color: #A69698;
+          margin: 12px 0 8px; text-transform: uppercase; letter-spacing: 0.04em;
+        }
+        .bsf-chatdate:first-child { margin-top: 0; }
+        .bsf-chatrow { display: flex; justify-content: flex-start; align-items: flex-end; gap: 8px; margin-bottom: 6px; }
         .bsf-chatrow.mine { justify-content: flex-end; }
+        .bsf-chatavatar {
+          flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
+          background: var(--sand-deep); color: var(--gold-dark);
+          display: flex; align-items: center; justify-content: center;
+          font-size: 10.5px; font-weight: 700;
+        }
         .bsf-chatbubble {
-          max-width: 78%; background: #F2EFE8; border-radius: 16px 16px 16px 4px;
-          padding: 8px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+          position: relative;
+          max-width: 74%; background: #F2EFE8; border-radius: 16px 16px 16px 4px;
+          padding: 8px 30px 8px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);
         }
         .bsf-chatrow.mine .bsf-chatbubble {
-          background: #801524; color: #fff; border-radius: 16px 16px 4px 16px;
+          background: var(--teal); color: #fff; border-radius: 16px 16px 4px 16px;
+          padding: 8px 12px;
         }
-        .bsf-chatauthor { font-size: 11px; font-weight: 700; color: #801524; margin-bottom: 2px; }
+        .bsf-chatauthor { font-size: 11px; font-weight: 700; color: var(--teal); margin-bottom: 2px; }
         .bsf-chatbubble p { margin: 0; font-size: 14px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
-        .bsf-chatmeta {
-          display: flex; align-items: center; gap: 8px; margin-top: 4px;
-          font-size: 10px; opacity: 0.7;
+        .bsf-chatremove {
+          position: absolute; top: 6px; right: 6px; background: none; border: none;
+          color: #A69698; opacity: 0; transition: opacity 0.15s ease; cursor: pointer;
+          padding: 2px; border-radius: 50%; display: flex;
         }
-        .bsf-chatrow.mine .bsf-chatmeta { color: #f3e6ea; }
-        .bsf-chatrow.mine .bsf-chatmeta .bsf-textbtn { color: #f3e6ea; text-decoration: underline; }
+        .bsf-chatbubble:hover .bsf-chatremove { opacity: 1; }
+        .bsf-chatremove:hover { background: rgba(0,0,0,0.08); }
+        .bsf-chatrow.mine .bsf-chatremove { display: none; }
         .bsf-chatinputbar {
           display: flex; align-items: flex-end; gap: 8px;
           background: #FCFAF4; border: 1px solid var(--line); border-radius: 22px;
