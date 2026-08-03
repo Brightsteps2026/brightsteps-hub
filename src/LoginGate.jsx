@@ -98,13 +98,24 @@ export default function LoginGate({ children }) {
       setPasswordSetError(`Could not set password: ${pwError.message} (code: ${pwError.status || "unknown"})`);
       return;
     }
-    const { error: profileUpdateError } = await supabase
+    // Changing the password can momentarily refresh the session token, so
+    // make sure we have a current one before writing to the profiles table.
+    await supabase.auth.refreshSession();
+    let { error: profileUpdateError } = await supabase
       .from("profiles")
       .update({ password_changed: true })
       .eq("id", session.user.id);
+    if (profileUpdateError) {
+      // One retry in case the refreshed session hadn't propagated yet.
+      await new Promise((r) => setTimeout(r, 800));
+      ({ error: profileUpdateError } = await supabase
+        .from("profiles")
+        .update({ password_changed: true })
+        .eq("id", session.user.id));
+    }
     setSettingPassword(false);
     if (profileUpdateError) {
-      setPasswordSetError("Password was set, but we couldn't finish setup. Please try signing in again.");
+      setPasswordSetError(`Password was set, but we couldn't finish setup: ${profileUpdateError.message}`);
       return;
     }
     setProfile((p) => (p ? { ...p, password_changed: true } : p));
