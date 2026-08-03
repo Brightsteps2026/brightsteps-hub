@@ -25,8 +25,8 @@ const translations = {
   "nav.more": { en: "More", fr: "Plus" },
   "nav.allSections": { en: "All sections", fr: "Toutes les sections" },
   "nav.moreSectionsNote": {
-    en: "More sections, Staff, Admissions, Finance, and others, will appear here as they're built.",
-    fr: "D'autres sections, Personnel, Admissions, Finances, et autres, apparaîtront ici au fur et à mesure de leur création."
+    en: "",
+    fr: ""
   },
 
   // Top bar
