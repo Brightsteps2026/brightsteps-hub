@@ -967,7 +967,7 @@ function ParentStudentView({ data, persist, profile }) {
   );
 }
 
-function StudentsTab({ data, persist }) {
+function StudentsTab({ data, persist, profile }) {
   const [activeGrade, setActiveGrade] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -975,14 +975,23 @@ function StudentsTab({ data, persist }) {
   const [form, setForm] = useState(emptyStudentForm);
   const [formError, setFormError] = useState("");
 
+  const isLearningAssistant = profile?.role === "learning_assistant";
+  const isTeacherRole = profile?.role === "teacher" || isLearningAssistant;
+  const myAssignedGrades = profile?.grades_assigned || [];
+  const canEditStudents = !isTeacherRole;
+
+  const visibleStudents = isTeacherRole
+    ? data.students.filter((s) => myAssignedGrades.includes(s.grade))
+    : data.students;
+
   const counts = useMemo(() => {
     const c = {};
-    data.students.forEach((s) => { c[s.grade] = (c[s.grade] || 0) + 1; });
+    visibleStudents.forEach((s) => { c[s.grade] = (c[s.grade] || 0) + 1; });
     return c;
-  }, [data.students]);
+  }, [visibleStudents]);
 
-  const filtered = activeGrade ? data.students.filter((s) => s.grade === activeGrade) : data.students;
-  const familyViewStudent = data.students.find((s) => s.id === familyViewId);
+  const filtered = activeGrade ? visibleStudents.filter((s) => s.grade === activeGrade) : visibleStudents;
+  const familyViewStudent = visibleStudents.find((s) => s.id === familyViewId);
 
   const openAdd = () => {
     setEditingId(null);
@@ -992,6 +1001,7 @@ function StudentsTab({ data, persist }) {
   };
 
   const openEdit = (student) => {
+    if (!canEditStudents) return;
     setEditingId(student.id);
     const base = student.firstName ? student : { ...student, firstName: student.name || "", middleName: "", lastName: "" };
     const withNationalities = base.nationalities ? base : { ...base, nationalities: base.nationality ? [base.nationality] : [] };
@@ -1030,7 +1040,7 @@ function StudentsTab({ data, persist }) {
     <div className="bsf-screen">
       <div className="bsf-screen-head">
         <h1>Students</h1>
-        <button className="bsf-btn" onClick={openAdd}><Plus size={16} /> Add</button>
+        {canEditStudents && <button className="bsf-btn" onClick={openAdd}><Plus size={16} /> Add</button>}
       </div>
 
       <section className="bsf-card">
@@ -1040,7 +1050,7 @@ function StudentsTab({ data, persist }) {
       <section className="bsf-list">
         {filtered.length === 0 && <p className="bsf-empty">No students in this view yet.</p>}
         {filtered.map((s) => (
-          <div key={s.id} className="bsf-card bsf-student bsf-clickable" onClick={() => openEdit(s)}>
+          <div key={s.id} className={`bsf-card bsf-student ${canEditStudents ? "bsf-clickable" : ""}`} onClick={() => openEdit(s)}>
             <StudentThumb photo={s.photo} />
             <div>
               <strong>{s.name}</strong>
@@ -1052,13 +1062,13 @@ function StudentsTab({ data, persist }) {
             </div>
             <div className="bsf-student-actions">
               <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); setFamilyViewId(s.id); }} aria-label="Family view"><UserCheck size={16} /></button>
-              <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeStudent(s.id); }} aria-label="Remove"><Trash2 size={16} /></button>
+              {canEditStudents && <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeStudent(s.id); }} aria-label="Remove"><Trash2 size={16} /></button>}
             </div>
           </div>
         ))}
       </section>
 
-      {showForm && (
+      {showForm && canEditStudents && (
         <Modal title={editingId ? "Edit student" : "Add student"} onClose={() => setShowForm(false)}>
           <h3 className="bsf-subheading">Basic info</h3>
           <Field label="First name">
@@ -1197,14 +1207,29 @@ function StudentsTab({ data, persist }) {
   );
 }
 
-function ClassesTab({ data, persist }) {
+function ClassesTab({ data, persist, profile }) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [name, setName] = useState("");
   const [studentIds, setStudentIds] = useState([]);
   const [formError, setFormError] = useState("");
 
-  const classes = data.classes || [];
+  const isTeacherRole = profile?.role === "teacher" || profile?.role === "learning_assistant";
+  const myAssignedGrades = profile?.grades_assigned || [];
+
+  const allClasses = data.classes || [];
+  // Teachers and learning assistants only see classes that include at least one
+  // student in a grade they actually support, and can't change enrollment or
+  // class membership, that stays an admin decision.
+  const classes = isTeacherRole
+    ? allClasses.filter((c) =>
+        (c.studentIds || []).some((id) => {
+          const s = data.students.find((st) => st.id === id);
+          return s && myAssignedGrades.includes(s.grade);
+        })
+      )
+    : allClasses;
+
   const sortedStudents = [...data.students].sort((a, b) => {
     const gi = (s) => GRADES.indexOf(s.grade);
     return gi(a) - gi(b) || a.name.localeCompare(b.name);
@@ -1254,32 +1279,42 @@ function ClassesTab({ data, persist }) {
     <div className="bsf-screen">
       <div className="bsf-screen-head">
         <h1>Classes</h1>
-        <button className="bsf-btn" onClick={openAdd} disabled={data.students.length === 0}><Plus size={16} /> Add</button>
+        {!isTeacherRole && <button className="bsf-btn" onClick={openAdd} disabled={data.students.length === 0}><Plus size={16} /> Add</button>}
       </div>
-      {data.students.length === 0 && <p className="bsf-empty">Add students first, then group them into classes here.</p>}
+      {data.students.length === 0 && !isTeacherRole && <p className="bsf-empty">Add students first, then group them into classes here.</p>}
 
       <section className="bsf-list">
-        {classes.length === 0 && data.students.length > 0 && <p className="bsf-empty">No classes yet. Group students by homeroom, even across grade levels.</p>}
-        {classes.map((c) => (
-          <div key={c.id} className="bsf-card bsf-student bsf-clickable" onClick={() => openEdit(c)}>
-            <div>
-              <strong>{c.name}</strong>
-              <p className="bsf-muted">{gradeSpan(c) || "No grades yet"} · {(c.studentIds || []).length} student{(c.studentIds || []).length === 1 ? "" : "s"}</p>
-              <div className="bsf-chiprow" style={{ marginTop: 6 }}>
-                {(c.studentIds || []).map((id) => {
-                  const s = data.students.find((st) => st.id === id);
-                  return s ? <span key={id} className="bsf-minitag">{s.name}</span> : null;
-                })}
+        {classes.length === 0 && data.students.length > 0 && <p className="bsf-empty">No classes yet.{!isTeacherRole && " Group students by homeroom, even across grade levels."}</p>}
+        {classes.map((c) => {
+          const rosterIds = isTeacherRole
+            ? (c.studentIds || []).filter((id) => {
+                const s = data.students.find((st) => st.id === id);
+                return s && myAssignedGrades.includes(s.grade);
+              })
+            : (c.studentIds || []);
+          return (
+            <div key={c.id} className={`bsf-card bsf-student ${isTeacherRole ? "" : "bsf-clickable"}`} onClick={() => { if (!isTeacherRole) openEdit(c); }}>
+              <div>
+                <strong>{c.name}</strong>
+                <p className="bsf-muted">{gradeSpan(c) || "No grades yet"} · {rosterIds.length} student{rosterIds.length === 1 ? "" : "s"}</p>
+                <div className="bsf-chiprow" style={{ marginTop: 6 }}>
+                  {rosterIds.map((id) => {
+                    const s = data.students.find((st) => st.id === id);
+                    return s ? <span key={id} className="bsf-minitag">{s.name}</span> : null;
+                  })}
+                </div>
               </div>
+              {!isTeacherRole && (
+                <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeClass(c.id); }} aria-label="Remove">
+                  <Trash2 size={16} />
+                </button>
+              )}
             </div>
-            <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeClass(c.id); }} aria-label="Remove">
-              <Trash2 size={16} />
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </section>
 
-      {showForm && (
+      {showForm && !isTeacherRole && (
         <Modal title={editingId ? "Edit class" : "New class"} onClose={() => setShowForm(false)}>
           <Field label="Class name">
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Pre-Nursery / PreK, Grade 1 / 2" />
@@ -1305,13 +1340,20 @@ function ClassesTab({ data, persist }) {
 function PortfolioTab({ data, persist, profile }) {
   const { t } = useLanguage();
   const isParent = profile?.role === "parent";
+  const isStaffScoped = profile?.role === "teacher" || profile?.role === "learning_assistant";
   const linkedIds = profile?.student_ids || [];
+  const myAssignedGrades = profile?.grades_assigned || [];
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ studentId: "", tag: TAGS[0], note: "", author: "teacher", files: [] });
   const [formError, setFormError] = useState("");
 
+  const visibleStudentIds = isStaffScoped
+    ? data.students.filter((s) => myAssignedGrades.includes(s.grade)).map((s) => s.id)
+    : null;
+
   const entries = [...data.portfolio]
     .filter((p) => !isParent || linkedIds.includes(p.studentId))
+    .filter((p) => !visibleStudentIds || visibleStudentIds.includes(p.studentId))
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const addEntry = () => {
@@ -1405,7 +1447,7 @@ function PortfolioTab({ data, persist, profile }) {
           <Field label={t("portfolio.student")}>
             <select value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value })}>
               <option value="">{t("portfolio.chooseStudent")}</option>
-              {data.students.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
+              {(isStaffScoped ? data.students.filter((s) => myAssignedGrades.includes(s.grade)) : data.students).map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
             </select>
           </Field>
           <Field label={t("portfolio.focusArea")}>
@@ -1963,9 +2005,15 @@ const STATUS_COLOR = { present: "#2F7A5C", absent: "#B5473B", late: "#B8842F" };
 function AttendanceTab({ data, persist, profile }) {
   const [date, setDate] = useState(todayStr());
   const isParent = profile?.role === "parent";
+  const isStaffScoped = profile?.role === "teacher" || profile?.role === "learning_assistant";
   const linkedIds = profile?.student_ids || [];
-  const myGrades = isParent ? [...new Set(data.students.filter((s) => linkedIds.includes(s.id)).map((s) => s.grade))] : [];
-  const [activeGrade, setActiveGrade] = useState(isParent ? (myGrades[0] || null) : GRADES[0]);
+  const myAssignedGrades = profile?.grades_assigned || [];
+  const myGrades = isParent
+    ? [...new Set(data.students.filter((s) => linkedIds.includes(s.id)).map((s) => s.grade))]
+    : isStaffScoped
+    ? myAssignedGrades
+    : [];
+  const [activeGrade, setActiveGrade] = useState((isParent || isStaffScoped) ? (myGrades[0] || null) : GRADES[0]);
 
   const dayRecord = data.attendance[date] || {};
   const gradeStudents = isParent
@@ -2007,7 +2055,7 @@ function AttendanceTab({ data, persist, profile }) {
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bsf-dateinput" />
       </div>
 
-      {isParent && myGrades.length > 1 && (
+      {(isParent || isStaffScoped) && myGrades.length > 1 && (
         <section className="bsf-card">
           <h2>Grade</h2>
           <div className="bsf-chiprow">
@@ -2020,7 +2068,7 @@ function AttendanceTab({ data, persist, profile }) {
         </section>
       )}
 
-      {!isParent && (
+      {!isParent && !isStaffScoped && (
         <section className="bsf-card">
           <h2>Grade</h2>
           <div className="bsf-chiprow">
@@ -2203,11 +2251,18 @@ function AssessmentTab({ data, persist, profile }) {
   });
 
   const isParent = profile?.role === "parent";
+  const isStaffScoped = profile?.role === "teacher" || profile?.role === "learning_assistant";
   const linkedIds = profile?.student_ids || [];
-  const myGrades = isParent ? [...new Set(data.students.filter((s) => linkedIds.includes(s.id)).map((s) => s.grade))] : [];
+  const myAssignedGrades = profile?.grades_assigned || [];
+  const myGrades = isParent
+    ? [...new Set(data.students.filter((s) => linkedIds.includes(s.id)).map((s) => s.grade))]
+    : isStaffScoped
+    ? myAssignedGrades
+    : [];
 
   const assessments = [...(data.assessments || [])]
     .filter((a) => !isParent || linkedIds.includes(a.studentId))
+    .filter((a) => !isStaffScoped || myAssignedGrades.includes(a.grade))
     .sort((a, b) => b.date.localeCompare(a.date));
   const filtered = gradeFilter ? assessments.filter((a) => a.grade === gradeFilter) : assessments;
   const rubrics = data.rubrics || [];
@@ -2289,12 +2344,12 @@ function AssessmentTab({ data, persist, profile }) {
       {data.students.length === 0 && !isParent && <p className="bsf-empty">Add students first, then record assessments here.</p>}
       {isParent && filtered.length === 0 && <p className="bsf-empty">No assessment records yet for your child.</p>}
 
-      {data.students.length > 0 && (!isParent || myGrades.length > 1) && (
+      {data.students.length > 0 && (!isParent && !isStaffScoped || myGrades.length > 1) && (
         <section className="bsf-card">
           <h2>Filter by grade</h2>
           <div className="bsf-chiprow">
             <button className={`bsf-chip ${gradeFilter === null ? "active" : ""}`} onClick={() => setGradeFilter(null)}>All</button>
-            {(isParent ? myGrades : GRADES).map((g) => (
+            {((isParent || isStaffScoped) ? myGrades : GRADES).map((g) => (
               <button key={g} className={`bsf-chip ${gradeFilter === g ? "active" : ""}`} onClick={() => setGradeFilter(g)}>{g}</button>
             ))}
           </div>
@@ -2348,7 +2403,7 @@ function AssessmentTab({ data, persist, profile }) {
           <Field label="Student">
             <select value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value, planId: "" })}>
               <option value="">Choose a student</option>
-              {data.students.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
+              {(isStaffScoped ? data.students.filter((s) => myAssignedGrades.includes(s.grade)) : data.students).map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
             </select>
           </Field>
           <Field label="Linked unit plan (optional)">
@@ -4576,14 +4631,19 @@ function BrightStepsHubInner() {
   const [showMenu, setShowMenu] = useState(false);
   const isParent = profile?.role === "parent";
   const isAdmin = profile?.role === "admin";
+  const isLearningAssistant = profile?.role === "learning_assistant";
   const PARENT_HIDDEN_TABS = ["classes", "staff", "admissions", "reports", "behavior", "resources", "accreditation", "ai", "planning", "gradebook"];
   const ADMIN_ONLY_TABS = ["accreditation"];
+  // A learning assistant supports specific grades day to day; they don't need
+  // enrollment, staffing, or school-wide admin tools, just the classroom-facing ones.
+  const LEARNING_ASSISTANT_ALLOWED_TABS = ["dashboard", "attendance", "portfolio", "assessment", "classes", "calendar", "assignments", "updates"];
   const unreadCount = useMemo(() => getUnreadMessageCount(data, profile), [data.students, profile]);
 
   useEffect(() => {
     if (isParent && PARENT_HIDDEN_TABS.includes(tab)) setTab("dashboard");
     if (!isAdmin && ADMIN_ONLY_TABS.includes(tab)) setTab("dashboard");
-  }, [isParent, isAdmin, tab]);
+    if (isLearningAssistant && !LEARNING_ASSISTANT_ALLOWED_TABS.includes(tab)) setTab("dashboard");
+  }, [isParent, isAdmin, isLearningAssistant, tab]);
 
   if (loadError) {
     return (
@@ -4624,7 +4684,8 @@ function BrightStepsHubInner() {
   const allSections = allSectionsRaw
     .filter((s) => !s.hidden)
     .filter((s) => !isParent || !PARENT_HIDDEN_TABS.includes(s.id))
-    .filter((s) => isAdmin || !ADMIN_ONLY_TABS.includes(s.id));
+    .filter((s) => isAdmin || !ADMIN_ONLY_TABS.includes(s.id))
+    .filter((s) => !isLearningAssistant || LEARNING_ASSISTANT_ALLOWED_TABS.includes(s.id));
 
   const primaryIds = ["dashboard", "attendance", "portfolio", "assessment"];
   const bottomTabs = primaryIds.map((id) => allSections.find((s) => s.id === id));
@@ -5206,20 +5267,20 @@ function BrightStepsHubInner() {
       </div>
 
       {tab === "dashboard" && <Dashboard data={data} profile={profile} />}
-      {tab === "students" && (isParent ? <ParentStudentView data={data} persist={persist} profile={profile} /> : <StudentsTab data={data} persist={persist} />)}
-      {tab === "classes" && !isParent && <ClassesTab data={data} persist={persist} />}
-      {tab === "staff" && !isParent && <StaffTab data={data} persist={persist} />}
+      {tab === "students" && !isLearningAssistant && (isParent ? <ParentStudentView data={data} persist={persist} profile={profile} /> : <StudentsTab data={data} persist={persist} profile={profile} />)}
+      {tab === "classes" && !isParent && <ClassesTab data={data} persist={persist} profile={profile} />}
+      {tab === "staff" && !isParent && !isLearningAssistant && <StaffTab data={data} persist={persist} />}
       {tab === "attendance" && <AttendanceTab data={data} persist={persist} profile={profile} />}
       {tab === "portfolio" && <PortfolioTab data={data} persist={persist} profile={profile} />}
       {tab === "assessment" && <AssessmentTab data={data} persist={persist} profile={profile} />}
-      {tab === "gradebook" && !isParent && <GradebookTab data={data} persist={persist} onNavigate={goTo} />}
-      {tab === "planning" && !isParent && <PlanningTab data={data} persist={persist} />}
+      {tab === "gradebook" && !isParent && !isLearningAssistant && <GradebookTab data={data} persist={persist} onNavigate={goTo} />}
+      {tab === "planning" && !isParent && !isLearningAssistant && <PlanningTab data={data} persist={persist} />}
       {tab === "calendar" && <CalendarTab data={data} persist={persist} profile={profile} />}
-      {tab === "admissions" && !isParent && <AdmissionsTab data={data} persist={persist} />}
+      {tab === "admissions" && !isParent && !isLearningAssistant && <AdmissionsTab data={data} persist={persist} />}
       {tab === "assignments" && <AssignmentsTab data={data} persist={persist} profile={profile} />}
-      {tab === "reports" && !isParent && <ReportsTab data={data} persist={persist} />}
-      {tab === "behavior" && !isParent && <BehaviorTab data={data} persist={persist} />}
-      {tab === "resources" && !isParent && <ResourcesTab data={data} persist={persist} />}
+      {tab === "reports" && !isParent && !isLearningAssistant && <ReportsTab data={data} persist={persist} />}
+      {tab === "behavior" && !isParent && !isLearningAssistant && <BehaviorTab data={data} persist={persist} />}
+      {tab === "resources" && !isParent && !isLearningAssistant && <ResourcesTab data={data} persist={persist} />}
       {tab === "accreditation" && isAdmin && <AccreditationTab data={data} persist={persist} />}
       {false && tab === "ai" && !isParent && <AIAssistantTab data={data} />}
       {tab === "updates" && <UpdatesTab data={data} persist={persist} />}
@@ -5236,7 +5297,7 @@ function BrightStepsHubInner() {
               </button>
             ))}
           </div>
-          {t("nav.moreSectionsNote") && <p className="bsf-muted" style={{ marginTop: 10 }}>{t("nav.moreSectionsNote")}</p>}
+
         </Modal>
       )}
 
