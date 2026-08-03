@@ -17,6 +17,10 @@ export default function LoginGate({ children }) {
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSetError, setPasswordSetError] = useState("");
+  const [settingPassword, setSettingPassword] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -74,6 +78,36 @@ export default function LoginGate({ children }) {
 
   async function handleSignOut() {
     await supabase.auth.signOut();
+  }
+
+  async function handleSetFirstPassword(e) {
+    e.preventDefault();
+    setPasswordSetError("");
+    if (newPassword.length < 6) {
+      setPasswordSetError("Password must be at least 6 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordSetError("Passwords don't match.");
+      return;
+    }
+    setSettingPassword(true);
+    const { error: pwError } = await supabase.auth.updateUser({ password: newPassword });
+    if (pwError) {
+      setSettingPassword(false);
+      setPasswordSetError("Could not set password. Please try again.");
+      return;
+    }
+    const { error: profileUpdateError } = await supabase
+      .from("profiles")
+      .update({ password_changed: true })
+      .eq("id", session.user.id);
+    setSettingPassword(false);
+    if (profileUpdateError) {
+      setPasswordSetError("Password was set, but we couldn't finish setup. Please try signing in again.");
+      return;
+    }
+    setProfile((p) => (p ? { ...p, password_changed: true } : p));
   }
 
   if (session === undefined) {
@@ -148,6 +182,44 @@ export default function LoginGate({ children }) {
     return (
       <div style={styles.centerScreen}>
         <p style={{ color: "#666" }}>Loading your account...</p>
+      </div>
+    );
+  }
+
+  if (!profile.password_changed) {
+    return (
+      <div style={styles.centerScreen}>
+        <div style={styles.card}>
+          <h1 style={styles.title}>Welcome to BrightSteps Hub</h1>
+          <p style={styles.subtitle}>
+            For your security, please choose your own password before continuing.
+          </p>
+          <form onSubmit={handleSetFirstPassword}>
+            <label style={styles.label}>New password</label>
+            <input
+              type="password"
+              required
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              style={styles.input}
+              autoComplete="new-password"
+              placeholder="At least 6 characters"
+            />
+            <label style={styles.label}>Confirm new password</label>
+            <input
+              type="password"
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              style={styles.input}
+              autoComplete="new-password"
+            />
+            {passwordSetError && <p style={styles.error}>{passwordSetError}</p>}
+            <button type="submit" disabled={settingPassword} style={styles.button}>
+              {settingPassword ? "Setting password..." : "Set password and continue"}
+            </button>
+          </form>
+        </div>
       </div>
     );
   }
