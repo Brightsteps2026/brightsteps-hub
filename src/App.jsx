@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, Plus, X, Trash2, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Flag, Percent, Briefcase, FolderOpen, Award, Sparkles, Send, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, Plus, X, Trash2, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Flag, Percent, Briefcase, FolderOpen, Award, Sparkles, Send, LogOut, Bell } from "lucide-react";
 import AttachmentField from "./AttachmentField";
 import StudentPhotoField from "./StudentPhotoField";
 import { getAttachmentUrl } from "./lib/attachments";
@@ -128,6 +128,28 @@ function syncGlobalsFromSettings(settings) {
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
+}
+
+// Counts messages the current person hasn't seen yet, across every student
+// thread they're allowed to view. Parents only see messages from staff;
+// staff only see messages from parents (staff-to-staff notes don't count).
+function getUnreadMessageCount(data, profile) {
+  if (!profile?.id) return 0;
+  const isParent = profile.role === "parent";
+  const linkedIds = profile.student_ids || [];
+  let count = 0;
+  (data.students || []).forEach((s) => {
+    if (isParent && !linkedIds.includes(s.id)) return;
+    const lastRead = (s.lastRead && s.lastRead[profile.id]) || "1970-01-01T00:00:00.000Z";
+    (s.messages || []).forEach((m) => {
+      const messageIsFromParent = m.role === "parent";
+      const relevant = isParent ? !messageIsFromParent : messageIsFromParent;
+      if (!relevant) return;
+      const ts = m.createdAt || (m.date ? `${m.date}T00:00:00.000Z` : null);
+      if (ts && ts > lastRead) count += 1;
+    });
+  });
+  return count;
 }
 
 function useSchoolData() {
@@ -596,6 +618,19 @@ function StudentMessages({ student, data, persist }) {
   const { profile } = useAuth();
   const [messageText, setMessageText] = useState("");
 
+  useEffect(() => {
+    if (!profile?.id || !student?.id) return;
+    if ((student.messages || []).length === 0) return;
+    persist({
+      ...data,
+      students: data.students.map((s) =>
+        s.id === student.id ? { ...s, lastRead: { ...(s.lastRead || {}), [profile.id]: new Date().toISOString() } } : s
+      )
+    });
+    // Only re-run when switching to a different student, not on every persist.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [student.id, profile?.id]);
+
   const addMessage = () => {
     if (!messageText.trim()) return;
     const message = {
@@ -603,11 +638,16 @@ function StudentMessages({ student, data, persist }) {
       author: (profile && profile.full_name) || "Someone",
       role: (profile && profile.role) || "",
       text: messageText.trim(),
-      date: new Date().toISOString().slice(0, 10)
+      date: new Date().toISOString().slice(0, 10),
+      createdAt: new Date().toISOString()
     };
     persist({
       ...data,
-      students: data.students.map((s) => (s.id === student.id ? { ...s, messages: [...(s.messages || []), message] } : s))
+      students: data.students.map((s) =>
+        s.id === student.id
+          ? { ...s, messages: [...(s.messages || []), message], lastRead: { ...(s.lastRead || {}), [profile.id]: message.createdAt } }
+          : s
+      )
     });
     setMessageText("");
   };
@@ -648,8 +688,47 @@ function ParentStudentView({ data, persist, profile }) {
   const linkedIds = profile?.student_ids || [];
   const myStudents = data.students.filter((s) => linkedIds.includes(s.id));
   const [activeChildId, setActiveChildId] = useState(null);
+  const today = todayStr();
 
   const activeStudent = myStudents.find((s) => s.id === activeChildId) || myStudents[0];
+
+  const attendanceSummary = useMemo(() => {
+    const counts = { present: 0, absent: 0, late: 0 };
+    if (!activeStudent) return counts;
+    Object.values(data.attendance || {}).forEach((day) => {
+      const status = day[activeStudent.id];
+      if (status) counts[status] += 1;
+    });
+    return counts;
+  }, [data.attendance, activeStudent]);
+
+  const portfolioEntries = activeStudent
+    ? [...data.portfolio].filter((p) => p.studentId === activeStudent.id).sort((a, b) => b.date.localeCompare(a.date))
+    : [];
+
+  const assessments = activeStudent
+    ? [...(data.assessments || [])].filter((a) => a.studentId === activeStudent.id).sort((a, b) => b.date.localeCompare(a.date))
+    : [];
+
+  const events = activeStudent
+    ? [...(data.events || [])]
+        .filter((e) => (e.endDate || e.date) >= today)
+        .filter((e) => !e.grades || e.grades.length === 0 || e.grades.includes(activeStudent.grade))
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .slice(0, 4)
+    : [];
+
+  const assignmentsDue = activeStudent
+    ? [...(data.assignments || [])]
+        .filter((a) => !a.dueDate || a.dueDate >= today)
+        .filter((a) => (a.grades || []).includes(activeStudent.grade))
+        .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))
+        .slice(0, 5)
+    : [];
+
+  const reports = activeStudent
+    ? (data.reports || []).filter((r) => r.studentId === activeStudent.id).sort((a, b) => b.createdDate.localeCompare(a.createdDate))
+    : [];
 
   if (myStudents.length === 0) {
     return (
@@ -689,19 +768,126 @@ function ParentStudentView({ data, persist, profile }) {
       )}
 
       {activeStudent && (
-        <section key={activeStudent.id} className="bsf-card">
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-            <StudentThumb photo={activeStudent.photo} />
-            <div>
-              <strong>{activeStudent.name}</strong>
-              <p className="bsf-muted">{activeStudent.grade}</p>
+        <>
+          <section className="bsf-card">
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+              <StudentThumb photo={activeStudent.photo} />
+              <div>
+                <strong>{activeStudent.name}</strong>
+                <p className="bsf-muted">{activeStudent.grade}</p>
+              </div>
             </div>
-          </div>
-          {activeStudent.allergies && <p className="bsf-alert-note">Allergies: {activeStudent.allergies}</p>}
-          {activeStudent.medicalConditions && <p className="bsf-alert-note">Medical: {activeStudent.medicalConditions}</p>}
-          <hr className="bsf-divider" />
-          <StudentMessages student={activeStudent} data={data} persist={persist} />
-        </section>
+            {activeStudent.allergies && <p className="bsf-alert-note">Allergies: {activeStudent.allergies}</p>}
+            {activeStudent.medicalConditions && <p className="bsf-alert-note">Medical: {activeStudent.medicalConditions}</p>}
+          </section>
+
+          <section className="bsf-card">
+            <h2>Attendance</h2>
+            <p className="bsf-muted">
+              {attendanceSummary.present} present · {attendanceSummary.absent} absent · {attendanceSummary.late} late this year
+            </p>
+          </section>
+
+          <section className="bsf-card">
+            <h2>Upcoming for {activeStudent.grade}</h2>
+            {events.length === 0 && <p className="bsf-empty">Nothing scheduled yet.</p>}
+            {events.map((e) => (
+              <div key={e.id} className="bsf-row">
+                <span className="bsf-status-pill" style={{ background: `${EVENT_TYPE_COLOR[e.type]}1A`, color: EVENT_TYPE_COLOR[e.type] }}>
+                  {e.type}
+                </span>
+                <div>
+                  <strong>{e.title}</strong>
+                  <p>{e.date}{e.endDate && e.endDate !== e.date ? ` to ${e.endDate}` : ""}</p>
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="bsf-card">
+            <h2>Assignments due</h2>
+            {assignmentsDue.length === 0 && <p className="bsf-empty">Nothing assigned right now.</p>}
+            {assignmentsDue.map((a) => (
+              <div key={a.id} className="bsf-row">
+                {a.subject && <span className="bsf-tag">{a.subject}</span>}
+                <div>
+                  <strong>{a.title}</strong>
+                  {a.dueDate && <p className="bsf-muted">Due {a.dueDate}</p>}
+                  {a.description && <p>{a.description}</p>}
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="bsf-card">
+            <h2>Portfolio</h2>
+            {portfolioEntries.length === 0 && <p className="bsf-empty">No portfolio entries yet.</p>}
+            {portfolioEntries.map((p) => (
+              <div key={p.id} className="bsf-row">
+                <span className="bsf-tag">{p.tag}</span>
+                <div>
+                  <div className="bsf-row-head">
+                    <span className={`bsf-author-badge ${p.author === "student" ? "student" : "teacher"}`}>
+                      {p.author === "student" ? "Student reflection" : "Teacher note"}
+                    </span>
+                    <span className="bsf-muted">{p.date}</span>
+                  </div>
+                  <p>{p.note}</p>
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="bsf-card">
+            <h2>Assessments</h2>
+            {assessments.length === 0 && <p className="bsf-empty">No assessments recorded yet.</p>}
+            {assessments.map((a) => (
+              <div key={a.id} className="bsf-row">
+                {a.rows && a.rows.length > 0 ? (
+                  <span className="bsf-tag">{a.rubricName || "Rubric"}</span>
+                ) : (
+                  <span className="bsf-status-pill" style={{ background: `${getLevelColor(a.level)}1A`, color: getLevelColor(a.level) }}>
+                    {a.level}
+                  </span>
+                )}
+                <div>
+                  <p className="bsf-muted">{a.date}{a.subject ? ` · ${a.subject}` : ""}</p>
+                  {a.rows && a.rows.length > 0 ? (
+                    <div className="bsf-rubric-rows">
+                      {a.rows.map((r, i) => (
+                        <div key={i} className="bsf-rubric-row">
+                          <span>{r.text}</span>
+                          <span className="bsf-status-pill" style={{ background: `${getLevelColor(r.level)}1A`, color: getLevelColor(r.level) }}>{r.level}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p>{a.criteria}</p>
+                  )}
+                  {a.feedback && <p className="bsf-muted">{a.feedback}</p>}
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="bsf-card">
+            <h2>Reports</h2>
+            {reports.length === 0 && <p className="bsf-empty">No reports generated yet.</p>}
+            {reports.map((r) => (
+              <div key={r.id} className="bsf-row">
+                <span className="bsf-tag">{r.template}</span>
+                <div>
+                  <strong>{r.periodStart || "?"} to {r.periodEnd || "?"}</strong>
+                  <p>{r.createdDate}</p>
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="bsf-card">
+            <StudentMessages student={activeStudent} data={data} persist={persist} />
+          </section>
+        </>
       )}
     </div>
   );
@@ -1810,7 +1996,7 @@ function StandardsLibraryModal({ data, persist, onClose }) {
   );
 }
 
-function AssessmentTab({ data, persist }) {
+function AssessmentTab({ data, persist, profile }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showRubrics, setShowRubrics] = useState(false);
   const [showStandards, setShowStandards] = useState(false);
@@ -1821,7 +2007,12 @@ function AssessmentTab({ data, persist }) {
     feedback: "", rubricId: "", rows: [], standardId: ""
   });
 
-  const assessments = [...(data.assessments || [])].sort((a, b) => b.date.localeCompare(a.date));
+  const isParent = profile?.role === "parent";
+  const linkedIds = profile?.student_ids || [];
+
+  const assessments = [...(data.assessments || [])]
+    .filter((a) => !isParent || linkedIds.includes(a.studentId))
+    .sort((a, b) => b.date.localeCompare(a.date));
   const filtered = gradeFilter ? assessments.filter((a) => a.grade === gradeFilter) : assessments;
   const rubrics = data.rubrics || [];
   const standards = data.standards || [];
@@ -1891,13 +2082,16 @@ function AssessmentTab({ data, persist }) {
     <div className="bsf-screen">
       <div className="bsf-screen-head">
         <h1>Assessment</h1>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="bsf-btn bsf-btn-ghost" onClick={() => setShowStandards(true)}>Standards</button>
-          <button className="bsf-btn bsf-btn-ghost" onClick={() => setShowRubrics(true)}>Rubrics</button>
-          <button className="bsf-btn" onClick={() => { setFormError(""); setShowAdd(true); }} disabled={data.students.length === 0}><Plus size={16} /> Add</button>
-        </div>
+        {!isParent && (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="bsf-btn bsf-btn-ghost" onClick={() => setShowStandards(true)}>Standards</button>
+            <button className="bsf-btn bsf-btn-ghost" onClick={() => setShowRubrics(true)}>Rubrics</button>
+            <button className="bsf-btn" onClick={() => { setFormError(""); setShowAdd(true); }} disabled={data.students.length === 0}><Plus size={16} /> Add</button>
+          </div>
+        )}
       </div>
-      {data.students.length === 0 && <p className="bsf-empty">Add students first, then record assessments here.</p>}
+      {data.students.length === 0 && !isParent && <p className="bsf-empty">Add students first, then record assessments here.</p>}
+      {isParent && filtered.length === 0 && <p className="bsf-empty">No assessment records yet for your child.</p>}
 
       {data.students.length > 0 && (
         <section className="bsf-card">
@@ -2382,15 +2576,21 @@ function AdmissionsTab({ data, persist }) {
 
 const emptyAssignmentForm = { title: "", description: "", grades: [], subject: "", dueDate: "", link: "", files: [] };
 
-function AssignmentsTab({ data, persist }) {
+function AssignmentsTab({ data, persist, profile }) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [gradeFilter, setGradeFilter] = useState(null);
   const [form, setForm] = useState(emptyAssignmentForm);
   const [formError, setFormError] = useState("");
 
+  const isParent = profile?.role === "parent";
+  const linkedIds = profile?.student_ids || [];
+  const myGrades = isParent ? [...new Set(data.students.filter((s) => linkedIds.includes(s.id)).map((s) => s.grade))] : [];
+
   const today = todayStr();
-  const assignments = [...(data.assignments || [])].sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
+  const assignments = [...(data.assignments || [])]
+    .filter((a) => !isParent || (a.grades || []).some((g) => myGrades.includes(g)))
+    .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
   const filtered = gradeFilter ? assignments.filter((a) => (a.grades || []).includes(gradeFilter)) : assignments;
   const upcoming = filtered.filter((a) => !a.dueDate || a.dueDate >= today);
   const past = filtered.filter((a) => a.dueDate && a.dueDate < today);
@@ -2433,7 +2633,7 @@ function AssignmentsTab({ data, persist }) {
   const removeAssignment = (id) => persist({ ...data, assignments: (data.assignments || []).filter((a) => a.id !== id) });
 
   const renderAssignment = (a) => (
-    <div key={a.id} className="bsf-card bsf-student bsf-clickable" onClick={() => openEdit(a)}>
+    <div key={a.id} className={`bsf-card bsf-student ${isParent ? "" : "bsf-clickable"}`} onClick={() => { if (!isParent) openEdit(a); }}>
       <div>
         <div className="bsf-row-head">
           <span className="bsf-tag">{(a.grades || []).length === GRADES.length ? "All grades" : (a.grades || []).join(", ")}</span>
@@ -2451,11 +2651,12 @@ function AssignmentsTab({ data, persist }) {
               onChange={(files) =>
                 persist({ ...data, assignments: (data.assignments || []).map((x) => (x.id === a.id ? { ...x, files } : x)) })
               }
+              readOnly={isParent}
             />
           </div>
         )}
       </div>
-      <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeAssignment(a.id); }} aria-label="Remove"><Trash2 size={16} /></button>
+      {!isParent && <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeAssignment(a.id); }} aria-label="Remove"><Trash2 size={16} /></button>}
     </div>
   );
 
@@ -2463,14 +2664,14 @@ function AssignmentsTab({ data, persist }) {
     <div className="bsf-screen">
       <div className="bsf-screen-head">
         <h1>Assignments</h1>
-        <button className="bsf-btn" onClick={openAdd}><Plus size={16} /> Add</button>
+        {!isParent && <button className="bsf-btn" onClick={openAdd}><Plus size={16} /> Add</button>}
       </div>
 
       <section className="bsf-card">
         <h2>Filter by grade</h2>
         <div className="bsf-chiprow">
           <button className={`bsf-chip ${gradeFilter === null ? "active" : ""}`} onClick={() => setGradeFilter(null)}>All</button>
-          {GRADES.map((g) => (
+          {(isParent ? myGrades : GRADES).map((g) => (
             <button key={g} className={`bsf-chip ${gradeFilter === g ? "active" : ""}`} onClick={() => setGradeFilter(g)}>{g}</button>
           ))}
         </div>
@@ -4092,7 +4293,8 @@ function BrightStepsHubInner() {
   const [showSettings, setShowSettings] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const isParent = profile?.role === "parent";
-  const PARENT_HIDDEN_TABS = ["classes", "staff", "admissions", "reports", "behavior", "resources", "accreditation", "ai"];
+  const PARENT_HIDDEN_TABS = ["classes", "staff", "admissions", "reports", "behavior", "resources", "accreditation", "ai", "planning", "gradebook"];
+  const unreadCount = useMemo(() => getUnreadMessageCount(data, profile), [data.students, profile]);
 
   useEffect(() => {
     if (isParent && PARENT_HIDDEN_TABS.includes(tab)) setTab("dashboard");
@@ -4584,6 +4786,20 @@ function BrightStepsHubInner() {
               {language === "en" ? "FR" : "EN"}
             </button>
           )}
+          <button className="bsf-iconbtn bsf-settingsbtn" onClick={() => setTab("students")} aria-label="Messages" title="Messages" style={{ position: "relative" }}>
+            <Bell size={18} />
+            {unreadCount > 0 && (
+              <span
+                style={{
+                  position: "absolute", top: -2, right: -2, background: "#801524", color: "#fff",
+                  borderRadius: "50%", fontSize: 10, lineHeight: "16px", minWidth: 16, height: 16,
+                  textAlign: "center", padding: "0 3px", fontWeight: 600
+                }}
+              >
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
           <button className="bsf-iconbtn bsf-settingsbtn" onClick={() => setShowMenu(true)} aria-label={t("top.menu")}>
             <MenuIcon size={19} />
           </button>
@@ -4602,12 +4818,12 @@ function BrightStepsHubInner() {
       {tab === "staff" && !isParent && <StaffTab data={data} persist={persist} />}
       {tab === "attendance" && <AttendanceTab data={data} persist={persist} />}
       {tab === "portfolio" && <PortfolioTab data={data} persist={persist} />}
-      {tab === "assessment" && <AssessmentTab data={data} persist={persist} />}
-      {tab === "gradebook" && <GradebookTab data={data} persist={persist} onNavigate={goTo} />}
-      {tab === "planning" && <PlanningTab data={data} persist={persist} />}
+      {tab === "assessment" && <AssessmentTab data={data} persist={persist} profile={profile} />}
+      {tab === "gradebook" && !isParent && <GradebookTab data={data} persist={persist} onNavigate={goTo} />}
+      {tab === "planning" && !isParent && <PlanningTab data={data} persist={persist} />}
       {tab === "calendar" && <CalendarTab data={data} persist={persist} />}
       {tab === "admissions" && !isParent && <AdmissionsTab data={data} persist={persist} />}
-      {tab === "assignments" && <AssignmentsTab data={data} persist={persist} />}
+      {tab === "assignments" && <AssignmentsTab data={data} persist={persist} profile={profile} />}
       {tab === "reports" && !isParent && <ReportsTab data={data} persist={persist} />}
       {tab === "behavior" && !isParent && <BehaviorTab data={data} persist={persist} />}
       {tab === "resources" && !isParent && <ResourcesTab data={data} persist={persist} />}
@@ -4627,7 +4843,7 @@ function BrightStepsHubInner() {
               </button>
             ))}
           </div>
-          <p className="bsf-muted" style={{ marginTop: 10 }}>{t("nav.moreSectionsNote")}</p>
+          {t("nav.moreSectionsNote") && <p className="bsf-muted" style={{ marginTop: 10 }}>{t("nav.moreSectionsNote")}</p>}
         </Modal>
       )}
 
