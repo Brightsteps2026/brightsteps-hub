@@ -266,9 +266,13 @@ function GradeLadder({ counts, activeGrade, onSelect }) {
   );
 }
 
-function Dashboard({ data }) {
+function Dashboard({ data, profile }) {
   const { t } = useLanguage();
   const settings = data.settings || DEFAULT_SETTINGS;
+  const isParent = profile?.role === "parent";
+  const linkedIds = profile?.student_ids || [];
+  const myStudents = isParent ? data.students.filter((s) => linkedIds.includes(s.id)) : [];
+
   const counts = useMemo(() => {
     const c = {};
     data.students.forEach((s) => { c[s.grade] = (c[s.grade] || 0) + 1; });
@@ -276,11 +280,15 @@ function Dashboard({ data }) {
   }, [data.students]);
 
   const total = data.students.length;
-  const recentPortfolio = [...data.portfolio].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
+  const recentPortfolio = [...data.portfolio]
+    .filter((p) => !isParent || linkedIds.includes(p.studentId))
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 3);
   const recentAnnouncements = [...data.announcements].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 2);
   const today = todayStr();
   const nextEvents = [...(data.events || [])]
     .filter((e) => (e.endDate || e.date) >= today)
+    .filter((e) => !isParent || !e.grades || e.grades.length === 0 || myStudents.some((s) => e.grades.includes(s.grade)))
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 2);
 
@@ -288,18 +296,28 @@ function Dashboard({ data }) {
     <div className="bsf-screen">
       <div className="bsf-hero">
         <p className="bsf-eyebrow">{t("dashboard.eyebrow")}</p>
-        <h1>BrightSteps at a glance</h1>
-        <p className="bsf-hero-sub">{total} student{total === 1 ? "" : "s"} across {Object.keys(counts).length} grade level{Object.keys(counts).length === 1 ? "" : "s"}</p>
+        <h1>{isParent ? "Welcome back" : "BrightSteps at a glance"}</h1>
+        {isParent ? (
+          <p className="bsf-hero-sub">
+            {myStudents.length === 0
+              ? "No child linked to your account yet."
+              : myStudents.map((s) => s.name).join(" · ")}
+          </p>
+        ) : (
+          <p className="bsf-hero-sub">{total} student{total === 1 ? "" : "s"} across {Object.keys(counts).length} grade level{Object.keys(counts).length === 1 ? "" : "s"}</p>
+        )}
         {settings.branding.mission && <p className="bsf-mission">{settings.branding.mission}</p>}
         {(settings.academicYear.startDate || settings.academicYear.endDate) && (
           <p className="bsf-muted">Academic year: {settings.academicYear.startDate || "?"} to {settings.academicYear.endDate || "?"}</p>
         )}
       </div>
 
-      <section className="bsf-card">
-        <h2>Enrollment by grade</h2>
-        <GradeLadder counts={counts} activeGrade={null} onSelect={() => {}} />
-      </section>
+      {!isParent && (
+        <section className="bsf-card">
+          <h2>Enrollment by grade</h2>
+          <GradeLadder counts={counts} activeGrade={null} onSelect={() => {}} />
+        </section>
+      )}
 
       <section className="bsf-card">
         <h2>Next up</h2>
@@ -321,8 +339,8 @@ function Dashboard({ data }) {
       </section>
 
       <section className="bsf-card">
-        <h2>Latest portfolio entries</h2>
-        {recentPortfolio.length === 0 && <p className="bsf-empty">No entries yet. Add one from the Portfolio tab.</p>}
+        <h2>{isParent ? "Latest portfolio entries for your child" : "Latest portfolio entries"}</h2>
+        {recentPortfolio.length === 0 && <p className="bsf-empty">No entries yet.{!isParent && " Add one from the Portfolio tab."}</p>}
         {recentPortfolio.map((p) => (
           <div key={p.id} className="bsf-row">
             <span className="bsf-tag">{p.tag}</span>
@@ -336,7 +354,7 @@ function Dashboard({ data }) {
 
       <section className="bsf-card">
         <h2>Latest family updates</h2>
-        {recentAnnouncements.length === 0 && <p className="bsf-empty">Nothing posted yet. Share one from Family Updates.</p>}
+        {recentAnnouncements.length === 0 && <p className="bsf-empty">Nothing posted yet.{!isParent && " Share one from Family Updates."}</p>}
         {recentAnnouncements.map((a) => (
           <div key={a.id} className="bsf-row">
             <div>
@@ -4578,7 +4596,7 @@ function BrightStepsHubInner() {
         </div>
       </div>
 
-      {tab === "dashboard" && <Dashboard data={data} />}
+      {tab === "dashboard" && <Dashboard data={data} profile={profile} />}
       {tab === "students" && (isParent ? <ParentStudentView data={data} persist={persist} profile={profile} /> : <StudentsTab data={data} persist={persist} />)}
       {tab === "classes" && !isParent && <ClassesTab data={data} persist={persist} />}
       {tab === "staff" && !isParent && <StaffTab data={data} persist={persist} />}
