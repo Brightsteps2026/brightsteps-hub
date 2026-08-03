@@ -1044,7 +1044,7 @@ function StudentsTab({ data, persist }) {
             <StudentThumb photo={s.photo} />
             <div>
               <strong>{s.name}</strong>
-              <p className="bsf-muted">{s.grade}{(s.nationalities && s.nationalities.length) ? ` · ${s.nationalities.join(", ")}` : (s.nationality ? ` · ${s.nationality}` : "")}</p>
+              <p className="bsf-muted">{s.grade}{(s.nationalities && s.nationalities.length) ? ` · ${s.nationalities.join(" - ")}` : (s.nationality ? ` · ${s.nationality}` : "")}</p>
               {s.studentIdNumber && <p className="bsf-muted">ID: {s.studentIdNumber}</p>}
               <p className="bsf-muted" style={{ fontSize: 11, opacity: 0.6 }}>Account link code: {s.id}</p>
               {s.guardian1Name && <p className="bsf-muted">Guardian: {s.guardian1Name}{s.guardian1Phone ? ` · ${s.guardian1Phone}` : ""}</p>}
@@ -2276,10 +2276,10 @@ function AssessmentTab({ data, persist, profile }) {
 
   return (
     <div className="bsf-screen">
-      <div className="bsf-screen-head">
+      <div className="bsf-screen-head bsf-screen-head-wrap">
         <h1>Assessment</h1>
         {!isParent && (
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className="bsf-screen-head-actions">
             <button className="bsf-btn bsf-btn-ghost" onClick={() => setShowStandards(true)}>Standards</button>
             <button className="bsf-btn bsf-btn-ghost" onClick={() => setShowRubrics(true)}>Rubrics</button>
             <button className="bsf-btn" onClick={() => { setFormError(""); setShowAdd(true); }} disabled={data.students.length === 0}><Plus size={16} /> Add</button>
@@ -4366,6 +4366,48 @@ function ListEditor({ label, items, onChange, placeholder }) {
   );
 }
 
+function LogoUploadField({ logoUrl, onChange }) {
+  const [error, setError] = useState("");
+  const MAX_SIZE = 3 * 1024 * 1024; // 3MB, plenty for a logo, keeps the school's data light
+
+  const handleFile = (fileList) => {
+    setError("");
+    const file = (fileList || [])[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Please choose an image file (PNG or JPG works best).");
+      return;
+    }
+    if (file.size > MAX_SIZE) {
+      setError("That image is too large. Please choose one under 3MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => onChange(reader.result);
+    reader.onerror = () => setError("Could not read that file. Please try again.");
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div>
+      {logoUrl && <img src={logoUrl} alt="School logo preview" className="bsf-logo-preview" />}
+      <div style={{ display: "flex", gap: 8 }}>
+        <label className="bsf-attachment-upload">
+          <Plus size={16} />
+          <span>{logoUrl ? "Change logo" : "Upload logo"}</span>
+          <input type="file" accept="image/*" hidden onChange={(e) => handleFile(e.target.files)} />
+        </label>
+        {logoUrl && (
+          <button type="button" className="bsf-btn bsf-btn-ghost" onClick={() => onChange("")}>
+            Remove
+          </button>
+        )}
+      </div>
+      {error && <p className="bsf-formerror">{error}</p>}
+    </div>
+  );
+}
+
 function SettingsModal({ data, persist, onClose }) {
   const { signOut, profile } = useAuth();
   const { t } = useLanguage();
@@ -4436,12 +4478,12 @@ function SettingsModal({ data, persist, onClose }) {
       <Field label="Primary color">
         <input type="color" value={settings.branding.primaryColor} onChange={(e) => updateBranding({ primaryColor: e.target.value })} className="bsf-colorinput" />
       </Field>
-      <Field label="Logo URL">
-        <input value={settings.branding.logoUrl} onChange={(e) => updateBranding({ logoUrl: e.target.value })} placeholder="https://..." />
+      <Field label="School logo">
+        <LogoUploadField
+          logoUrl={settings.branding.logoUrl}
+          onChange={(dataUrl) => updateBranding({ logoUrl: dataUrl })}
+        />
       </Field>
-      {settings.branding.logoUrl && (
-        <img src={settings.branding.logoUrl} alt="School logo preview" className="bsf-logo-preview" />
-      )}
       <Field label="Mission statement">
         <textarea rows={2} value={settings.branding.mission} onChange={(e) => updateBranding({ mission: e.target.value })} />
       </Field>
@@ -4533,12 +4575,15 @@ function BrightStepsHubInner() {
   const [showSettings, setShowSettings] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const isParent = profile?.role === "parent";
+  const isAdmin = profile?.role === "admin";
   const PARENT_HIDDEN_TABS = ["classes", "staff", "admissions", "reports", "behavior", "resources", "accreditation", "ai", "planning", "gradebook"];
+  const ADMIN_ONLY_TABS = ["accreditation"];
   const unreadCount = useMemo(() => getUnreadMessageCount(data, profile), [data.students, profile]);
 
   useEffect(() => {
     if (isParent && PARENT_HIDDEN_TABS.includes(tab)) setTab("dashboard");
-  }, [isParent, tab]);
+    if (!isAdmin && ADMIN_ONLY_TABS.includes(tab)) setTab("dashboard");
+  }, [isParent, isAdmin, tab]);
 
   if (loadError) {
     return (
@@ -4573,10 +4618,13 @@ function BrightStepsHubInner() {
     { id: "behavior", label: "Behavior", navKey: "nav.behavior", icon: Flag },
     { id: "resources", label: "Resources", navKey: "nav.resources", icon: FolderOpen },
     { id: "accreditation", label: "Accreditation", navKey: "nav.accreditation", icon: Award },
-    { id: "ai", label: "AI Assistant", navKey: "nav.ai", icon: Sparkles },
+    { id: "ai", label: "AI Assistant", navKey: "nav.ai", icon: Sparkles, hidden: true },
     { id: "updates", label: "Communication", navKey: "nav.updates", icon: Megaphone }
   ];
-  const allSections = isParent ? allSectionsRaw.filter((s) => !PARENT_HIDDEN_TABS.includes(s.id)) : allSectionsRaw;
+  const allSections = allSectionsRaw
+    .filter((s) => !s.hidden)
+    .filter((s) => !isParent || !PARENT_HIDDEN_TABS.includes(s.id))
+    .filter((s) => isAdmin || !ADMIN_ONLY_TABS.includes(s.id));
 
   const primaryIds = ["dashboard", "attendance", "portfolio", "assessment"];
   const bottomTabs = primaryIds.map((id) => allSections.find((s) => s.id === id));
@@ -4698,6 +4746,11 @@ function BrightStepsHubInner() {
         .bsf-portfolio-row { display: flex; align-items: flex-start; gap: 10px; }
 
         .bsf-screen-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding: 4px; }
+        .bsf-screen-head-wrap { flex-wrap: wrap; row-gap: 10px; }
+        .bsf-screen-head-actions { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; }
+        @media (min-width: 420px) {
+          .bsf-screen-head-actions { width: auto; }
+        }
         .bsf-screen-head h1 { font-size: 22px; font-weight: 600; }
 
         .bsf-card {
@@ -5167,8 +5220,8 @@ function BrightStepsHubInner() {
       {tab === "reports" && !isParent && <ReportsTab data={data} persist={persist} />}
       {tab === "behavior" && !isParent && <BehaviorTab data={data} persist={persist} />}
       {tab === "resources" && !isParent && <ResourcesTab data={data} persist={persist} />}
-      {tab === "accreditation" && !isParent && <AccreditationTab data={data} persist={persist} />}
-      {tab === "ai" && !isParent && <AIAssistantTab data={data} />}
+      {tab === "accreditation" && isAdmin && <AccreditationTab data={data} persist={persist} />}
+      {false && tab === "ai" && !isParent && <AIAssistantTab data={data} />}
       {tab === "updates" && <UpdatesTab data={data} persist={persist} />}
 
       {showSettings && <SettingsModal data={data} persist={persist} onClose={() => setShowSettings(false)} />}
