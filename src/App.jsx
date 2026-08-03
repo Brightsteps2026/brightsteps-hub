@@ -46,6 +46,11 @@ const DEFAULT_SETTINGS = {
   branding: { primaryColor: "#801524", logoUrl: BRIGHTSTEPS_LOGO_DATA_URI, mission: "", slogan: "" },
   languages: ["English", "French"],
   academicYear: { startDate: "", endDate: "" },
+  terms: [
+    { name: "Term 1", startDate: "", endDate: "" },
+    { name: "Term 2", startDate: "", endDate: "" },
+    { name: "Term 3", startDate: "", endDate: "" }
+  ],
   reportCardTemplates: ["Standard Progress Report"],
   roles: ["Administrator", "Teacher", "Parent"]
 };
@@ -134,6 +139,19 @@ function todayStr() {
 // Counts messages the current person hasn't seen yet, across every student
 // thread they're allowed to view. Parents only see messages from staff;
 // staff only see messages from parents (staff-to-staff notes don't count).
+// Counts a student's attendance days, optionally limited to a date range (a term).
+// Pass no range to get the year-to-date total.
+function attendanceCountsForRange(attendanceMap, studentId, startDate, endDate) {
+  const counts = { present: 0, absent: 0, late: 0 };
+  Object.entries(attendanceMap || {}).forEach(([date, day]) => {
+    if (startDate && date < startDate) return;
+    if (endDate && date > endDate) return;
+    const status = day[studentId];
+    if (status) counts[status] += 1;
+  });
+  return counts;
+}
+
 function getUnreadMessageCount(data, profile) {
   if (!profile?.id) return 0;
   const isParent = profile.role === "parent";
@@ -459,15 +477,20 @@ function Dashboard({ data, profile }) {
 
 function FamilyViewModal({ student, data, onClose }) {
   const today = todayStr();
+  const settings = data.settings || DEFAULT_SETTINGS;
+  const terms = settings.terms || DEFAULT_SETTINGS.terms;
 
-  const attendanceSummary = useMemo(() => {
-    const counts = { present: 0, absent: 0, late: 0 };
-    Object.values(data.attendance || {}).forEach((day) => {
-      const status = day[student.id];
-      if (status) counts[status] += 1;
-    });
-    return counts;
-  }, [data.attendance, student.id]);
+  const attendanceSummary = useMemo(
+    () => attendanceCountsForRange(data.attendance, student.id),
+    [data.attendance, student.id]
+  );
+
+  const termSummaries = useMemo(
+    () => terms
+      .filter((term) => term.startDate && term.endDate)
+      .map((term) => ({ ...term, counts: attendanceCountsForRange(data.attendance, student.id, term.startDate, term.endDate) })),
+    [data.attendance, student.id, terms]
+  );
 
   const portfolioEntries = [...data.portfolio]
     .filter((p) => p.studentId === student.id)
@@ -550,6 +573,18 @@ function FamilyViewModal({ student, data, onClose }) {
         <p className="bsf-muted">
           {attendanceSummary.present} present · {attendanceSummary.absent} absent · {attendanceSummary.late} late this year
         </p>
+        {termSummaries.length > 0 && (
+          <div className="bsf-termsummary">
+            {termSummaries.map((term) => (
+              <div key={term.name} className="bsf-termsummary-row">
+                <span className="bsf-tag">{term.name}</span>
+                <span className="bsf-muted">
+                  {term.counts.present} present · {term.counts.absent} absent · {term.counts.late} late
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="bsf-card">
@@ -788,16 +823,20 @@ function ParentStudentView({ data, persist, profile }) {
   const today = todayStr();
 
   const activeStudent = myStudents.find((s) => s.id === activeChildId) || myStudents[0];
+  const settings = data.settings || DEFAULT_SETTINGS;
+  const terms = settings.terms || DEFAULT_SETTINGS.terms;
 
-  const attendanceSummary = useMemo(() => {
-    const counts = { present: 0, absent: 0, late: 0 };
-    if (!activeStudent) return counts;
-    Object.values(data.attendance || {}).forEach((day) => {
-      const status = day[activeStudent.id];
-      if (status) counts[status] += 1;
-    });
-    return counts;
-  }, [data.attendance, activeStudent]);
+  const attendanceSummary = useMemo(
+    () => (activeStudent ? attendanceCountsForRange(data.attendance, activeStudent.id) : { present: 0, absent: 0, late: 0 }),
+    [data.attendance, activeStudent]
+  );
+
+  const termSummaries = useMemo(() => {
+    if (!activeStudent) return [];
+    return terms
+      .filter((term) => term.startDate && term.endDate)
+      .map((term) => ({ ...term, counts: attendanceCountsForRange(data.attendance, activeStudent.id, term.startDate, term.endDate) }));
+  }, [data.attendance, activeStudent, terms]);
 
   const portfolioEntries = activeStudent
     ? [...data.portfolio].filter((p) => p.studentId === activeStudent.id).sort((a, b) => b.date.localeCompare(a.date))
@@ -888,6 +927,18 @@ function ParentStudentView({ data, persist, profile }) {
             <p className="bsf-muted">
               {attendanceSummary.present} present · {attendanceSummary.absent} absent · {attendanceSummary.late} late this year
             </p>
+            {termSummaries.length > 0 && (
+              <div className="bsf-termsummary">
+                {termSummaries.map((term) => (
+                  <div key={term.name} className="bsf-termsummary-row">
+                    <span className="bsf-tag">{term.name}</span>
+                    <span className="bsf-muted">
+                      {term.counts.present} present · {term.counts.absent} absent · {term.counts.late} late
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="bsf-card">
@@ -1467,10 +1518,10 @@ function PortfolioTab({ data, persist, profile }) {
             <span className="bsf-muted">{p.date}</span>
           </div>
           <p style={{ marginTop: 8 }}>{p.note}</p>
-          {(p.files || []).length > 0 && (
+          {(!isParent || (p.files || []).length > 0) && (
             <AttachmentField
               folder="portfolio"
-              files={p.files}
+              files={p.files || []}
               onChange={(files) =>
                 persist({ ...data, portfolio: data.portfolio.map((e) => (e.id === p.id ? { ...e, files } : e)) })
               }
@@ -2988,11 +3039,11 @@ function AssignmentsTab({ data, persist, profile }) {
         <strong>{a.title}</strong>
         {a.description && <p>{a.description}</p>}
         {a.link && <p className="bsf-muted">{a.link}</p>}
-        {(a.files || []).length > 0 && (
+        {(!isParent || (a.files || []).length > 0) && (
           <div onClick={(e) => e.stopPropagation()}>
             <AttachmentField
               folder="assignments"
-              files={a.files}
+              files={a.files || []}
               onChange={(files) =>
                 persist({ ...data, assignments: (data.assignments || []).map((x) => (x.id === a.id ? { ...x, files } : x)) })
               }
@@ -4654,6 +4705,41 @@ function SettingsModal({ data, persist, onClose }) {
         </Field>
       </div>
 
+      <p className="bsf-muted" style={{ marginTop: 12, marginBottom: 8 }}>
+        Terms are used to break attendance and report totals down by period, not just the whole year.
+      </p>
+      {(settings.terms || DEFAULT_SETTINGS.terms).map((term, i) => {
+        const updateTerm = (patch) => {
+          const nextTerms = [...(settings.terms || DEFAULT_SETTINGS.terms)];
+          nextTerms[i] = { ...nextTerms[i], ...patch };
+          update({ terms: nextTerms });
+        };
+        const removeTerm = () => {
+          const nextTerms = (settings.terms || DEFAULT_SETTINGS.terms).filter((_, idx) => idx !== i);
+          update({ terms: nextTerms });
+        };
+        return (
+          <div key={i} className="bsf-termrow">
+            <input
+              value={term.name}
+              onChange={(e) => updateTerm({ name: e.target.value })}
+              className="bsf-termname"
+              placeholder="Term name"
+            />
+            <input type="date" value={term.startDate} onChange={(e) => updateTerm({ startDate: e.target.value })} />
+            <input type="date" value={term.endDate} onChange={(e) => updateTerm({ endDate: e.target.value })} />
+            <button className="bsf-iconbtn" onClick={removeTerm} aria-label="Remove term"><Trash2 size={16} /></button>
+          </div>
+        );
+      })}
+      <button
+        type="button"
+        className="bsf-btn bsf-btn-ghost"
+        onClick={() => update({ terms: [...(settings.terms || DEFAULT_SETTINGS.terms), { name: `Term ${(settings.terms || []).length + 1}`, startDate: "", endDate: "" }] })}
+      >
+        <Plus size={16} /> Add term
+      </button>
+
       <hr className="bsf-divider" />
       <h3 className="bsf-subheading">Report card templates</h3>
       <ListEditor
@@ -5066,6 +5152,18 @@ function BrightStepsHubInner() {
         }
         .bsf-field textarea { resize: vertical; }
         .bsf-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .bsf-termrow {
+          display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; align-items: center;
+          margin-bottom: 8px;
+        }
+        .bsf-termsummary { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+        .bsf-termsummary-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+        .bsf-termsummary-row:last-child { margin-bottom: 0; }
+        .bsf-termname { font-size: 13px; }
+        @media (max-width: 420px) {
+          .bsf-termrow { grid-template-columns: 1fr 1fr; }
+          .bsf-termname { grid-column: 1 / -1; }
+        }
 
         .bsf-dateinput {
           font-family: 'Work Sans', sans-serif;
