@@ -7,12 +7,17 @@ export function useAuth() {
 }
 
 const BRAND_BURGUNDY = "#801524";
+// Students log in with just their ID, not a real email. Under the hood we turn
+// that ID into a fake-but-valid email address, since Supabase accounts need one.
+const STUDENT_LOGIN_DOMAIN = "students.brightstepshub.local";
 
 export default function LoginGate({ children }) {
   const [session, setSession] = useState(undefined);
   const [profile, setProfile] = useState(null);
   const [profileError, setProfileError] = useState("");
+  const [loginMode, setLoginMode] = useState("staff"); // "staff" or "student"
   const [email, setEmail] = useState("");
+  const [studentId, setStudentId] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState("");
@@ -66,8 +71,11 @@ export default function LoginGate({ children }) {
     e.preventDefault();
     setFormError("");
     setSubmitting(true);
+    const loginEmail = loginMode === "student"
+      ? `${studentId.trim().toLowerCase()}@${STUDENT_LOGIN_DOMAIN}`
+      : email.trim();
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: loginEmail,
       password,
     });
     setSubmitting(false);
@@ -138,17 +146,53 @@ export default function LoginGate({ children }) {
           <Logo />
           <h1 style={styles.title}>BrightSteps Hub</h1>
           <p style={styles.subtitle}>Please sign in to continue</p>
+
+          <div style={styles.modeToggle}>
+            <button
+              type="button"
+              onClick={() => setLoginMode("staff")}
+              style={{ ...styles.modeButton, ...(loginMode === "staff" ? styles.modeButtonActive : {}) }}
+            >
+              Staff & Parent
+            </button>
+            <button
+              type="button"
+              onClick={() => setLoginMode("student")}
+              style={{ ...styles.modeButton, ...(loginMode === "student" ? styles.modeButtonActive : {}) }}
+            >
+              Student
+            </button>
+          </div>
+
           <form onSubmit={handleSubmit}>
-            <label style={styles.label}>Email</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={styles.input}
-              className="bsh-input"
-              autoComplete="username"
-            />
+            {loginMode === "student" ? (
+              <>
+                <label style={styles.label}>Student ID</label>
+                <input
+                  type="text"
+                  required
+                  value={studentId}
+                  onChange={(e) => setStudentId(e.target.value)}
+                  style={styles.input}
+                  className="bsh-input"
+                  autoComplete="username"
+                  placeholder="e.g. 2026001"
+                />
+              </>
+            ) : (
+              <>
+                <label style={styles.label}>Email</label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  style={styles.input}
+                  className="bsh-input"
+                  autoComplete="username"
+                />
+              </>
+            )}
             <label style={styles.label}>Password</label>
             <input
               type={showPassword ? "text" : "password"}
@@ -357,4 +401,28 @@ const styles = {
     color: "#7A6A6C",
   },
   footnote: { fontSize: 12.5, color: "#A69698", marginTop: 22, lineHeight: 1.5 },
+  modeToggle: {
+    display: "flex",
+    background: "#F5E4E6",
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 6,
+  },
+  modeButton: {
+    flex: 1,
+    padding: "8px 10px",
+    borderRadius: 8,
+    border: "none",
+    background: "transparent",
+    color: "#7A2A34",
+    fontSize: 13,
+    fontWeight: 600,
+    fontFamily: "'Work Sans', sans-serif",
+    cursor: "pointer",
+  },
+  modeButtonActive: {
+    background: "#fff",
+    color: "#801524",
+    boxShadow: "0 1px 3px rgba(128, 21, 36, 0.18)",
+  },
 };
