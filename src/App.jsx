@@ -2226,11 +2226,34 @@ function AttendanceTab({ data, persist, profile }) {
     return counts;
   }, [dayRecord, gradeStudents]);
 
+  const dateLabel = new Date(date + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  const isToday = date === todayStr();
+  const markedTotal = summary.present + summary.absent + summary.late;
+
   return (
     <div className="bsf-screen">
-      <div className="bsf-screen-head">
-        <h1>Attendance</h1>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bsf-dateinput" />
+      <div className="bsf-hero">
+        <p className="bsf-eyebrow">Attendance</p>
+        <h1>{dateLabel}</h1>
+        {!isToday && (
+          <button className="bsf-textbtn" onClick={() => setDate(todayStr())} style={{ marginTop: 2 }}>
+            Jump back to today
+          </button>
+        )}
+        <div className="bsf-attend-summary">
+          <div className="bsf-attend-bignum">
+            <strong>{summary.present}</strong>
+            <span>present today</span>
+          </div>
+          {markedTotal > 0 && (
+            <div className="bsf-attend-segbar">
+              {summary.present > 0 && <span style={{ flex: summary.present, background: STATUS_COLOR.present }} />}
+              {summary.late > 0 && <span style={{ flex: summary.late, background: STATUS_COLOR.late }} />}
+              {summary.absent > 0 && <span style={{ flex: summary.absent, background: STATUS_COLOR.absent }} />}
+            </div>
+          )}
+        </div>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bsf-dateinput" style={{ marginTop: 12 }} />
       </div>
 
       {(isParent || isStaffScoped) && myGrades.length > 1 && (
@@ -2259,15 +2282,13 @@ function AttendanceTab({ data, persist, profile }) {
         </section>
       )}
 
-      <section className="bsf-card">
-        <div className="bsf-row-head">
-          <h2>{activeGrade}</h2>
-          {!isParent && <button className="bsf-btn" onClick={markAllPresent} disabled={gradeStudents.length === 0}>Mark all present</button>}
-        </div>
-        <p className="bsf-muted">
-          {summary.present} present · {summary.absent} absent · {summary.late} late{!isParent ? ` · ${summary.unmarked} unmarked` : ""}
-        </p>
-      </section>
+      <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
+        <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 16 }}>{activeGrade}</h2>
+        {!isParent && <button className="bsf-btn" onClick={markAllPresent} disabled={gradeStudents.length === 0}>Mark all present</button>}
+      </div>
+      <p className="bsf-muted" style={{ margin: "6px 4px 14px" }}>
+        {summary.present} present · {summary.absent} absent · {summary.late} late{!isParent ? ` · ${summary.unmarked} unmarked` : ""}
+      </p>
 
       <section className="bsf-list">
         {gradeStudents.length === 0 && <p className="bsf-empty">{isParent ? "No attendance recorded yet." : "No students in this grade yet."}</p>}
@@ -2275,6 +2296,7 @@ function AttendanceTab({ data, persist, profile }) {
           const status = dayRecord[s.id];
           return isParent ? (
             <div key={s.id} className="bsf-card bsf-attend-row">
+              <StudentThumb photo={s.photo} />
               <span><strong>{s.name}</strong></span>
               <span
                 className="bsf-status-pill"
@@ -2287,7 +2309,8 @@ function AttendanceTab({ data, persist, profile }) {
               </span>
             </div>
           ) : (
-            <button key={s.id} className="bsf-card bsf-attend-row" onClick={() => cycleStatus(s.id)}>
+            <button key={s.id} className="bsf-card bsf-attend-row bsf-clickable" onClick={() => cycleStatus(s.id)}>
+              <StudentThumb photo={s.photo} />
               <span>
                 <strong>{s.name}</strong>
               </span>
@@ -2507,10 +2530,32 @@ function AssessmentTab({ data, persist, profile }) {
 
   const removeAssessment = (id) => persist({ ...data, assessments: (data.assessments || []).filter((a) => a.id !== id) });
 
+  const levelCounts = useMemo(() => {
+    const counts = {};
+    ASSESS_LEVELS.forEach((l) => { counts[l] = 0; });
+    filtered.forEach((a) => {
+      if (a.level) counts[a.level] = (counts[a.level] || 0) + 1;
+      (a.rows || []).forEach((r) => { if (r.level) counts[r.level] = (counts[r.level] || 0) + 1; });
+    });
+    return counts;
+  }, [filtered]);
+
   return (
     <div className="bsf-screen">
-      <div className="bsf-screen-head bsf-screen-head-wrap">
-        <h1>Assessment</h1>
+      <div className="bsf-hero">
+        <p className="bsf-eyebrow">Assessment</p>
+        <h1>{filtered.length} record{filtered.length === 1 ? "" : "s"}</h1>
+        {filtered.length > 0 && (
+          <div className="bsf-attend-segbar" style={{ marginTop: 14 }}>
+            {ASSESS_LEVELS.filter((l) => levelCounts[l] > 0).map((l) => (
+              <span key={l} style={{ flex: levelCounts[l], background: getLevelColor(l) }} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bsf-screen-head bsf-screen-head-wrap" style={{ marginBottom: 0 }}>
+        <span />
         {!isParent && (
           <div className="bsf-screen-head-actions">
             <button className="bsf-btn bsf-btn-ghost" onClick={() => setShowStandards(true)}>Standards</button>
@@ -2536,44 +2581,48 @@ function AssessmentTab({ data, persist, profile }) {
 
       <section className="bsf-list">
         {filtered.length === 0 && <p className="bsf-empty">No assessments recorded yet.</p>}
-        {filtered.map((a) => (
-          <div key={a.id} className="bsf-card bsf-student">
-            <div>
-              <div className="bsf-row-head">
-                {a.rows && a.rows.length > 0 ? (
-                  <span className="bsf-tag">{a.rubricName || "Rubric"}</span>
-                ) : (
-                  <span
-                    className="bsf-status-pill"
-                    style={{ background: `${getLevelColor(a.level)}1A`, color: getLevelColor(a.level) }}
-                  >
-                    {a.level}
-                  </span>
-                )}
-                <span className="bsf-muted">{a.date}</span>
-              </div>
-              <strong>{a.studentName}</strong>
-              <p className="bsf-muted">{a.grade}{a.subject ? ` · ${a.subject}` : ""}{a.planTitle ? ` · ${a.planTitle}` : ""}</p>
-              {a.rows && a.rows.length > 0 ? (
-                <div className="bsf-rubric-rows">
-                  {a.rows.map((r, i) => (
-                    <div key={i} className="bsf-rubric-row">
-                      <span>{r.text}</span>
-                      <span className="bsf-status-pill" style={{ background: `${getLevelColor(r.level)}1A`, color: getLevelColor(r.level) }}>
-                        {r.level}
-                      </span>
-                    </div>
-                  ))}
+        {filtered.map((a) => {
+          const student = data.students.find((s) => s.id === a.studentId);
+          return (
+            <div key={a.id} className="bsf-card bsf-portfolio-entry">
+              <StudentThumb photo={student?.photo} />
+              <div style={{ flex: 1 }}>
+                <div className="bsf-row-head">
+                  {a.rows && a.rows.length > 0 ? (
+                    <span className="bsf-tag">{a.rubricName || "Rubric"}</span>
+                  ) : (
+                    <span
+                      className="bsf-status-pill"
+                      style={{ background: `${getLevelColor(a.level)}1A`, color: getLevelColor(a.level) }}
+                    >
+                      {a.level}
+                    </span>
+                  )}
+                  <span className="bsf-muted">{a.date}</span>
                 </div>
-              ) : (
-                <p>{a.criteria}</p>
-              )}
-              {a.feedback && <p className="bsf-muted">{a.feedback}</p>}
-              {a.standardLabel && <p className="bsf-muted">Standard: {a.standardLabel}</p>}
+                <strong>{a.studentName}</strong>
+                <p className="bsf-muted">{a.grade}{a.subject ? ` · ${a.subject}` : ""}{a.planTitle ? ` · ${a.planTitle}` : ""}</p>
+                {a.rows && a.rows.length > 0 ? (
+                  <div className="bsf-rubric-rows">
+                    {a.rows.map((r, i) => (
+                      <div key={i} className="bsf-rubric-row">
+                        <span>{r.text}</span>
+                        <span className="bsf-status-pill" style={{ background: `${getLevelColor(r.level)}1A`, color: getLevelColor(r.level) }}>
+                          {r.level}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p>{a.criteria}</p>
+                )}
+                {a.feedback && <p className="bsf-muted">{a.feedback}</p>}
+                {a.standardLabel && <p className="bsf-muted">Standard: {a.standardLabel}</p>}
+              </div>
+              {!isParent && <button className="bsf-iconbtn" onClick={() => removeAssessment(a.id)} aria-label="Remove"><Trash2 size={16} /></button>}
             </div>
-            <button className="bsf-iconbtn" onClick={() => removeAssessment(a.id)} aria-label="Remove"><Trash2 size={16} /></button>
-          </div>
-        ))}
+          );
+        })}
       </section>
 
       {showAdd && (
@@ -5228,12 +5277,19 @@ function BrightStepsHubInner() {
         .bsf-attend-row {
           width: 100%;
           display: flex;
-          justify-content: space-between;
           align-items: center;
+          gap: 10px;
           text-align: left;
           font-family: 'Work Sans', sans-serif;
           cursor: pointer;
         }
+        .bsf-attend-row span:nth-child(2) { flex: 1; }
+        .bsf-attend-summary { margin-top: 16px; }
+        .bsf-attend-bignum { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+        .bsf-attend-bignum strong { font-family: 'Fraunces', serif; font-size: 32px; color: var(--teal); font-weight: 600; }
+        .bsf-attend-bignum span { font-size: 13px; color: var(--teal-light); font-weight: 500; }
+        .bsf-attend-segbar { display: flex; height: 8px; border-radius: 6px; overflow: hidden; background: var(--sand-deep); }
+        .bsf-attend-segbar span { display: block; }
         .bsf-status-pill {
           font-size: 12px;
           font-weight: 600;
