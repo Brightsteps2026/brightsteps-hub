@@ -5487,7 +5487,7 @@ function BrightStepsHubInner() {
         .bsf-student-thumb { width: 44px; height: 44px; border-radius: 50%; overflow: hidden; background: #F5E4E6; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #801524; }
         .bsf-student-thumb img { width: 100%; height: 100%; object-fit: cover; }
         .bsf-photofield { display: flex; align-items: center; gap: 12px; }
-        .bsf-photofield-preview { width: 52px; height: 52px; border-radius: 50%; overflow: hidden; background: #F5E4E6; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #801524; }
+        .bsf-photofield-preview { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; background: #F5E4E6; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #801524; }
         .bsf-photofield-preview img { width: 100%; height: 100%; object-fit: cover; }
         .bsf-photofield-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
         .bsf-resource-link { display: inline-block; color: var(--teal); font-size: 12.5px; word-break: break-all; margin-top: 4px; }
