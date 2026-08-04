@@ -59,7 +59,7 @@ export default function StudentPhotoField({ photo, onChange }) {
   return (
     <div className="bsf-photofield">
       <div className="bsf-photofield-preview">
-        {previewUrl ? <img src={previewUrl} alt="Student" /> : <Camera size={22} />}
+        {previewUrl ? <img src={previewUrl} alt="Student" /> : <Camera size={16} />}
       </div>
       <div className="bsf-photofield-actions">
         <label className="bsf-attachment-upload">
