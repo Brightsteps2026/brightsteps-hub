@@ -2395,6 +2395,9 @@ function StandardsLibraryModal({ data, persist, onClose }) {
   const [description, setDescription] = useState("");
   const [subject, setSubject] = useState("");
   const [grade, setGrade] = useState("");
+  const [bulkText, setBulkText] = useState("");
+  const [bulkError, setBulkError] = useState("");
+  const [bulkSuccess, setBulkSuccess] = useState("");
 
   const standards = data.standards || [];
 
@@ -2406,6 +2409,35 @@ function StandardsLibraryModal({ data, persist, onClose }) {
   };
 
   const removeStandard = (id) => persist({ ...data, standards: standards.filter((s) => s.id !== id) });
+
+  const importBulk = () => {
+    setBulkError("");
+    setBulkSuccess("");
+    const lines = bulkText.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) {
+      setBulkError("Paste one standard per line before importing.");
+      return;
+    }
+    const newStandards = [];
+    for (const line of lines) {
+      const parts = line.split("|").map((p) => p.trim());
+      if (parts.length < 2) {
+        setBulkError(`This line is missing a pipe (|) separator: "${line.slice(0, 40)}..."`);
+        return;
+      }
+      const [lineCode, lineSubject, lineGrade, ...rest] = parts;
+      const lineDescription = rest.join("|").trim() || lineGrade || "";
+      // Format is Code | Subject | Grade | Description (Grade is optional)
+      if (parts.length >= 4) {
+        newStandards.push({ id: uid(), code: lineCode, subject: lineSubject, grade: parts[2], description: parts.slice(3).join("|").trim() });
+      } else {
+        newStandards.push({ id: uid(), code: lineCode, subject: lineSubject, grade: "", description: lineDescription });
+      }
+    }
+    persist({ ...data, standards: [...standards, ...newStandards] });
+    setBulkText("");
+    setBulkSuccess(`Added ${newStandards.length} standard${newStandards.length === 1 ? "" : "s"}.`);
+  };
 
   return (
     <Modal title="Standards library" onClose={onClose}>
@@ -2425,7 +2457,20 @@ function StandardsLibraryModal({ data, persist, onClose }) {
       </div>
 
       <hr className="bsf-divider" />
-      <h3 className="bsf-subheading">New standard</h3>
+      <h3 className="bsf-subheading">Import many at once</h3>
+      <p className="bsf-muted" style={{ marginBottom: 8 }}>
+        Paste one standard per line, in this format: <code>Code | Subject | Grade | Description</code>. Grade can be left blank.
+        For example: <code>CCSS.MATH.3.OA.1 | Math | Grade 3 | Interpret products of whole numbers</code>
+      </p>
+      <Field label="Paste standards here">
+        <textarea rows={6} value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder="One standard per line" />
+      </Field>
+      <button className="bsf-btn bsf-btn-block" onClick={importBulk}>Import list</button>
+      {bulkError && <p className="bsf-formerror">{bulkError}</p>}
+      {bulkSuccess && <p className="bsf-muted">{bulkSuccess}</p>}
+
+      <hr className="bsf-divider" />
+      <h3 className="bsf-subheading">Add one standard</h3>
       <Field label="Code (optional)">
         <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. CCSS.MATH.3.OA.1" />
       </Field>
@@ -4942,24 +4987,24 @@ function BrightStepsHubInner() {
   const branding = (data.settings || DEFAULT_SETTINGS).branding;
 
   const allSectionsRaw = [
-    { id: "dashboard", label: "Dashboard", navKey: "nav.dashboard", icon: LayoutDashboard },
-    { id: "students", label: "Students", navKey: "nav.students", icon: Users },
-    { id: "classes", label: "Classes", navKey: "nav.classes", icon: UserCheck },
-    { id: "staff", label: "Staff", navKey: "nav.staff", icon: Briefcase },
-    { id: "attendance", label: "Attendance", navKey: "nav.attendance", icon: CheckSquare },
-    { id: "portfolio", label: "Portfolio", navKey: "nav.portfolio", icon: BookOpen },
-    { id: "assessment", label: "Assessment", navKey: "nav.assessment", icon: ClipboardCheck },
-    { id: "gradebook", label: "Gradebook", navKey: "nav.gradebook", icon: Percent },
-    { id: "planning", label: "Planning", navKey: "nav.planning", icon: ClipboardList },
-    { id: "calendar", label: "Calendar", navKey: "nav.calendar", icon: CalendarIcon },
-    { id: "admissions", label: "Admissions", navKey: "nav.admissions", icon: UserPlus },
-    { id: "assignments", label: "Assignments", navKey: "nav.assignments", icon: FileText },
-    { id: "reports", label: "Reports", navKey: "nav.reports", icon: FileCheck },
-    { id: "behavior", label: "Behavior", navKey: "nav.behavior", icon: Flag },
-    { id: "resources", label: "Resources", navKey: "nav.resources", icon: FolderOpen },
-    { id: "accreditation", label: "Accreditation", navKey: "nav.accreditation", icon: Award },
-    { id: "ai", label: "AI Assistant", navKey: "nav.ai", icon: Sparkles, hidden: true },
-    { id: "updates", label: "Communication", navKey: "nav.updates", icon: Megaphone }
+    { id: "dashboard", label: "Dashboard", navKey: "nav.dashboard", icon: LayoutDashboard, category: "core" },
+    { id: "students", label: "Students", navKey: "nav.students", icon: Users, category: "classroom" },
+    { id: "classes", label: "Classes", navKey: "nav.classes", icon: UserCheck, category: "classroom" },
+    { id: "staff", label: "Staff", navKey: "nav.staff", icon: Briefcase, category: "office" },
+    { id: "attendance", label: "Attendance", navKey: "nav.attendance", icon: CheckSquare, category: "core" },
+    { id: "portfolio", label: "Portfolio", navKey: "nav.portfolio", icon: BookOpen, category: "core" },
+    { id: "assessment", label: "Assessment", navKey: "nav.assessment", icon: ClipboardCheck, category: "core" },
+    { id: "gradebook", label: "Gradebook", navKey: "nav.gradebook", icon: Percent, category: "classroom" },
+    { id: "planning", label: "Planning", navKey: "nav.planning", icon: ClipboardList, category: "classroom" },
+    { id: "calendar", label: "Calendar", navKey: "nav.calendar", icon: CalendarIcon, category: "office" },
+    { id: "admissions", label: "Admissions", navKey: "nav.admissions", icon: UserPlus, category: "office" },
+    { id: "assignments", label: "Assignments", navKey: "nav.assignments", icon: FileText, category: "classroom" },
+    { id: "reports", label: "Reports", navKey: "nav.reports", icon: FileCheck, category: "compliance" },
+    { id: "behavior", label: "Behavior", navKey: "nav.behavior", icon: Flag, category: "compliance" },
+    { id: "resources", label: "Resources", navKey: "nav.resources", icon: FolderOpen, category: "compliance" },
+    { id: "accreditation", label: "Accreditation", navKey: "nav.accreditation", icon: Award, category: "compliance" },
+    { id: "ai", label: "AI Assistant", navKey: "nav.ai", icon: Sparkles, hidden: true, category: "office" },
+    { id: "updates", label: "Communication", navKey: "nav.updates", icon: Megaphone, category: "office" }
   ];
   const allSections = allSectionsRaw
     .filter((s) => !s.hidden)
@@ -5473,24 +5518,22 @@ function BrightStepsHubInner() {
         .bsf-colorinput { width: 60px; height: 36px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
         .bsf-logo-preview { width: 64px; height: 64px; object-fit: contain; border-radius: 10px; border: 1px solid var(--line); margin: -4px 0 12px; background: var(--white); }
         .bsf-listheading { font-family: 'Fraunces', serif; font-size: 15px; font-weight: 600; margin: 4px 4px 8px; }
-        .bsf-menu-list { display: flex; flex-direction: column; gap: 4px; }
-        .bsf-menu-item {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          width: 100%;
-          text-align: left;
-          background: none;
-          border: none;
-          border-radius: 10px;
-          padding: 12px 10px;
-          font-size: 14px;
-          font-weight: 600;
-          color: var(--ink);
-          cursor: pointer;
+        .bsf-tilegrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .bsf-tile {
+          display: flex; flex-direction: column; align-items: center; gap: 8px;
+          background: var(--white); border: 1px solid var(--line); border-radius: 14px;
+          padding: 14px 8px; cursor: pointer; box-shadow: var(--shadow-sm);
+          transition: box-shadow 0.15s ease, transform 0.15s ease;
+          font-size: 12px; font-weight: 600; color: var(--ink); text-align: center;
         }
-        .bsf-menu-item:hover { background: var(--sand-deep); }
-        .bsf-menu-item.active { background: var(--sand-deep); color: var(--gold-dark); }
+        .bsf-tile:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+        .bsf-tile.active { border-color: var(--teal-light); background: var(--sand-deep); }
+        .bsf-tile-icon {
+          width: 40px; height: 40px; border-radius: 12px;
+          background: linear-gradient(135deg, var(--teal), var(--teal-light));
+          color: #fff; display: flex; align-items: center; justify-content: center;
+        }
+        .bsf-tile.active .bsf-tile-icon { background: linear-gradient(135deg, var(--gold-dark), var(--gold)); }
         .bsf-alert-note { color: #B5473B; font-weight: 600; font-size: 12.5px; margin-top: 4px; }
         .bsf-formerror { color: #B5473B; font-weight: 600; font-size: 13px; margin-top: 8px; text-align: center; }
         .bsf-attachments { margin-top: 8px; }
@@ -5623,15 +5666,27 @@ function BrightStepsHubInner() {
 
       {showMenu && (
         <Modal title={t("nav.allSections")} onClose={() => setShowMenu(false)}>
-          <div className="bsf-menu-list">
-            {allSections.map(({ id, navKey, icon: Icon }) => (
-              <button key={id} className={`bsf-menu-item ${tab === id ? "active" : ""}`} onClick={() => goTo(id)}>
-                <Icon size={18} />
-                <span>{t(navKey)}</span>
-              </button>
+          {["classroom", "office", "compliance"]
+            .map((cat) => ({
+              cat,
+              items: allSections.filter((s) => s.category === cat && !primaryIds.includes(s.id))
+            }))
+            .filter(({ items }) => items.length > 0)
+            .map(({ cat, items }) => (
+              <div key={cat} style={{ marginBottom: 18 }}>
+                <p className="bsf-group-label">
+                  {cat === "classroom" ? "Classroom" : cat === "office" ? "School office" : "Reports & compliance"}
+                </p>
+                <div className="bsf-tilegrid">
+                  {items.map(({ id, navKey, icon: Icon }) => (
+                    <button key={id} className={`bsf-tile ${tab === id ? "active" : ""}`} onClick={() => goTo(id)}>
+                      <span className="bsf-tile-icon"><Icon size={19} /></span>
+                      <span>{t(navKey)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
-          </div>
-
         </Modal>
       )}
 
