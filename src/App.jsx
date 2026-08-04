@@ -5105,8 +5105,9 @@ function BrightStepsHubInner() {
         .bsf-row-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 
         .bsf-list { display: flex; flex-direction: column; }
-        .bsf-student { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; text-align: left; }
-        .bsf-student > div { text-align: left; }
+        .bsf-student { display: flex; align-items: flex-start; gap: 8px; text-align: left; }
+        .bsf-student > div:not(.bsf-student-actions) { flex: 1; min-width: 0; text-align: left; }
+        .bsf-student-actions { margin-left: auto; flex-shrink: 0; display: flex; gap: 2px; }
         .bsf-student p { margin: 2px 0 0; font-size: 13px; }
 
         .bsf-tag {
@@ -5456,7 +5457,6 @@ function BrightStepsHubInner() {
         .bsf-colorinput { width: 60px; height: 36px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
         .bsf-logo-preview { width: 64px; height: 64px; object-fit: contain; border-radius: 10px; border: 1px solid var(--line); margin: -4px 0 12px; background: var(--white); }
         .bsf-listheading { font-family: 'Fraunces', serif; font-size: 15px; font-weight: 600; margin: 4px 4px 8px; }
-        .bsf-student-actions { display: flex; gap: 2px; }
         .bsf-menu-list { display: flex; flex-direction: column; gap: 4px; }
         .bsf-menu-item {
           display: flex;
