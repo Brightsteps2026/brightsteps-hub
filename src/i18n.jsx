@@ -23,7 +23,7 @@ const translations = {
   "nav.ai": { en: "AI Assistant", fr: "Assistant IA" },
   "nav.updates": { en: "Communication", fr: "Communication" },
   "nav.more": { en: "More", fr: "Plus" },
-  "nav.allSections": { en: "All sections", fr: "Toutes les sections" },
+  "nav.allSections": { en: "Explore", fr: "Explorer" },
   "nav.moreSectionsNote": {
     en: "",
     fr: ""
