@@ -1392,8 +1392,13 @@ function ClassesTab({ data, persist, profile }) {
 
   return (
     <div className="bsf-screen">
-      <div className="bsf-screen-head">
-        <h1>Classes</h1>
+      <div className="bsf-hero">
+        <p className="bsf-eyebrow">Classes</p>
+        <h1>{classes.length} class{classes.length === 1 ? "" : "es"}</h1>
+      </div>
+
+      <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
+        <span />
         {!isTeacherRole && <button className="bsf-btn" onClick={openAdd} disabled={data.students.length === 0}><Plus size={16} /> Add</button>}
       </div>
       {data.students.length === 0 && !isTeacherRole && <p className="bsf-empty">Add students first, then group them into classes here.</p>}
@@ -1412,12 +1417,11 @@ function ClassesTab({ data, persist, profile }) {
               <div>
                 <strong>{c.name}</strong>
                 <p className="bsf-muted">{gradeSpan(c) || "No grades yet"} · {rosterIds.length} student{rosterIds.length === 1 ? "" : "s"}</p>
-                <div className="bsf-chiprow" style={{ marginTop: 6 }}>
-                  {rosterIds.map((id) => {
-                    const s = data.students.find((st) => st.id === id);
-                    return s ? <span key={id} className="bsf-minitag">{s.name}</span> : null;
-                  })}
-                </div>
+                {rosterIds.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <AvatarStack students={rosterIds.map((id) => data.students.find((st) => st.id === id)).filter(Boolean)} />
+                  </div>
+                )}
               </div>
               {!isTeacherRole && (
                 <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeClass(c.id); }} aria-label="Remove">
@@ -2818,8 +2822,14 @@ function CalendarTab({ data, persist, profile }) {
 
   return (
     <div className="bsf-screen">
-      <div className="bsf-screen-head">
-        <h1>Calendar</h1>
+      <div className="bsf-hero">
+        <p className="bsf-eyebrow">Calendar</p>
+        <h1>{upcoming.length} upcoming event{upcoming.length === 1 ? "" : "s"}</h1>
+        {upcoming[0] && <p className="bsf-hero-sub">Next: {upcoming[0].title} · {upcoming[0].date}</p>}
+      </div>
+
+      <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
+        <span />
         {!isParent && <button className="bsf-btn" onClick={() => setShowAdd(true)}><Plus size={16} /> Add</button>}
       </div>
 
@@ -3148,8 +3158,14 @@ function AssignmentsTab({ data, persist, profile }) {
 
   return (
     <div className="bsf-screen">
-      <div className="bsf-screen-head">
-        <h1>Assignments</h1>
+      <div className="bsf-hero">
+        <p className="bsf-eyebrow">Assignments</p>
+        <h1>{upcoming.length} due{upcoming.length === 1 ? "" : ""} ahead</h1>
+        {upcoming[0] && <p className="bsf-hero-sub">Next: {upcoming[0].title}{upcoming[0].dueDate ? ` · Due ${upcoming[0].dueDate}` : ""}</p>}
+      </div>
+
+      <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
+        <span />
         {!isParent && <button className="bsf-btn" onClick={openAdd}><Plus size={16} /> Add</button>}
       </div>
 
