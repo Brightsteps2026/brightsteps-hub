@@ -30,7 +30,7 @@ const PLAN_TEMPLATE = {
   linesOfInquiry: "An exploration of \nA connection between \nThe way that "
 };
 
-let ASSESS_LEVELS = ["Emerging", "Developing", "Proficient", "Extending"];
+let ASSESS_LEVELS = ["Emerging", "Developing", "Proficient", "Confident"];
 const LEVEL_PALETTE = ["#B5473B", "#B8842F", "#2F6B7A", "#2F7A5C", "#6E4E9E", "#3A6EA5"];
 const getLevelColor = (level) => {
   const idx = ASSESS_LEVELS.indexOf(level);
@@ -88,17 +88,43 @@ const BEHAVIOR_TYPES = ["Positive", "Concern"];
 const BEHAVIOR_CATEGORIES_POSITIVE = ["Kindness", "Leadership", "Responsibility", "Effort", "Collaboration", "Other"];
 const BEHAVIOR_CATEGORIES_CONCERN = ["Disruption", "Conflict with a peer", "Not following instructions", "Safety concern", "Property damage", "Other"];
 
-const LETTER_GRADES = ["A", "B", "C", "D", "F"];
+const LETTER_GRADES = ["A+", "A", "B+", "B", "C+", "C", "D"];
+const LETTER_GRADE_MEANING = {
+  "A+": "Outstanding",
+  "A": "Excellent",
+  "B+": "Very Good",
+  "B": "Good",
+  "C+": "Satisfactory",
+  "C": "Developing",
+  "D": "Needs improvement"
+};
+// Maps each letter grade to the school's official Learning Progress band.
+const LEARNING_PROGRESS_BAND = {
+  "A+": "Exceeding Expectations",
+  "A": "Exceeding Expectations",
+  "B+": "Meeting Expectations",
+  "B": "Meeting Expectations",
+  "C+": "Approaching Expectations",
+  "C": "Approaching Expectations",
+  "D": "Below Expectations"
+};
 const letterFromScore = (score) => {
   const n = Number(score);
   if (Number.isNaN(n)) return "";
+  if (n >= 97) return "A+";
   if (n >= 90) return "A";
+  if (n >= 87) return "B+";
   if (n >= 80) return "B";
+  if (n >= 77) return "C+";
   if (n >= 70) return "C";
-  if (n >= 60) return "D";
-  return "F";
+  return "D";
 };
-const LETTER_GRADE_COLOR = { A: "#2F7A5C", B: "#2F6B7A", C: "#B8842F", D: "#B5473B", F: "#801524" };
+const LETTER_GRADE_COLOR = {
+  "A+": "#2F7A5C", "A": "#2F7A5C",
+  "B+": "#2F6B7A", "B": "#2F6B7A",
+  "C+": "#B8842F", "C": "#B8842F",
+  "D": "#B5473B"
+};
 
 const STAFF_ROLES = ["Administrator", "Teacher", "Learning Assistant", "Coordinator", "Support Staff", "Other"];
 
@@ -4083,8 +4109,24 @@ function GradebookTab({ data, persist, onNavigate }) {
   const [form, setForm] = useState(emptyGradeForm);
   const [formError, setFormError] = useState("");
 
+  // Pre-N through Kindergarten: portfolio only, no gradebook.
+  // Grade 1 and Grade 2: developmental levels only.
+  // Grade 3 and up: percentage or letter grades only.
+  const scoreTypeForGrade = (grade) => {
+    if (grade === "Grade 1" || grade === "Grade 2") return "Levels";
+    return "Percentage";
+  };
+
   const entries = [...(data.gradeEntries || [])].sort((a, b) => b.date.localeCompare(a.date));
   const filtered = gradeFilter ? entries.filter((e) => e.grade === gradeFilter) : entries;
+
+  const selectedStudent = data.students.find((s) => s.id === form.studentId);
+  const isLevelsGrade = selectedStudent && (selectedStudent.grade === "Grade 1" || selectedStudent.grade === "Grade 2");
+
+  const chooseStudent = (studentId) => {
+    const student = data.students.find((s) => s.id === studentId);
+    setForm((f) => ({ ...f, studentId, scoreType: student ? scoreTypeForGrade(student.grade) : f.scoreType, letter: "", score: "" }));
+  };
 
   const openAdd = () => {
     setEditingId(null);
@@ -4182,10 +4224,13 @@ function GradebookTab({ data, persist, onNavigate }) {
       {showForm && (
         <Modal title={editingId ? "Edit grade" : "New grade entry"} onClose={() => setShowForm(false)}>
           <Field label="Student">
-            <select value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value })}>
+            <select value={form.studentId} onChange={(e) => chooseStudent(e.target.value)}>
               <option value="">Choose a student</option>
-              {data.students.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
+              {data.students.filter((s) => GRADES.indexOf(s.grade) >= GRADES.indexOf("Grade 1")).map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
             </select>
+            <p className="bsf-muted" style={{ marginTop: 4 }}>
+              Pre-N through Kindergarten aren't shown here, since those grades are tracked through Portfolio, not the gradebook.
+            </p>
           </Field>
           <Field label="Subject">
             <input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="e.g. Math" />
@@ -4193,25 +4238,45 @@ function GradebookTab({ data, persist, onNavigate }) {
           <Field label="Term or period">
             <input value={form.term} onChange={(e) => setForm({ ...form, term: e.target.value })} placeholder="e.g. Term 1" />
           </Field>
-          <Field label="Grade type">
-            <div className="bsf-chiprow">
-              <button type="button" className={`bsf-chip ${form.scoreType === "Percentage" ? "active" : ""}`} onClick={() => setForm({ ...form, scoreType: "Percentage" })}>Percentage</button>
-              <button type="button" className={`bsf-chip ${form.scoreType === "Letter" ? "active" : ""}`} onClick={() => setForm({ ...form, scoreType: "Letter" })}>Letter grade</button>
-            </div>
-          </Field>
-          {form.scoreType === "Percentage" ? (
-            <Field label="Score (0 to 100)">
-              <input type="number" min="0" max="100" value={form.score} onChange={(e) => setForm({ ...form, score: e.target.value })} />
-              {form.score !== "" && <p className="bsf-muted" style={{ marginTop: 4 }}>Letter grade: {letterFromScore(form.score)}</p>}
-            </Field>
-          ) : (
-            <Field label="Letter grade">
+          {selectedStudent && (
+            <p className="bsf-muted" style={{ marginBottom: 10 }}>
+              {isLevelsGrade
+                ? "Grade 1 and Grade 2 are graded using developmental levels."
+                : "Grade 3 and up are graded using percentage or letter grades."}
+            </p>
+          )}
+          {selectedStudent && isLevelsGrade && (
+            <Field label="Level">
               <div className="bsf-chiprow">
-                {LETTER_GRADES.map((l) => (
+                {ASSESS_LEVELS.map((l) => (
                   <button key={l} type="button" className={`bsf-chip ${form.letter === l ? "active" : ""}`} onClick={() => setForm({ ...form, letter: l })}>{l}</button>
                 ))}
               </div>
             </Field>
+          )}
+          {selectedStudent && !isLevelsGrade && (
+            <Field label="Grade type">
+              <div className="bsf-chiprow">
+                <button type="button" className={`bsf-chip ${form.scoreType === "Percentage" ? "active" : ""}`} onClick={() => setForm({ ...form, scoreType: "Percentage" })}>Percentage</button>
+                <button type="button" className={`bsf-chip ${form.scoreType === "Letter" ? "active" : ""}`} onClick={() => setForm({ ...form, scoreType: "Letter" })}>Letter grade</button>
+              </div>
+            </Field>
+          )}
+          {selectedStudent && !isLevelsGrade && (
+            form.scoreType === "Percentage" ? (
+              <Field label="Score (0 to 100)">
+                <input type="number" min="0" max="100" value={form.score} onChange={(e) => setForm({ ...form, score: e.target.value })} />
+                {form.score !== "" && <p className="bsf-muted" style={{ marginTop: 4 }}>Letter grade: {letterFromScore(form.score)}</p>}
+              </Field>
+            ) : (
+              <Field label="Letter grade">
+                <div className="bsf-chiprow">
+                  {LETTER_GRADES.map((l) => (
+                    <button key={l} type="button" className={`bsf-chip ${form.letter === l ? "active" : ""}`} onClick={() => setForm({ ...form, letter: l })}>{l}</button>
+                  ))}
+                </div>
+              </Field>
+            )
           )}
           <Field label="Standard (optional)">
             <select value={form.standardId} onChange={(e) => setForm({ ...form, standardId: e.target.value })}>
