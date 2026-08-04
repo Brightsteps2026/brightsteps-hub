@@ -1069,7 +1069,9 @@ function StudentsTab({ data, persist, profile }) {
     return c;
   }, [visibleStudents]);
 
-  const filtered = activeGrade ? visibleStudents.filter((s) => s.grade === activeGrade) : visibleStudents;
+  const filtered = (activeGrade ? visibleStudents.filter((s) => s.grade === activeGrade) : visibleStudents)
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name));
   const familyViewStudent = visibleStudents.find((s) => s.id === familyViewId);
 
   const openAdd = () => {
