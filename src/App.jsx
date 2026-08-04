@@ -1633,6 +1633,7 @@ const emptyPlanForm = {
   learnerProfileFocus: "",
   differentiation: "",
   resources: "",
+  standardIds: [],
   startDate: "",
   endDate: "",
   lessonPlanText: "",
@@ -1648,7 +1649,7 @@ const emptyPlanForm = {
   comments: []
 };
 
-function PlanDetailModal({ plan, onClose, onUpdate }) {
+function PlanDetailModal({ plan, data, onClose, onUpdate }) {
   const [lessonPlanText, setLessonPlanText] = useState(plan.lessonPlanText || "");
   const [lessonPlanLink, setLessonPlanLink] = useState(plan.lessonPlanLink || "");
   const [assessmentFormative, setAssessmentFormative] = useState(plan.assessmentFormative || "");
@@ -1660,7 +1661,15 @@ function PlanDetailModal({ plan, onClose, onUpdate }) {
   const [commentAuthor, setCommentAuthor] = useState("");
   const [commentText, setCommentText] = useState("");
 
+  const standards = data?.standards || [];
+  const standardIds = plan.standardIds || [];
+
   const saveField = (patch) => onUpdate(plan.id, patch);
+
+  const toggleStandard = (id) => {
+    const next = standardIds.includes(id) ? standardIds.filter((x) => x !== id) : [...standardIds, id];
+    saveField({ standardIds: next });
+  };
 
   const addComment = () => {
     if (!commentText.trim()) return;
@@ -1690,6 +1699,27 @@ function PlanDetailModal({ plan, onClose, onUpdate }) {
       {plan.centralIdea && <p>{plan.centralIdea}</p>}
       {plan.keyConcepts && <p className="bsf-muted">Key concepts: {plan.keyConcepts}</p>}
       {plan.linesOfInquiry && <p className="bsf-loi">{plan.linesOfInquiry}</p>}
+
+      <hr className="bsf-divider" />
+
+      <Field label="Standards addressed">
+        {standards.length === 0 ? (
+          <p className="bsf-empty">No standards in your library yet. Add some from Assessment → Standards.</p>
+        ) : (
+          <div className="bsf-chiprow">
+            {standards.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className={`bsf-chip ${standardIds.includes(s.id) ? "active" : ""}`}
+                onClick={() => toggleStandard(s.id)}
+              >
+                {s.code || s.description.slice(0, 24)}
+              </button>
+            ))}
+          </div>
+        )}
+      </Field>
 
       <hr className="bsf-divider" />
 
@@ -1825,11 +1855,19 @@ function PlanningTab({ data, persist }) {
     : plans;
   const allSelected = form.grades.length === GRADES.length;
   const detailPlan = data.plans.find((p) => p.id === detailId);
+  const standards = data.standards || [];
 
   const toggleGrade = (g) => {
     setForm((f) => ({
       ...f,
       grades: f.grades.includes(g) ? f.grades.filter((x) => x !== g) : [...f.grades, g]
+    }));
+  };
+
+  const toggleStandard = (id) => {
+    setForm((f) => ({
+      ...f,
+      standardIds: f.standardIds.includes(id) ? f.standardIds.filter((x) => x !== id) : [...f.standardIds, id]
     }));
   };
 
@@ -1900,6 +1938,7 @@ function PlanningTab({ data, persist }) {
                 {p.lessonPlanText || p.lessonPlanLink || (p.lessonPlanFiles || []).length > 0 ? <span className="bsf-minitag">Lesson plan</span> : null}
                 {p.evidenceLink || p.evidenceNotes || (p.evidenceFiles || []).length > 0 ? <span className="bsf-minitag">Evidence</span> : null}
                 {p.reflection ? <span className="bsf-minitag">Reflection</span> : null}
+                {(p.standardIds || []).length > 0 ? <span className="bsf-minitag">{p.standardIds.length} standard{p.standardIds.length === 1 ? "" : "s"}</span> : null}
                 {(p.comments || []).length > 0 ? <span className="bsf-minitag">{p.comments.length} note{p.comments.length === 1 ? "" : "s"}</span> : null}
               </div>
             </div>
@@ -1979,6 +2018,24 @@ function PlanningTab({ data, persist }) {
           <Field label="Resources and materials">
             <textarea rows={2} value={form.resources} onChange={(e) => setForm({ ...form, resources: e.target.value })} placeholder="Books, websites, supplies needed" />
           </Field>
+          <Field label="Standards addressed (optional)">
+            {standards.length === 0 ? (
+              <p className="bsf-empty">No standards in your library yet. Add some from Assessment → Standards.</p>
+            ) : (
+              <div className="bsf-chiprow">
+                {standards.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={`bsf-chip ${form.standardIds.includes(s.id) ? "active" : ""}`}
+                    onClick={() => toggleStandard(s.id)}
+                  >
+                    {s.code || s.description.slice(0, 24)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </Field>
           <div className="bsf-two-col">
             <Field label="Start date">
               <input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />
@@ -1993,7 +2050,7 @@ function PlanningTab({ data, persist }) {
       )}
 
       {detailPlan && (
-        <PlanDetailModal plan={detailPlan} onClose={() => setDetailId(null)} onUpdate={updatePlan} />
+        <PlanDetailModal plan={detailPlan} data={data} onClose={() => setDetailId(null)} onUpdate={updatePlan} />
       )}
     </div>
   );
@@ -4016,7 +4073,7 @@ function BehaviorTab({ data, persist }) {
   );
 }
 
-const emptyGradeForm = { studentId: "", subject: "", term: "", scoreType: "Percentage", score: "", letter: "", comments: "" };
+const emptyGradeForm = { studentId: "", subject: "", term: "", scoreType: "Percentage", score: "", letter: "", standardId: "", comments: "" };
 
 function GradebookTab({ data, persist, onNavigate }) {
   const [showForm, setShowForm] = useState(false);
@@ -4054,7 +4111,9 @@ function GradebookTab({ data, persist, onNavigate }) {
       return;
     }
     const letter = form.scoreType === "Percentage" ? letterFromScore(form.score) : form.letter;
-    const record = { ...form, studentId: student.id, studentName: student.name, grade: student.grade, letter };
+    const standard = (data.standards || []).find((s) => s.id === form.standardId);
+    const standardLabel = standard ? (standard.code ? `${standard.code} - ${standard.description}` : standard.description) : "";
+    const record = { ...form, studentId: student.id, studentName: student.name, grade: student.grade, letter, standardLabel };
     if (editingId) {
       persist({ ...data, gradeEntries: (data.gradeEntries || []).map((e) => (e.id === editingId ? { ...e, ...record } : e)) });
     } else {
@@ -4112,6 +4171,7 @@ function GradebookTab({ data, persist, onNavigate }) {
               </div>
               <strong>{e.studentName}</strong>
               <p className="bsf-muted">{e.grade} · {e.subject}{e.term ? ` · ${e.term}` : ""}</p>
+              {e.standardLabel && <p className="bsf-muted">Standard: {e.standardLabel}</p>}
               {e.comments && <p>{e.comments}</p>}
             </div>
             <button className="bsf-iconbtn" onClick={(ev) => { ev.stopPropagation(); removeEntry(e.id); }} aria-label="Remove"><Trash2 size={16} /></button>
@@ -4153,6 +4213,14 @@ function GradebookTab({ data, persist, onNavigate }) {
               </div>
             </Field>
           )}
+          <Field label="Standard (optional)">
+            <select value={form.standardId} onChange={(e) => setForm({ ...form, standardId: e.target.value })}>
+              <option value="">No specific standard</option>
+              {(data.standards || []).map((s) => (
+                <option key={s.id} value={s.id}>{s.code ? `${s.code} · ` : ""}{s.subject}{s.grade ? ` · ${s.grade}` : ""}</option>
+              ))}
+            </select>
+          </Field>
           <Field label="Comments">
             <textarea rows={3} value={form.comments} onChange={(e) => setForm({ ...form, comments: e.target.value })} placeholder="Optional" />
           </Field>
