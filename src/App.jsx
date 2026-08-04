@@ -5103,7 +5103,8 @@ function BrightStepsHubInner() {
         .bsf-row-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 
         .bsf-list { display: flex; flex-direction: column; }
-        .bsf-student { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+        .bsf-student { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; text-align: left; }
+        .bsf-student > div { text-align: left; }
         .bsf-student p { margin: 2px 0 0; font-size: 13px; }
 
         .bsf-tag {
