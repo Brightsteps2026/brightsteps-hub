@@ -1131,7 +1131,7 @@ function StudentsTab({ data, persist, profile }) {
   const renderStudentCard = (s) => (
     <div key={s.id} className={`bsf-card bsf-student ${canEditStudents ? "bsf-clickable" : ""}`} onClick={() => openEdit(s)}>
       <StudentThumb photo={s.photo} />
-      <div>
+      <div className="bsf-student-info">
         <strong>{s.name}</strong>
         <p className="bsf-muted">{(s.nationalities && s.nationalities.length) ? s.nationalities.join(" - ") : (s.nationality || "")}{s.studentIdNumber ? `${(s.nationalities?.length || s.nationality) ? " · " : ""}ID ${s.studentIdNumber}` : ""}</p>
         {s.guardian1Name && <p className="bsf-muted">{s.guardian1Name}{s.guardian1Phone ? ` · ${s.guardian1Phone}` : ""}</p>}
@@ -5106,7 +5106,7 @@ function BrightStepsHubInner() {
 
         .bsf-list { display: flex; flex-direction: column; }
         .bsf-student { display: flex; align-items: flex-start; gap: 8px; text-align: left; }
-        .bsf-student > div:not(.bsf-student-actions) { flex: 1; min-width: 0; text-align: left; }
+        .bsf-student > div:not(.bsf-student-actions):not(.bsf-student-thumb) { flex: 1; min-width: 0; text-align: left; }
         .bsf-student-actions { margin-left: auto; flex-shrink: 0; display: flex; gap: 2px; }
         .bsf-student p { margin: 2px 0 0; font-size: 13px; }
 
