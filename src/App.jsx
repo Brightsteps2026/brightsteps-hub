@@ -1169,7 +1169,7 @@ function StudentsTab({ data, persist, profile }) {
       {activeGrade
         ? <section className="bsf-list">{filtered.map(renderStudentCard)}</section>
         : grouped.map(({ grade, students }) => (
-            <section key={grade} className="bsf-list" style={{ marginBottom: 18 }}>
+            <section key={grade} className="bsf-list">
               <p className="bsf-group-label">{grade} · {students.length} student{students.length === 1 ? "" : "s"}</p>
               {students.map(renderStudentCard)}
             </section>
@@ -1551,7 +1551,7 @@ function PortfolioTab({ data, persist, profile }) {
       {isParent && entries.length === 0 && <p className="bsf-empty">No portfolio entries yet for your child.</p>}
 
       {recentEntries.length > 0 && (
-        <section className="bsf-list" style={{ marginBottom: 18 }}>
+        <section className="bsf-list">
           <p className="bsf-group-label">This week</p>
           {recentEntries.map(renderEntry)}
         </section>
