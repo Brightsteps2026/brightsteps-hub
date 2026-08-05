@@ -394,6 +394,13 @@ function Dashboard({ data, profile }) {
   const linkedIds = profile?.student_ids || [];
   const myStudents = isParent ? data.students.filter((s) => linkedIds.includes(s.id)) : [];
 
+  const balanceFor = (studentId) => {
+    const entries = (data.billing || []).filter((b) => b.studentId === studentId);
+    return entries.reduce((sum, b) => sum + (b.type === "charge" ? Number(b.amount || 0) : -Number(b.amount || 0)), 0);
+  };
+
+  const attendanceFor = (studentId) => attendanceCountsForRange(data.attendance, studentId);
+
   const counts = useMemo(() => {
     const c = {};
     data.students.forEach((s) => { c[s.grade] = (c[s.grade] || 0) + 1; });
@@ -422,17 +429,12 @@ function Dashboard({ data, profile }) {
       <div className="bsf-hero">
         <p className="bsf-eyebrow">{t("dashboard.eyebrow")}</p>
         <h1>{isParent ? `Welcome back${profile?.full_name ? `, ${profile.full_name.split(" ")[0]}` : ""}` : "BrightSteps at a glance"}</h1>
-        {isParent ? (
-          myStudents.length === 0 ? (
-            <p className="bsf-hero-sub">No child linked to your account yet.</p>
-          ) : null
-        ) : (
+        {!isParent && (
           <p className="bsf-hero-sub">{total} student{total === 1 ? "" : "s"} across {Object.keys(counts).length} grade level{Object.keys(counts).length === 1 ? "" : "s"}</p>
         )}
-        {recentStudents.length > 0 && (
+        {!isParent && recentStudents.length > 0 && (
           <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 12 }}>
             <AvatarStack students={recentStudents} />
-            {isParent && <span className="bsf-hero-names">{myStudents.map((s) => s.name.split(" ")[0]).join(" & ")}</span>}
           </div>
         )}
         {settings.branding.mission && <p className="bsf-mission">{settings.branding.mission}</p>}
@@ -440,6 +442,41 @@ function Dashboard({ data, profile }) {
           <p className="bsf-muted">Academic year: {settings.academicYear.startDate || "?"} to {settings.academicYear.endDate || "?"}</p>
         )}
       </div>
+
+      {isParent && myStudents.length === 0 && (
+        <section className="bsf-card">
+          <p className="bsf-empty">No child linked to your account yet. Please contact the school administrator.</p>
+        </section>
+      )}
+
+      {isParent && myStudents.map((s) => {
+        const balance = balanceFor(s.id);
+        const attend = attendanceFor(s.id);
+        return (
+          <section key={s.id} className="bsf-card">
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+              <StudentThumb photo={s.photo} />
+              <div>
+                <strong style={{ fontFamily: "'Fraunces', serif", fontSize: 17 }}>{s.name}</strong>
+                <p className="bsf-muted" style={{ margin: 0 }}>
+                  {s.grade}{(s.nationalities && s.nationalities.length) ? ` · ${s.nationalities.join(" - ")}` : (s.nationality ? ` · ${s.nationality}` : "")}
+                </p>
+              </div>
+            </div>
+            <div className="bsf-childstats">
+              <div className="bsf-childstat">
+                <span className="bsf-muted">Tuition balance</span>
+                <strong style={{ color: balance > 0 ? "#B23A3A" : "#2F7A5C" }}>{formatCurrency(balance)}</strong>
+              </div>
+              <div className="bsf-childstat">
+                <span className="bsf-muted">Attendance this year</span>
+                <strong>{attend.present} present · {attend.absent} absent</strong>
+              </div>
+            </div>
+            {s.allergies && <p className="bsf-alert-note" style={{ marginTop: 8 }}>Allergies: {s.allergies}</p>}
+          </section>
+        );
+      })}
 
       {!isParent && (
         <section className="bsf-card bsf-stairs-card">
@@ -963,24 +1000,6 @@ function ParentStudentView({ data, persist, profile }) {
             </div>
             {activeStudent.allergies && <p className="bsf-alert-note">Allergies: {activeStudent.allergies}</p>}
             {activeStudent.medicalConditions && <p className="bsf-alert-note">Medical: {activeStudent.medicalConditions}</p>}
-          </section>
-
-          <section className="bsf-card">
-            <h2>Tuition & Fees</h2>
-            <p style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 600, color: billingBalance > 0 ? "#B23A3A" : "#2F7A5C" }}>
-              {formatCurrency(billingBalance)}
-            </p>
-            <p className="bsf-muted">{billingBalance > 0 ? "Balance due" : "Fully paid, thank you"}</p>
-            {billingHistory.length > 0 && (
-              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
-                {billingHistory.slice(0, 5).map((b) => (
-                  <div key={b.id} className="bsf-termsummary-row">
-                    <span className="bsf-tag">{b.type === "charge" ? "Charge" : "Payment"}</span>
-                    <span className="bsf-muted">{b.date} · {formatCurrency(b.amount)}{b.description ? ` · ${b.description}` : ""}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </section>
 
           <section className="bsf-card">
@@ -5829,6 +5848,9 @@ function BrightStepsHubInner() {
         }
         .bsf-termsummary { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
         .bsf-termsummary-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+        .bsf-childstats { display: flex; gap: 20px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--line); }
+        .bsf-childstat { display: flex; flex-direction: column; gap: 2px; }
+        .bsf-childstat strong { font-size: 15px; }
         .bsf-termsummary-row:last-child { margin-bottom: 0; }
         .bsf-termname { font-size: 13px; }
         @media (max-width: 420px) {
