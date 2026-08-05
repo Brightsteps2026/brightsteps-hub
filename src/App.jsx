@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, Fragment } from "react";
-import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, Plus, X, Trash2, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Flag, Percent, Briefcase, FolderOpen, Award, Sparkles, Send, LogOut, Bell } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, Plus, X, Trash2, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Flag, Percent, Briefcase, FolderOpen, Award, Sparkles, Send, LogOut, Bell, Wallet } from "lucide-react";
 import AttachmentField from "./AttachmentField";
 import StudentPhotoField from "./StudentPhotoField";
 import { getAttachmentUrl } from "./lib/attachments";
@@ -160,6 +160,11 @@ function syncGlobalsFromSettings(settings) {
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function formatCurrency(amount) {
+  const n = Number(amount) || 0;
+  return `${n.toLocaleString("en-US")} FCFA`;
 }
 
 // Counts messages the current person hasn't seen yet, across every student
@@ -871,6 +876,11 @@ function ParentStudentView({ data, persist, profile }) {
       .map((term) => ({ ...term, counts: attendanceCountsForRange(data.attendance, activeStudent.id, term.startDate, term.endDate) }));
   }, [data.attendance, activeStudent, terms]);
 
+  const billingHistory = activeStudent
+    ? [...(data.billing || [])].filter((b) => b.studentId === activeStudent.id).sort((a, b) => b.date.localeCompare(a.date))
+    : [];
+  const billingBalance = billingHistory.reduce((sum, b) => sum + (b.type === "charge" ? Number(b.amount || 0) : -Number(b.amount || 0)), 0);
+
   const portfolioEntries = activeStudent
     ? [...data.portfolio].filter((p) => p.studentId === activeStudent.id).sort((a, b) => b.date.localeCompare(a.date))
     : [];
@@ -953,6 +963,24 @@ function ParentStudentView({ data, persist, profile }) {
             </div>
             {activeStudent.allergies && <p className="bsf-alert-note">Allergies: {activeStudent.allergies}</p>}
             {activeStudent.medicalConditions && <p className="bsf-alert-note">Medical: {activeStudent.medicalConditions}</p>}
+          </section>
+
+          <section className="bsf-card">
+            <h2>Tuition & Fees</h2>
+            <p style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 600, color: billingBalance > 0 ? "#B23A3A" : "#2F7A5C" }}>
+              {formatCurrency(billingBalance)}
+            </p>
+            <p className="bsf-muted">{billingBalance > 0 ? "Balance due" : "Fully paid, thank you"}</p>
+            {billingHistory.length > 0 && (
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
+                {billingHistory.slice(0, 5).map((b) => (
+                  <div key={b.id} className="bsf-termsummary-row">
+                    <span className="bsf-tag">{b.type === "charge" ? "Charge" : "Payment"}</span>
+                    <span className="bsf-muted">{b.date} · {formatCurrency(b.amount)}{b.description ? ` · ${b.description}` : ""}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="bsf-card">
@@ -1141,6 +1169,10 @@ values (
 function StudentsTab({ data, persist, profile }) {
   const [activeGrade, setActiveGrade] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [showBulkAdd, setShowBulkAdd] = useState(false);
+  const [bulkText, setBulkText] = useState("");
+  const [bulkError, setBulkError] = useState("");
+  const [bulkSuccess, setBulkSuccess] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [familyViewId, setFamilyViewId] = useState(null);
   const [form, setForm] = useState(emptyStudentForm);
@@ -1150,6 +1182,47 @@ function StudentsTab({ data, persist, profile }) {
   const isTeacherRole = profile?.role === "teacher" || isLearningAssistant;
   const myAssignedGrades = profile?.grades_assigned || [];
   const canEditStudents = !isTeacherRole;
+
+  const importBulkStudents = () => {
+    setBulkError("");
+    setBulkSuccess("");
+    const lines = bulkText.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) {
+      setBulkError("Paste one student per line before importing.");
+      return;
+    }
+    const newStudents = [];
+    const idNumbersSoFar = data.students.map((s) => s.studentIdNumber).filter(Boolean);
+    for (const line of lines) {
+      const parts = line.split("|").map((p) => p.trim());
+      if (parts.length < 4) {
+        setBulkError(`This line is missing some fields, each line needs at least First Name | Last Name | Grade | Guardian Name: "${line.slice(0, 50)}..."`);
+        return;
+      }
+      const [firstName, lastName, grade, guardianName, guardianPhone = "", allergies = ""] = parts;
+      if (!GRADES.includes(grade)) {
+        setBulkError(`"${grade}" isn't a valid grade name. Use exactly: ${GRADES.join(", ")}`);
+        return;
+      }
+      const studentIdNumber = nextStudentIdNumber(idNumbersSoFar);
+      idNumbersSoFar.push(studentIdNumber);
+      newStudents.push({
+        id: uid(),
+        studentIdNumber,
+        firstName, middleName: "", lastName, grade,
+        name: [firstName, lastName].filter(Boolean).join(" "),
+        dob: "", gender: "", nationalities: [], photo: null,
+        guardian1Name: guardianName, guardian1Relationship: "", guardian1Phone: guardianPhone, guardian1Email: "",
+        guardian2Name: "", guardian2Relationship: "", guardian2Phone: "", guardian2Email: "",
+        allergies, medicalConditions: "",
+        emergencyContactName: "", emergencyContactPhone: "", emergencyContactRelationship: "",
+        enrollmentDate: "", previousSchool: "", homeAddress: ""
+      });
+    }
+    persist({ ...data, students: [...data.students, ...newStudents] });
+    setBulkText("");
+    setBulkSuccess(`Added ${newStudents.length} student${newStudents.length === 1 ? "" : "s"}. You can open each one afterward to fill in anything extra, like nationality or medical notes.`);
+  };
 
   const visibleStudents = isTeacherRole
     ? data.students.filter((s) => myAssignedGrades.includes(s.grade))
@@ -1250,7 +1323,12 @@ function StudentsTab({ data, persist, profile }) {
 
       <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
         <span />
-        {canEditStudents && <button className="bsf-btn" onClick={openAdd}><Plus size={16} /> Add</button>}
+        {canEditStudents && (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="bsf-btn bsf-btn-ghost" onClick={() => { setBulkError(""); setBulkSuccess(""); setShowBulkAdd(true); }}>Add many</button>
+            <button className="bsf-btn" onClick={openAdd}><Plus size={16} /> Add</button>
+          </div>
+        )}
       </div>
 
       <section className="bsf-card bsf-stairs-card">
@@ -1407,6 +1485,33 @@ function StudentsTab({ data, persist, profile }) {
 
       {familyViewStudent && (
         <FamilyViewModal student={familyViewStudent} data={data} onClose={() => setFamilyViewId(null)} />
+      )}
+
+      {showBulkAdd && canEditStudents && (
+        <Modal title="Add many students at once" onClose={() => setShowBulkAdd(false)}>
+          <p className="bsf-muted" style={{ marginBottom: 8 }}>
+            Paste one student per line, in this format:
+          </p>
+          <p className="bsf-inlinenote">
+            <code>First Name | Last Name | Grade | Guardian Name | Guardian Phone | Allergies</code>
+            <br /><br />
+            Guardian Phone and Allergies can be left blank. Grade must be written exactly like:
+            <br />
+            <code>{GRADES.join(", ")}</code>
+            <br /><br />
+            Example:
+            <br />
+            <code>Amara | Kone | Grade 2 | Fatou Kone | 0708112233 |</code>
+            <br />
+            <code>Yannick | Diallo | Grade 4 | Ibrahim Diallo | 0555221100 | Peanuts</code>
+          </p>
+          <Field label="Paste students here">
+            <textarea rows={8} value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder="One student per line" />
+          </Field>
+          <button className="bsf-btn bsf-btn-block" onClick={importBulkStudents}>Import students</button>
+          {bulkError && <p className="bsf-formerror">{bulkError}</p>}
+          {bulkSuccess && <p className="bsf-muted" style={{ marginTop: 8 }}>{bulkSuccess}</p>}
+        </Modal>
       )}
     </div>
   );
@@ -4699,6 +4804,128 @@ function ResourcesTab({ data, persist }) {
 
 const emptyChecklistForm = { name: "", category: "", status: ACCRED_STATUSES[0], evidenceLink: "", notes: "" };
 
+function BillingTab({ data, persist }) {
+  const [studentFilter, setStudentFilter] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ studentId: "", type: "charge", amount: "", description: "", date: todayStr() });
+  const [formError, setFormError] = useState("");
+
+  const billing = data.billing || [];
+  const students = [...data.students].sort((a, b) => a.name.localeCompare(b.name));
+
+  const balanceForStudent = (studentId) => {
+    const entries = billing.filter((b) => b.studentId === studentId);
+    const charges = entries.filter((b) => b.type === "charge").reduce((sum, b) => sum + Number(b.amount || 0), 0);
+    const payments = entries.filter((b) => b.type === "payment").reduce((sum, b) => sum + Number(b.amount || 0), 0);
+    return charges - payments;
+  };
+
+  const filteredEntries = [...billing]
+    .filter((b) => !studentFilter || b.studentId === studentFilter)
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  const addEntry = () => {
+    const student = data.students.find((s) => s.id === form.studentId);
+    if (!student) {
+      setFormError("Please choose a student.");
+      return;
+    }
+    const amt = Number(form.amount);
+    if (!form.amount || Number.isNaN(amt) || amt <= 0) {
+      setFormError("Please enter an amount greater than 0.");
+      return;
+    }
+    const entry = { id: uid(), studentId: student.id, studentName: student.name, type: form.type, amount: amt, description: form.description, date: form.date || todayStr() };
+    persist({ ...data, billing: [...billing, entry] });
+    setForm({ studentId: "", type: "charge", amount: "", description: "", date: todayStr() });
+    setFormError("");
+    setShowAdd(false);
+  };
+
+  const removeEntry = (id) => persist({ ...data, billing: billing.filter((b) => b.id !== id) });
+
+  const totalOwed = students.reduce((sum, s) => sum + Math.max(0, balanceForStudent(s.id)), 0);
+
+  return (
+    <div className="bsf-screen">
+      <div className="bsf-hero">
+        <p className="bsf-eyebrow">Billing</p>
+        <h1>{formatCurrency(totalOwed)} owed school-wide</h1>
+      </div>
+
+      <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
+        <span />
+        <button className="bsf-btn" onClick={() => { setFormError(""); setShowAdd(true); }} disabled={students.length === 0}><Plus size={16} /> Add entry</button>
+      </div>
+
+      <section className="bsf-card">
+        <h2>Filter by student</h2>
+        <select value={studentFilter} onChange={(e) => setStudentFilter(e.target.value)}>
+          <option value="">All students</option>
+          {students.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
+        </select>
+      </section>
+
+      {studentFilter && (
+        <section className="bsf-card">
+          <h2>Current balance</h2>
+          <p style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 600, color: balanceForStudent(studentFilter) > 0 ? "#B23A3A" : "#2F7A5C" }}>
+            {formatCurrency(balanceForStudent(studentFilter))}
+          </p>
+          <p className="bsf-muted">{balanceForStudent(studentFilter) > 0 ? "Amount still owed" : "Fully paid, or in credit"}</p>
+        </section>
+      )}
+
+      <section className="bsf-list">
+        {filteredEntries.length === 0 && <p className="bsf-empty">No billing entries yet.</p>}
+        {filteredEntries.map((b) => (
+          <div key={b.id} className="bsf-card bsf-student">
+            <div>
+              <div className="bsf-row-head">
+                <span className="bsf-status-pill" style={{ background: b.type === "charge" ? "#FCE8E8" : "#E6F2EC", color: b.type === "charge" ? "#B23A3A" : "#2F7A5C" }}>
+                  {b.type === "charge" ? "Charge" : "Payment"}
+                </span>
+                <span className="bsf-muted">{b.date}</span>
+              </div>
+              <strong>{b.studentName}</strong>
+              <p>{formatCurrency(b.amount)}{b.description ? ` · ${b.description}` : ""}</p>
+            </div>
+            <button className="bsf-iconbtn" onClick={() => removeEntry(b.id)} aria-label="Remove"><Trash2 size={16} /></button>
+          </div>
+        ))}
+      </section>
+
+      {showAdd && (
+        <Modal title="New billing entry" onClose={() => setShowAdd(false)}>
+          <Field label="Student">
+            <select value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value })}>
+              <option value="">Choose a student</option>
+              {students.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
+            </select>
+          </Field>
+          <Field label="Type">
+            <div className="bsf-chiprow">
+              <button type="button" className={`bsf-chip ${form.type === "charge" ? "active" : ""}`} onClick={() => setForm({ ...form, type: "charge" })}>Charge (adds to balance)</button>
+              <button type="button" className={`bsf-chip ${form.type === "payment" ? "active" : ""}`} onClick={() => setForm({ ...form, type: "payment" })}>Payment (reduces balance)</button>
+            </div>
+          </Field>
+          <Field label="Amount (FCFA)">
+            <input type="number" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="e.g. 500000" />
+          </Field>
+          <Field label="Date">
+            <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+          </Field>
+          <Field label="Description (optional)">
+            <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="e.g. Term 1 tuition, or Mobile money payment" />
+          </Field>
+          <button className="bsf-btn bsf-btn-block" onClick={addEntry}>Save entry</button>
+          {formError && <p className="bsf-formerror">{formError}</p>}
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 function AccreditationTab({ data, persist }) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -5239,7 +5466,7 @@ function BrightStepsHubInner() {
   const myLinkedStudent = isStudent ? data.students.find((s) => (profile.student_ids || [])[0] === s.id) : null;
   const isUpperStudent = !!myLinkedStudent && GRADES.indexOf(myLinkedStudent.grade) >= GRADES.indexOf("Grade 3");
   const PARENT_HIDDEN_TABS = ["classes", "staff", "admissions", "reports", "behavior", "resources", "accreditation", "ai", "planning", "gradebook"];
-  const ADMIN_ONLY_TABS = ["accreditation"];
+  const ADMIN_ONLY_TABS = ["accreditation", "billing"];
   // A learning assistant supports specific grades day to day; they don't need
   // enrollment, staffing, or school-wide admin tools, just the classroom-facing ones.
   const LEARNING_ASSISTANT_ALLOWED_TABS = ["dashboard", "attendance", "portfolio", "assessment", "classes", "calendar", "assignments", "updates"];
@@ -5288,6 +5515,7 @@ function BrightStepsHubInner() {
     { id: "behavior", label: "Behavior", navKey: "nav.behavior", icon: Flag, category: "compliance" },
     { id: "resources", label: "Resources", navKey: "nav.resources", icon: FolderOpen, category: "compliance" },
     { id: "accreditation", label: "Accreditation", navKey: "nav.accreditation", icon: Award, category: "compliance" },
+    { id: "billing", label: "Billing", navKey: "nav.billing", icon: Wallet, category: "office" },
     { id: "ai", label: "AI Assistant", navKey: "nav.ai", icon: Sparkles, hidden: true, category: "office" },
     { id: "updates", label: "Communication", navKey: "nav.updates", icon: Megaphone, category: "office" }
   ];
@@ -5964,6 +6192,7 @@ function BrightStepsHubInner() {
       {tab === "behavior" && !isParent && !isLearningAssistant && <BehaviorTab data={data} persist={persist} />}
       {tab === "resources" && !isParent && !isLearningAssistant && <ResourcesTab data={data} persist={persist} />}
       {tab === "accreditation" && isAdmin && <AccreditationTab data={data} persist={persist} />}
+      {tab === "billing" && isAdmin && <BillingTab data={data} persist={persist} />}
       {false && tab === "ai" && !isParent && <AIAssistantTab data={data} />}
       {tab === "updates" && <UpdatesTab data={data} persist={persist} />}
 
