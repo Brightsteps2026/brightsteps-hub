@@ -1074,6 +1074,65 @@ function ParentStudentView({ data, persist, profile }) {
   );
 }
 
+function AccountSetupHelper({ student }) {
+  const [copiedWhich, setCopiedWhich] = useState("");
+
+  const copy = async (which, text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedWhich(which);
+      setTimeout(() => setCopiedWhich(""), 2500);
+    } catch {
+      setCopiedWhich("error");
+      setTimeout(() => setCopiedWhich(""), 2500);
+    }
+  };
+
+  const parentSql = `-- Step 1: In Authentication -> Add user, create the parent's login with their real email.
+-- Step 2: Copy the User UID it gives you, paste it in place of PASTE_USER_UID_HERE below.
+-- Step 3: Replace the placeholder name and email with the real ones, then run this.
+insert into profiles (id, full_name, email, role, student_ids)
+values (
+  'PASTE_USER_UID_HERE',
+  'Parent Full Name',
+  'parent-real-email@example.com',
+  'parent',
+  array['${student.id}']
+);`;
+
+  const studentEmail = student.studentIdNumber ? `${student.studentIdNumber}@students.brightstepshub.local` : "STUDENT_ID@students.brightstepshub.local";
+  const studentSql = `-- Step 1: In Authentication -> Add user, use this exact email: ${studentEmail}
+-- Choose any password, then click Create user.
+-- Step 2: Copy the User UID it gives you, paste it in place of PASTE_USER_UID_HERE below.
+-- Step 3: Run this, nothing else to change, it's already filled in for ${student.name}.
+insert into profiles (id, full_name, email, role, student_ids)
+values (
+  'PASTE_USER_UID_HERE',
+  '${student.name}',
+  '${studentEmail}',
+  'student',
+  array['${student.id}']
+);`;
+
+  return (
+    <div className="bsf-inlinenote">
+      <p style={{ marginBottom: 8 }}>Account link code: <code>{student.id}</code></p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button type="button" className="bsf-btn bsf-btn-ghost" onClick={() => copy("parent", parentSql)}>
+          {copiedWhich === "parent" ? "Copied!" : "Copy parent setup SQL"}
+        </button>
+        <button type="button" className="bsf-btn bsf-btn-ghost" onClick={() => copy("student", studentSql)}>
+          {copiedWhich === "student" ? "Copied!" : "Copy student setup SQL"}
+        </button>
+      </div>
+      {copiedWhich === "error" && <p className="bsf-formerror">Couldn't copy automatically, you can still select the text manually.</p>}
+      <p className="bsf-muted" style={{ marginTop: 8 }}>
+        This fills in {student.name}'s real details for you. You'll still need to create the login itself in Supabase's Authentication tab, that one step can't be skipped, but you'll never have to type their name or account code by hand again.
+      </p>
+    </div>
+  );
+}
+
 function StudentsTab({ data, persist, profile }) {
   const [activeGrade, setActiveGrade] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -1208,10 +1267,8 @@ function StudentsTab({ data, persist, profile }) {
 
       {showForm && canEditStudents && (
         <Modal title={editingId ? "Edit student" : "Add student"} onClose={() => setShowForm(false)}>
-          {editingId && (
-            <div className="bsf-inlinenote">
-              Account link code for parent setup: <code>{editingId}</code>
-            </div>
+          {editingId && editingStudent && (
+            <AccountSetupHelper student={editingStudent} />
           )}
           <h3 className="bsf-subheading">Basic info</h3>
           <Field label="First name">
@@ -1584,9 +1641,24 @@ function PortfolioTab({ data, persist, profile }) {
   return (
     <div className="bsf-screen">
       <div className="bsf-hero">
-        <p className="bsf-eyebrow">{isStudent ? "My Portfolio" : t("portfolio.title")}</p>
-        <h1>{isStudent ? `${entries.length} entr${entries.length === 1 ? "y" : "ies"} so far` : `${entries.length} entr${entries.length === 1 ? "y" : "ies"}`}</h1>
-        {recentEntries.length > 0 && <p className="bsf-hero-sub">{recentEntries.length} added in the last 7 days</p>}
+        {isStudent && myStudent ? (
+          <>
+            <p className="bsf-eyebrow">{myStudent.grade}</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 4 }}>
+              <StudentThumb photo={myStudent.photo} />
+              <div>
+                <h1 style={{ marginBottom: 2 }}>Welcome back, {myStudent.firstName || myStudent.name.split(" ")[0]}</h1>
+                <p className="bsf-hero-sub" style={{ margin: 0 }}>This is your space, your work, your voice.</p>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="bsf-eyebrow">{t("portfolio.title")}</p>
+            <h1>{entries.length} entr{entries.length === 1 ? "y" : "ies"}</h1>
+          </>
+        )}
+        {recentEntries.length > 0 && <p className="bsf-hero-sub" style={{ marginTop: 10 }}>{recentEntries.length} added in the last 7 days</p>}
       </div>
 
       <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
