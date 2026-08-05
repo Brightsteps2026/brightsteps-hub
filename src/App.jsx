@@ -794,17 +794,22 @@ function StudentMessages({ student, data, persist }) {
 
   const messages = student.messages || [];
   let lastDate = null;
+  const isOwnThread = profile?.role === "student";
 
   return (
     <>
       <div className="bsf-msg-header">
         <div>
           <h3 className="bsf-subheading" style={{ margin: 0 }}>Messages</h3>
-          <p className="bsf-muted">A private thread between parents and teachers about {student.name}.</p>
+          <p className="bsf-muted">
+            {isOwnThread
+              ? "A private thread between you and your teachers."
+              : `A private thread between parents and teachers about ${student.name}.`}
+          </p>
         </div>
       </div>
       <div className="bsf-chatthread">
-        {messages.length === 0 && <p className="bsf-empty">No messages yet. Say hello below.</p>}
+        {messages.length === 0 && <p className="bsf-empty">{isOwnThread ? "No messages yet. Say hello to your teacher below." : "No messages yet. Say hello below."}</p>}
         {messages.map((m) => {
           const isMine = profile && m.author === profile.full_name && m.role === profile.role;
           const showDateDivider = m.date !== lastDate;
