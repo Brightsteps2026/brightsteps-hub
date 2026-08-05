@@ -453,28 +453,33 @@ function Dashboard({ data, profile }) {
         const balance = balanceFor(s.id);
         const attend = attendanceFor(s.id);
         return (
-          <section key={s.id} className="bsf-card">
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-              <StudentThumb photo={s.photo} />
-              <div>
-                <strong style={{ fontFamily: "'Fraunces', serif", fontSize: 17 }}>{s.name}</strong>
-                <p className="bsf-muted" style={{ margin: 0 }}>
-                  {s.grade}{(s.nationalities && s.nationalities.length) ? ` · ${s.nationalities.join(" - ")}` : (s.nationality ? ` · ${s.nationality}` : "")}
-                </p>
+          <div key={s.id}>
+            <section className="bsf-card">
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                <StudentThumb photo={s.photo} />
+                <div>
+                  <strong style={{ fontFamily: "'Fraunces', serif", fontSize: 17 }}>{s.name}</strong>
+                  <p className="bsf-muted" style={{ margin: 0 }}>
+                    {s.grade}{(s.nationalities && s.nationalities.length) ? ` · ${s.nationalities.join(" - ")}` : (s.nationality ? ` · ${s.nationality}` : "")}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="bsf-childstats">
-              <div className="bsf-childstat">
-                <span className="bsf-muted">Tuition balance</span>
-                <strong style={{ color: balance > 0 ? "#B23A3A" : "#2F7A5C" }}>{formatCurrency(balance)}</strong>
-              </div>
-              <div className="bsf-childstat">
-                <span className="bsf-muted">Attendance this year</span>
-                <strong>{attend.present} present · {attend.absent} absent</strong>
-              </div>
-            </div>
-            {s.allergies && <p className="bsf-alert-note" style={{ marginTop: 8 }}>Allergies: {s.allergies}</p>}
-          </section>
+              {s.allergies && <p className="bsf-alert-note">Allergies: {s.allergies}</p>}
+            </section>
+
+            <section className="bsf-card bsf-tuitioncard">
+              <h2>Tuition balance for {s.firstName || s.name.split(" ")[0]}</h2>
+              <p className="bsf-tuitionamount" style={{ color: balance > 0 ? "#B23A3A" : "#2F7A5C" }}>
+                {formatCurrency(balance)}
+              </p>
+              <p className="bsf-muted">{balance > 0 ? "Balance due" : "Fully paid, thank you"}</p>
+            </section>
+
+            <section className="bsf-card">
+              <h2>Attendance for {s.firstName || s.name.split(" ")[0]}</h2>
+              <p className="bsf-muted">{attend.present} present · {attend.absent} absent · {attend.late} late this year</p>
+            </section>
+          </div>
         );
       })}
 
@@ -5278,13 +5283,37 @@ function LogoUploadField({ logoUrl, onChange }) {
 }
 
 function SettingsModal({ data, persist, onClose }) {
-  const { signOut, profile } = useAuth();
+  const { signOut, profile, updateProfileLocal } = useAuth();
   const { t } = useLanguage();
   const settings = data.settings || DEFAULT_SETTINGS;
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordStatus, setPasswordStatus] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
+
+  const [profileFullName, setProfileFullName] = useState(profile?.full_name || "");
+  const [profilePhone, setProfilePhone] = useState(profile?.phone || "");
+  const [profileNationality, setProfileNationality] = useState(profile?.nationality || "");
+  const [profileStatus, setProfileStatus] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  const saveMyProfile = async () => {
+    setProfileStatus("");
+    if (!profileFullName.trim()) {
+      setProfileStatus("Please enter your name.");
+      return;
+    }
+    setProfileSaving(true);
+    const patch = { full_name: profileFullName.trim(), phone: profilePhone.trim(), nationality: profileNationality.trim() };
+    const { error } = await supabase.from("profiles").update(patch).eq("id", profile.id);
+    setProfileSaving(false);
+    if (error) {
+      setProfileStatus(`Could not save: ${error.message}`);
+    } else {
+      setProfileStatus("Saved.");
+      updateProfileLocal(patch);
+    }
+  };
 
   const changePassword = async () => {
     setPasswordStatus("");
@@ -5435,6 +5464,25 @@ function SettingsModal({ data, persist, onClose }) {
       <p className="bsf-muted" style={{ marginTop: 6 }}>Roles are a reference list for now. Real logins and permissions come with hosting.</p>
         </>
       )}
+
+      <hr className="bsf-divider" />
+      <h3 className="bsf-subheading">My profile</h3>
+      <Field label="Full name">
+        <input value={profileFullName} onChange={(e) => setProfileFullName(e.target.value)} />
+      </Field>
+      <Field label="Phone number">
+        <input value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} placeholder="Optional" />
+      </Field>
+      <Field label="Nationality">
+        <select value={profileNationality} onChange={(e) => setProfileNationality(e.target.value)}>
+          <option value="">Prefer not to say</option>
+          {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </Field>
+      {profileStatus && <p className={profileStatus === "Saved." ? "bsf-muted" : "bsf-formerror"}>{profileStatus}</p>}
+      <button className="bsf-btn bsf-btn-block bsf-btn-ghost" onClick={saveMyProfile} disabled={profileSaving}>
+        {profileSaving ? "Saving..." : "Save profile"}
+      </button>
 
       <hr className="bsf-divider" />
       <h3 className="bsf-subheading">{t("settings.account")}</h3>
@@ -5851,6 +5899,8 @@ function BrightStepsHubInner() {
         .bsf-childstats { display: flex; gap: 20px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--line); }
         .bsf-childstat { display: flex; flex-direction: column; gap: 2px; }
         .bsf-childstat strong { font-size: 15px; }
+        .bsf-tuitioncard { border: 1.5px solid var(--teal-light); box-shadow: var(--shadow-md); }
+        .bsf-tuitionamount { font-family: 'Fraunces', serif; font-size: 30px; font-weight: 600; margin: 6px 0 2px; }
         .bsf-termsummary-row:last-child { margin-bottom: 0; }
         .bsf-termname { font-size: 13px; }
         @media (max-width: 420px) {
