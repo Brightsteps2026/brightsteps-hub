@@ -20,6 +20,7 @@ const translations = {
   "nav.behavior": { en: "Behavior", fr: "Comportement" },
   "nav.resources": { en: "Resources", fr: "Ressources" },
   "nav.accreditation": { en: "Accreditation", fr: "Accréditation" },
+  "nav.billing": { en: "Billing", fr: "Facturation" },
   "nav.ai": { en: "AI Assistant", fr: "Assistant IA" },
   "nav.updates": { en: "Communication", fr: "Communication" },
   "nav.more": { en: "More", fr: "Plus" },
