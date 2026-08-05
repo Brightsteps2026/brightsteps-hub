@@ -399,6 +399,28 @@ function Dashboard({ data, profile }) {
     return entries.reduce((sum, b) => sum + (b.type === "charge" ? Number(b.amount || 0) : -Number(b.amount || 0)), 0);
   };
 
+  // Breaks a child's fees down by category (Registration, Tuition, Other), the
+  // way a real school invoice would, rather than one lump number.
+  const feeBreakdownFor = (studentId) => {
+    const entries = (data.billing || []).filter((b) => b.studentId === studentId);
+    const categories = {};
+    entries.forEach((b) => {
+      const cat = b.category || "Tuition";
+      if (!categories[cat]) categories[cat] = { charged: 0, paid: 0 };
+      if (b.type === "charge") categories[cat].charged += Number(b.amount || 0);
+      else categories[cat].paid += Number(b.amount || 0);
+    });
+    return Object.entries(categories)
+      .map(([category, v]) => ({
+        category,
+        charged: v.charged,
+        paid: v.paid,
+        due: v.charged - v.paid,
+        pct: v.charged > 0 ? Math.min(100, Math.round((v.paid / v.charged) * 100)) : 0
+      }))
+      .sort((a, b) => (a.category === "Registration" ? -1 : b.category === "Registration" ? 1 : 0));
+  };
+
   const attendanceFor = (studentId) => attendanceCountsForRange(data.attendance, studentId);
 
   const counts = useMemo(() => {
@@ -452,6 +474,7 @@ function Dashboard({ data, profile }) {
       {isParent && myStudents.map((s) => {
         const balance = balanceFor(s.id);
         const attend = attendanceFor(s.id);
+        const feeItems = feeBreakdownFor(s.id);
         return (
           <div key={s.id}>
             <section className="bsf-card">
@@ -467,12 +490,47 @@ function Dashboard({ data, profile }) {
               {s.allergies && <p className="bsf-alert-note">Allergies: {s.allergies}</p>}
             </section>
 
-            <section className="bsf-card bsf-tuitioncard">
-              <h2>Tuition balance for {s.firstName || s.name.split(" ")[0]}</h2>
-              <p className="bsf-tuitionamount" style={{ color: balance > 0 ? "#B23A3A" : "#2F7A5C" }}>
-                {formatCurrency(balance)}
-              </p>
-              <p className="bsf-muted">{balance > 0 ? "Balance due" : "Fully paid, thank you"}</p>
+            <section className="bsf-card bsf-invoicecard">
+              <div className="bsf-invoicehead">
+                <div>
+                  <p className="bsf-eyebrow" style={{ margin: 0 }}>Tuition & Fees</p>
+                  <p className="bsf-muted" style={{ margin: "2px 0 0" }}>{s.firstName || s.name.split(" ")[0]} · {settings.academicYear.startDate ? settings.academicYear.startDate.slice(0, 4) : ""}{settings.academicYear.endDate ? `–${settings.academicYear.endDate.slice(2, 4)}` : ""}</p>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <p className="bsf-invoicetotal" style={{ color: balance > 0 ? "#B23A3A" : "#2F7A5C" }}>{formatCurrency(balance)}</p>
+                  <p className="bsf-muted" style={{ margin: 0 }}>{balance > 0 ? "Total balance due" : "Fully settled"}</p>
+                </div>
+              </div>
+
+              {feeItems.length === 0 ? (
+                <p className="bsf-empty">No fees have been recorded yet.</p>
+              ) : (
+                <div className="bsf-invoicelines">
+                  {feeItems.map((item) => {
+                    const status = item.due <= 0 && item.charged > 0
+                      ? "Paid in full"
+                      : item.paid > 0
+                      ? "Partially paid"
+                      : "Not yet paid";
+                    const statusColor = status === "Paid in full" ? "#2F7A5C" : status === "Partially paid" ? "#B8842F" : "#B23A3A";
+                    return (
+                      <div key={item.category} className="bsf-invoiceline">
+                        <div className="bsf-invoiceline-top">
+                          <strong>{item.category === "Registration" ? "Registration Fee" : item.category}</strong>
+                          <span className="bsf-status-pill" style={{ background: `${statusColor}1A`, color: statusColor }}>{status}</span>
+                        </div>
+                        <div className="bsf-invoicebar">
+                          <span style={{ width: `${item.pct}%`, background: statusColor }} />
+                        </div>
+                        <div className="bsf-invoiceline-bottom">
+                          <span className="bsf-muted">{formatCurrency(item.paid)} paid of {formatCurrency(item.charged)}</span>
+                          {item.due > 0 && <span style={{ color: statusColor, fontWeight: 600 }}>{formatCurrency(item.due)} due</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </section>
 
             <section className="bsf-card">
@@ -4828,10 +4886,12 @@ function ResourcesTab({ data, persist }) {
 
 const emptyChecklistForm = { name: "", category: "", status: ACCRED_STATUSES[0], evidenceLink: "", notes: "" };
 
+const FEE_CATEGORIES = ["Registration", "Tuition", "Other"];
+
 function BillingTab({ data, persist }) {
   const [studentFilter, setStudentFilter] = useState("");
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ studentId: "", type: "charge", amount: "", description: "", date: todayStr() });
+  const [form, setForm] = useState({ studentId: "", type: "charge", category: "Tuition", amount: "", description: "", date: todayStr() });
   const [formError, setFormError] = useState("");
 
   const billing = data.billing || [];
@@ -4859,9 +4919,9 @@ function BillingTab({ data, persist }) {
       setFormError("Please enter an amount greater than 0.");
       return;
     }
-    const entry = { id: uid(), studentId: student.id, studentName: student.name, type: form.type, amount: amt, description: form.description, date: form.date || todayStr() };
+    const entry = { id: uid(), studentId: student.id, studentName: student.name, type: form.type, category: form.category, amount: amt, description: form.description, date: form.date || todayStr() };
     persist({ ...data, billing: [...billing, entry] });
-    setForm({ studentId: "", type: "charge", amount: "", description: "", date: todayStr() });
+    setForm({ studentId: "", type: "charge", category: "Tuition", amount: "", description: "", date: todayStr() });
     setFormError("");
     setShowAdd(false);
   };
@@ -4912,7 +4972,7 @@ function BillingTab({ data, persist }) {
                 <span className="bsf-muted">{b.date}</span>
               </div>
               <strong>{b.studentName}</strong>
-              <p>{formatCurrency(b.amount)}{b.description ? ` · ${b.description}` : ""}</p>
+              <p>{b.category || "Tuition"} · {formatCurrency(b.amount)}{b.description ? ` · ${b.description}` : ""}</p>
             </div>
             <button className="bsf-iconbtn" onClick={() => removeEntry(b.id)} aria-label="Remove"><Trash2 size={16} /></button>
           </div>
@@ -4926,6 +4986,13 @@ function BillingTab({ data, persist }) {
               <option value="">Choose a student</option>
               {students.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
             </select>
+          </Field>
+          <Field label="Fee category">
+            <div className="bsf-chiprow">
+              {FEE_CATEGORIES.map((cat) => (
+                <button key={cat} type="button" className={`bsf-chip ${form.category === cat ? "active" : ""}`} onClick={() => setForm({ ...form, category: cat })}>{cat}</button>
+              ))}
+            </div>
           </Field>
           <Field label="Type">
             <div className="bsf-chiprow">
@@ -5899,8 +5966,22 @@ function BrightStepsHubInner() {
         .bsf-childstats { display: flex; gap: 20px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--line); }
         .bsf-childstat { display: flex; flex-direction: column; gap: 2px; }
         .bsf-childstat strong { font-size: 15px; }
-        .bsf-tuitioncard { border: 1.5px solid var(--teal-light); box-shadow: var(--shadow-md); }
-        .bsf-tuitionamount { font-family: 'Fraunces', serif; font-size: 30px; font-weight: 600; margin: 6px 0 2px; }
+        .bsf-invoicecard {
+          border: none;
+          background: linear-gradient(165deg, #FFFFFF 0%, #FBF3F0 100%);
+          box-shadow: var(--shadow-lift);
+          padding: 18px;
+        }
+        .bsf-invoicehead {
+          display: flex; justify-content: space-between; align-items: flex-start;
+          padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--line);
+        }
+        .bsf-invoicetotal { font-family: 'Fraunces', serif; font-size: 26px; font-weight: 600; margin: 0; line-height: 1.1; }
+        .bsf-invoicelines { display: flex; flex-direction: column; gap: 16px; }
+        .bsf-invoiceline-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .bsf-invoicebar { height: 6px; border-radius: 4px; background: var(--sand-deep); overflow: hidden; margin-bottom: 6px; }
+        .bsf-invoicebar span { display: block; height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+        .bsf-invoiceline-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
         .bsf-termsummary-row:last-child { margin-bottom: 0; }
         .bsf-termname { font-size: 13px; }
         @media (max-width: 420px) {
