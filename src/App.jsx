@@ -2862,15 +2862,18 @@ function StandardsLibraryModal({ data, persist, onClose }) {
   );
 }
 
+const ASSESSMENT_TYPES = ["Pre-Assessment", "Formative", "Summative (End of Unit)", "MAP Test", "End of Grade Test", "Other"];
+
 function AssessmentTab({ data, persist, profile }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showRubrics, setShowRubrics] = useState(false);
   const [showStandards, setShowStandards] = useState(false);
   const [gradeFilter, setGradeFilter] = useState(null);
+  const [typeFilter, setTypeFilter] = useState(null);
   const [formError, setFormError] = useState("");
   const [form, setForm] = useState({
     studentId: "", planId: "", subject: "", criteria: "", level: ASSESS_LEVELS[1],
-    feedback: "", rubricId: "", rows: [], standardId: ""
+    feedback: "", rubricId: "", rows: [], standardId: "", assessmentType: "Summative (End of Unit)"
   });
 
   const isParent = profile?.role === "parent";
@@ -2889,7 +2892,9 @@ function AssessmentTab({ data, persist, profile }) {
     .filter((a) => !isSelfOnly || linkedIds.includes(a.studentId))
     .filter((a) => !isStaffScoped || myAssignedGrades.includes(a.grade))
     .sort((a, b) => b.date.localeCompare(a.date));
-  const filtered = gradeFilter ? assessments.filter((a) => a.grade === gradeFilter) : assessments;
+  const filtered = assessments
+    .filter((a) => !gradeFilter || a.grade === gradeFilter)
+    .filter((a) => !typeFilter || (a.assessmentType || "Summative (End of Unit)") === typeFilter);
   const rubrics = data.rubrics || [];
   const standards = data.standards || [];
 
@@ -2940,13 +2945,14 @@ function AssessmentTab({ data, persist, profile }) {
       feedback: form.feedback,
       standardId: form.standardId,
       standardLabel: standard ? (standard.code ? `${standard.code} - ${standard.description}` : standard.description) : "",
+      assessmentType: form.assessmentType,
       date: new Date().toISOString().slice(0, 10),
       ...(usingRubric
         ? { rubricName: rubric ? rubric.name : "", rows: form.rows }
         : { criteria: form.criteria, level: form.level })
     };
     persist({ ...data, assessments: [...(data.assessments || []), entry] });
-    setForm({ studentId: "", planId: "", subject: "", criteria: "", level: ASSESS_LEVELS[1], feedback: "", rubricId: "", rows: [], standardId: "" });
+    setForm({ studentId: "", planId: "", subject: "", criteria: "", level: ASSESS_LEVELS[1], feedback: "", rubricId: "", rows: [], standardId: "", assessmentType: "Summative (End of Unit)" });
     setFormError("");
     setGradeFilter(null);
     setShowAdd(false);
@@ -3003,6 +3009,16 @@ function AssessmentTab({ data, persist, profile }) {
         </section>
       )}
 
+      <section className="bsf-card">
+        <h2>Filter by type</h2>
+        <div className="bsf-chiprow">
+          <button className={`bsf-chip ${typeFilter === null ? "active" : ""}`} onClick={() => setTypeFilter(null)}>All</button>
+          {ASSESSMENT_TYPES.map((t) => (
+            <button key={t} className={`bsf-chip ${typeFilter === t ? "active" : ""}`} onClick={() => setTypeFilter(t)}>{t}</button>
+          ))}
+        </div>
+      </section>
+
       <section className="bsf-list">
         {filtered.length === 0 && <p className="bsf-empty">No assessments recorded yet.</p>}
         {filtered.map((a) => {
@@ -3025,6 +3041,7 @@ function AssessmentTab({ data, persist, profile }) {
                   <span className="bsf-muted">{a.date}</span>
                 </div>
                 <strong>{a.studentName}</strong>
+                {a.assessmentType && <span className="bsf-minitag" style={{ marginTop: 2, display: "inline-block" }}>{a.assessmentType}</span>}
                 <p className="bsf-muted">{a.grade}{a.subject ? ` · ${a.subject}` : ""}{a.planTitle ? ` · ${a.planTitle}` : ""}</p>
                 {a.rows && a.rows.length > 0 ? (
                   <div className="bsf-rubric-rows">
@@ -3051,6 +3068,13 @@ function AssessmentTab({ data, persist, profile }) {
 
       {showAdd && (
         <Modal title="New assessment" onClose={() => setShowAdd(false)}>
+          <Field label="Assessment type">
+            <div className="bsf-chiprow">
+              {ASSESSMENT_TYPES.map((t) => (
+                <button key={t} type="button" className={`bsf-chip ${form.assessmentType === t ? "active" : ""}`} onClick={() => setForm({ ...form, assessmentType: t })}>{t}</button>
+              ))}
+            </div>
+          </Field>
           <Field label="Student">
             <select value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value, planId: "" })}>
               <option value="">Choose a student</option>
