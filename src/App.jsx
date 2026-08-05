@@ -181,14 +181,16 @@ function attendanceCountsForRange(attendanceMap, studentId, startDate, endDate) 
 function getUnreadMessageCount(data, profile) {
   if (!profile?.id) return 0;
   const isParent = profile.role === "parent";
+  const isStudent = profile.role === "student";
+  const isSelfScoped = isParent || isStudent;
   const linkedIds = profile.student_ids || [];
   let count = 0;
   (data.students || []).forEach((s) => {
-    if (isParent && !linkedIds.includes(s.id)) return;
+    if (isSelfScoped && !linkedIds.includes(s.id)) return;
     const lastRead = (s.lastRead && s.lastRead[profile.id]) || "1970-01-01T00:00:00.000Z";
     (s.messages || []).forEach((m) => {
-      const messageIsFromParent = m.role === "parent";
-      const relevant = isParent ? !messageIsFromParent : messageIsFromParent;
+      const messageIsFromFamily = m.role === "parent" || m.role === "student";
+      const relevant = isSelfScoped ? !messageIsFromFamily : messageIsFromFamily;
       if (!relevant) return;
       const ts = m.createdAt || (m.date ? `${m.date}T00:00:00.000Z` : null);
       if (ts && ts > lastRead) count += 1;
@@ -5166,7 +5168,7 @@ function BrightStepsHubInner() {
   const LEARNING_ASSISTANT_ALLOWED_TABS = ["dashboard", "attendance", "portfolio", "assessment", "classes", "calendar", "assignments", "updates"];
   // Pre-N through Grade 2: reflections only. Grade 3 and up: can also see (not edit)
   // their own attendance and grades.
-  const STUDENT_ALLOWED_TABS = isUpperStudent ? ["portfolio", "attendance", "gradebook", "assignments", "assessment"] : ["portfolio"];
+  const STUDENT_ALLOWED_TABS = isUpperStudent ? ["portfolio", "attendance", "gradebook", "assignments", "assessment", "messages"] : ["portfolio"];
   const unreadCount = useMemo(() => getUnreadMessageCount(data, profile), [data.students, profile]);
 
   useEffect(() => {
@@ -5219,8 +5221,11 @@ function BrightStepsHubInner() {
     .filter((s) => !isLearningAssistant || LEARNING_ASSISTANT_ALLOWED_TABS.includes(s.id))
     .filter((s) => !isStudent || STUDENT_ALLOWED_TABS.includes(s.id));
 
-  const primaryIds = isStudent ? STUDENT_ALLOWED_TABS : ["dashboard", "attendance", "portfolio", "assessment"];
-  const bottomTabs = primaryIds.map((id) => allSections.find((s) => s.id === id));
+  const primaryIds = isStudent ? STUDENT_ALLOWED_TABS.filter((id) => id !== "messages") : ["dashboard", "attendance", "portfolio", "assessment"];
+  const bottomTabs = primaryIds.map((id) => allSections.find((s) => s.id === id)).filter(Boolean);
+  if (isStudent && isUpperStudent) {
+    bottomTabs.push({ id: "messages", label: "Messages", icon: Megaphone });
+  }
 
   const goTo = (id) => {
     setTab(id);
@@ -5825,20 +5830,22 @@ function BrightStepsHubInner() {
               {language === "en" ? "FR" : "EN"}
             </button>
           )}
-          <button className="bsf-iconbtn bsf-settingsbtn" onClick={() => setTab("students")} aria-label="Messages" title="Messages" style={{ position: "relative" }}>
-            <Bell size={18} />
-            {unreadCount > 0 && (
-              <span
-                style={{
-                  position: "absolute", top: -2, right: -2, background: "#801524", color: "#fff",
-                  borderRadius: "50%", fontSize: 10, lineHeight: "16px", minWidth: 16, height: 16,
-                  textAlign: "center", padding: "0 3px", fontWeight: 600
-                }}
-              >
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
-          </button>
+          {(!isStudent || isUpperStudent) && (
+            <button className="bsf-iconbtn bsf-settingsbtn" onClick={() => setTab(isStudent ? "messages" : "students")} aria-label="Messages" title="Messages" style={{ position: "relative" }}>
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span
+                  style={{
+                    position: "absolute", top: -2, right: -2, background: "#801524", color: "#fff",
+                    borderRadius: "50%", fontSize: 10, lineHeight: "16px", minWidth: 16, height: 16,
+                    textAlign: "center", padding: "0 3px", fontWeight: 600
+                  }}
+                >
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </button>
+          )}
           {!isStudent && (
             <button className="bsf-iconbtn bsf-settingsbtn" onClick={() => setShowMenu(true)} aria-label={t("top.menu")}>
               <MenuIcon size={19} />
@@ -5859,6 +5866,17 @@ function BrightStepsHubInner() {
       {tab === "staff" && !isParent && !isLearningAssistant && <StaffTab data={data} persist={persist} />}
       {tab === "attendance" && <AttendanceTab data={data} persist={persist} profile={profile} />}
       {tab === "portfolio" && <PortfolioTab data={data} persist={persist} profile={profile} />}
+      {tab === "messages" && isStudent && myLinkedStudent && (
+        <div className="bsf-screen">
+          <div className="bsf-hero">
+            <p className="bsf-eyebrow">Messages</p>
+            <h1>Talk with your teachers</h1>
+          </div>
+          <section className="bsf-card">
+            <StudentMessages student={myLinkedStudent} data={data} persist={persist} />
+          </section>
+        </div>
+      )}
       {tab === "assessment" && <AssessmentTab data={data} persist={persist} profile={profile} />}
       {tab === "gradebook" && ((!isParent && !isLearningAssistant && !isStudent) || (isStudent && isUpperStudent)) && <GradebookTab data={data} persist={persist} profile={profile} onNavigate={goTo} />}
       {tab === "planning" && !isParent && !isLearningAssistant && <PlanningTab data={data} persist={persist} />}
@@ -5901,10 +5919,10 @@ function BrightStepsHubInner() {
       )}
 
       <nav className="bsf-tabbar">
-        {bottomTabs.map(({ id, navKey, icon: Icon }) => (
+        {bottomTabs.map(({ id, navKey, label, icon: Icon }) => (
           <button key={id} className={`bsf-tab ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>
             <Icon size={19} />
-            {t(navKey)}
+            {navKey ? t(navKey) : label}
           </button>
         ))}
         {!isStudent && (
