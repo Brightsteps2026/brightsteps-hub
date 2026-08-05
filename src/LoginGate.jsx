@@ -299,7 +299,7 @@ export default function LoginGate({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ session, profile, signOut: handleSignOut }}>
+    <AuthContext.Provider value={{ session, profile, signOut: handleSignOut, updateProfileLocal: (patch) => setProfile((p) => (p ? { ...p, ...patch } : p)) }}>
       {children}
     </AuthContext.Provider>
   );
