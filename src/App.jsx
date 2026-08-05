@@ -2864,6 +2864,23 @@ function StandardsLibraryModal({ data, persist, onClose }) {
 
 const ASSESSMENT_TYPES = ["Pre-Assessment", "Formative", "Summative (End of Unit)", "MAP Test", "End of Grade Test", "Other"];
 
+// Pre-N through Kindergarten: no formal assessment, their record lives in Portfolio.
+// Grade 1: Pre-Assessment, Formative, Summative.
+// Grade 2 and up: MAP Test joins in.
+// Grade 3 and up: End of Grade Test joins in.
+function assessmentTypesForGrade(grade) {
+  const idx = GRADES.indexOf(grade);
+  const g1 = GRADES.indexOf("Grade 1");
+  const g2 = GRADES.indexOf("Grade 2");
+  const g3 = GRADES.indexOf("Grade 3");
+  if (idx < g1) return [];
+  const types = ["Pre-Assessment", "Formative", "Summative (End of Unit)"];
+  if (idx >= g2) types.push("MAP Test");
+  if (idx >= g3) types.push("End of Grade Test");
+  types.push("Other");
+  return types;
+}
+
 function AssessmentTab({ data, persist, profile }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showRubrics, setShowRubrics] = useState(false);
@@ -2873,7 +2890,7 @@ function AssessmentTab({ data, persist, profile }) {
   const [formError, setFormError] = useState("");
   const [form, setForm] = useState({
     studentId: "", planId: "", subject: "", criteria: "", level: ASSESS_LEVELS[1],
-    feedback: "", rubricId: "", rows: [], standardId: "", assessmentType: "Summative (End of Unit)"
+    feedback: "", rubricId: "", rows: [], standardId: "", assessmentType: ""
   });
 
   const isParent = profile?.role === "parent";
@@ -2926,6 +2943,10 @@ function AssessmentTab({ data, persist, profile }) {
       setFormError("Please choose a student before saving.");
       return;
     }
+    if (!form.assessmentType) {
+      setFormError("Please choose an assessment type before saving.");
+      return;
+    }
     const usingRubric = form.rubricId && form.rows.length > 0;
     if (!usingRubric && !form.criteria.trim()) {
       setFormError("Please describe what was assessed, or choose a rubric.");
@@ -2952,7 +2973,7 @@ function AssessmentTab({ data, persist, profile }) {
         : { criteria: form.criteria, level: form.level })
     };
     persist({ ...data, assessments: [...(data.assessments || []), entry] });
-    setForm({ studentId: "", planId: "", subject: "", criteria: "", level: ASSESS_LEVELS[1], feedback: "", rubricId: "", rows: [], standardId: "", assessmentType: "Summative (End of Unit)" });
+    setForm({ studentId: "", planId: "", subject: "", criteria: "", level: ASSESS_LEVELS[1], feedback: "", rubricId: "", rows: [], standardId: "", assessmentType: "" });
     setFormError("");
     setGradeFilter(null);
     setShowAdd(false);
@@ -3068,19 +3089,26 @@ function AssessmentTab({ data, persist, profile }) {
 
       {showAdd && (
         <Modal title="New assessment" onClose={() => setShowAdd(false)}>
-          <Field label="Assessment type">
-            <div className="bsf-chiprow">
-              {ASSESSMENT_TYPES.map((t) => (
-                <button key={t} type="button" className={`bsf-chip ${form.assessmentType === t ? "active" : ""}`} onClick={() => setForm({ ...form, assessmentType: t })}>{t}</button>
-              ))}
-            </div>
-          </Field>
           <Field label="Student">
-            <select value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value, planId: "" })}>
+            <select value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value, planId: "", assessmentType: "" })}>
               <option value="">Choose a student</option>
-              {(isStaffScoped ? data.students.filter((s) => myAssignedGrades.includes(s.grade)) : data.students).map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
+              {(isStaffScoped ? data.students.filter((s) => myAssignedGrades.includes(s.grade)) : data.students)
+                .filter((s) => GRADES.indexOf(s.grade) >= GRADES.indexOf("Grade 1"))
+                .map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
             </select>
+            <p className="bsf-muted" style={{ marginTop: 4 }}>
+              Pre-N through Kindergarten aren't shown here, their assessment record is their Portfolio.
+            </p>
           </Field>
+          {form.studentId && (
+            <Field label="Assessment type">
+              <div className="bsf-chiprow">
+                {assessmentTypesForGrade(data.students.find((s) => s.id === form.studentId)?.grade).map((t) => (
+                  <button key={t} type="button" className={`bsf-chip ${form.assessmentType === t ? "active" : ""}`} onClick={() => setForm({ ...form, assessmentType: t })}>{t}</button>
+                ))}
+              </div>
+            </Field>
+          )}
           <Field label="Linked unit plan (optional)">
             <select value={form.planId} onChange={(e) => setForm({ ...form, planId: e.target.value })}>
               <option value="">No unit plan</option>
