@@ -4130,12 +4130,15 @@ function suggestReportComment(data, studentId, studentName, start, end) {
   return parts.join(" ");
 }
 
-function ReportsTab({ data, persist }) {
+function ReportsTab({ data, persist, profile }) {
   const [showForm, setShowForm] = useState(false);
   const [viewingId, setViewingId] = useState(null);
   const [kind, setKind] = useState("student");
   const settings = data.settings || DEFAULT_SETTINGS;
   const templates = settings.reportCardTemplates && settings.reportCardTemplates.length ? settings.reportCardTemplates : ["Standard Progress Report"];
+
+  const isParent = profile?.role === "parent";
+  const linkedIds = profile?.student_ids || [];
 
   const [form, setForm] = useState({
     studentId: "", template: templates[0], grade: "", subject: "",
@@ -4143,7 +4146,9 @@ function ReportsTab({ data, persist }) {
   });
   const [formError, setFormError] = useState("");
 
-  const reports = [...(data.reports || [])].sort((a, b) => b.createdDate.localeCompare(a.createdDate));
+  const reports = [...(data.reports || [])]
+    .filter((r) => !isParent || ((r.kind === "student" || r.kind === "transcript") && linkedIds.includes(r.studentId)))
+    .sort((a, b) => b.createdDate.localeCompare(a.createdDate));
   const viewingReport = reports.find((r) => r.id === viewingId);
 
   const openForm = (k) => {
@@ -4354,13 +4359,14 @@ function ReportsTab({ data, persist }) {
   return (
     <div className="bsf-screen">
       <div className="bsf-screen-head">
-        <h1>Reports</h1>
-        <button className="bsf-btn" onClick={() => openForm("student")} disabled={data.students.length === 0}><Plus size={16} /> Generate</button>
+        <h1>{isParent ? "Report Cards" : "Reports"}</h1>
+        {!isParent && <button className="bsf-btn" onClick={() => openForm("student")} disabled={data.students.length === 0}><Plus size={16} /> Generate</button>}
       </div>
-      {data.students.length === 0 && <p className="bsf-empty">Add students first, then generate reports here.</p>}
+      {!isParent && data.students.length === 0 && <p className="bsf-empty">Add students first, then generate reports here.</p>}
+      {isParent && reports.length === 0 && <p className="bsf-empty">No report cards have been generated for your child yet.</p>}
 
       <section className="bsf-list">
-        {reports.length === 0 && <p className="bsf-empty">No reports generated yet.</p>}
+        {!isParent && reports.length === 0 && <p className="bsf-empty">No reports generated yet.</p>}
         {reports.map((r) => (
           <div key={r.id} className="bsf-card bsf-student bsf-clickable" onClick={() => setViewingId(r.id)}>
             <div>
@@ -4374,7 +4380,7 @@ function ReportsTab({ data, persist }) {
                 {" "}· {r.periodStart || "?"} to {r.periodEnd || "?"}
               </p>
             </div>
-            <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeReport(r.id); }} aria-label="Remove"><Trash2 size={16} /></button>
+            {!isParent && <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeReport(r.id); }} aria-label="Remove"><Trash2 size={16} /></button>}
           </div>
         ))}
       </section>
@@ -4462,7 +4468,7 @@ function ReportsTab({ data, persist }) {
       )}
 
       {viewingReport && (
-        <ReportViewModal report={viewingReport} data={data} onClose={() => setViewingId(null)} onRemove={removeReport} />
+        <ReportViewModal report={viewingReport} data={data} onClose={() => setViewingId(null)} onRemove={isParent ? null : removeReport} />
       )}
     </div>
   );
@@ -5788,7 +5794,7 @@ function BrightStepsHubInner() {
   const isStudent = profile?.role === "student";
   const myLinkedStudent = isStudent ? data.students.find((s) => (profile.student_ids || [])[0] === s.id) : null;
   const isUpperStudent = !!myLinkedStudent && GRADES.indexOf(myLinkedStudent.grade) >= GRADES.indexOf("Grade 3");
-  const PARENT_HIDDEN_TABS = ["classes", "staff", "admissions", "reports", "behavior", "resources", "accreditation", "ai", "planning", "gradebook"];
+  const PARENT_HIDDEN_TABS = ["classes", "staff", "admissions", "behavior", "resources", "accreditation", "ai", "planning", "gradebook"];
   const ADMIN_ONLY_TABS = ["accreditation", "billing"];
   // A learning assistant supports specific grades day to day; they don't need
   // enrollment, staffing, or school-wide admin tools, just the classroom-facing ones.
@@ -6560,7 +6566,7 @@ function BrightStepsHubInner() {
       {tab === "calendar" && <CalendarTab data={data} persist={persist} profile={profile} />}
       {tab === "admissions" && !isParent && !isLearningAssistant && <AdmissionsTab data={data} persist={persist} />}
       {tab === "assignments" && <AssignmentsTab data={data} persist={persist} profile={profile} />}
-      {tab === "reports" && !isParent && !isLearningAssistant && <ReportsTab data={data} persist={persist} />}
+      {tab === "reports" && !isLearningAssistant && <ReportsTab data={data} persist={persist} profile={profile} />}
       {tab === "behavior" && !isParent && !isLearningAssistant && <BehaviorTab data={data} persist={persist} />}
       {tab === "resources" && !isParent && !isLearningAssistant && <ResourcesTab data={data} persist={persist} />}
       {tab === "accreditation" && isAdmin && <AccreditationTab data={data} persist={persist} />}
