@@ -2175,11 +2175,51 @@ function PlanDetailModal({ plan, data, onClose, onUpdate }) {
 }
 
 function PlanningTab({ data, persist }) {
+  const [curriculumView, setCurriculumView] = useState("documents");
   const [showAdd, setShowAdd] = useState(false);
   const [detailId, setDetailId] = useState(null);
   const [form, setForm] = useState(emptyPlanForm);
   const [formError, setFormError] = useState("");
   const [gradeFilter, setGradeFilter] = useState(null);
+
+  const [showDocForm, setShowDocForm] = useState(false);
+  const [editingDocId, setEditingDocId] = useState(null);
+  const [docForm, setDocForm] = useState({ title: "", subject: CURRICULUM_SUBJECTS[0], description: "", files: [] });
+  const [docFormError, setDocFormError] = useState("");
+  const [docSubjectFilter, setDocSubjectFilter] = useState(null);
+
+  const documents = [...(data.curriculumDocuments || [])].sort((a, b) => a.title.localeCompare(b.title));
+  const filteredDocs = docSubjectFilter ? documents.filter((d) => d.subject === docSubjectFilter) : documents;
+
+  const openAddDoc = () => {
+    setEditingDocId(null);
+    setDocForm({ title: "", subject: CURRICULUM_SUBJECTS[0], description: "", files: [] });
+    setDocFormError("");
+    setShowDocForm(true);
+  };
+
+  const openEditDoc = (d) => {
+    setEditingDocId(d.id);
+    setDocForm({ title: d.title, subject: d.subject, description: d.description || "", files: d.files || [] });
+    setDocFormError("");
+    setShowDocForm(true);
+  };
+
+  const saveDoc = () => {
+    if (!docForm.title.trim()) {
+      setDocFormError("Please give this document a title.");
+      return;
+    }
+    if (editingDocId) {
+      persist({ ...data, curriculumDocuments: (data.curriculumDocuments || []).map((d) => (d.id === editingDocId ? { ...d, ...docForm } : d)) });
+    } else {
+      persist({ ...data, curriculumDocuments: [...(data.curriculumDocuments || []), { id: uid(), date: todayStr(), ...docForm }] });
+    }
+    setShowDocForm(false);
+    setDocFormError("");
+  };
+
+  const removeDoc = (id) => persist({ ...data, curriculumDocuments: (data.curriculumDocuments || []).filter((d) => d.id !== id) });
 
   const plans = [...data.plans].sort((a, b) => (a.startDate || "").localeCompare(b.startDate || ""));
   const filtered = gradeFilter
@@ -2236,10 +2276,72 @@ function PlanningTab({ data, persist }) {
   return (
     <div className="bsf-screen">
       <div className="bsf-hero">
-        <p className="bsf-eyebrow">Planning</p>
-        <h1>{data.plans.length} unit plan{data.plans.length === 1 ? "" : "s"}</h1>
+        <p className="bsf-eyebrow">Curriculum</p>
+        <h1>{documents.length} document{documents.length === 1 ? "" : "s"} · {data.plans.length} unit plan{data.plans.length === 1 ? "" : "s"}</h1>
       </div>
 
+      <div className="bsf-tiletoggle">
+        <button className={`bsf-tiletoggle-btn ${curriculumView === "documents" ? "active" : ""}`} onClick={() => setCurriculumView("documents")}>Documents</button>
+        <button className={`bsf-tiletoggle-btn ${curriculumView === "units" ? "active" : ""}`} onClick={() => setCurriculumView("units")}>Unit Planning</button>
+      </div>
+
+      {curriculumView === "documents" && (
+        <>
+          <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
+            <span />
+            <button className="bsf-btn" onClick={openAddDoc}><Plus size={16} /> Add document</button>
+          </div>
+
+          <section className="bsf-card">
+            <h2>Filter by subject</h2>
+            <div className="bsf-chiprow">
+              <button className={`bsf-chip ${docSubjectFilter === null ? "active" : ""}`} onClick={() => setDocSubjectFilter(null)}>All</button>
+              {CURRICULUM_SUBJECTS.map((s) => (
+                <button key={s} className={`bsf-chip ${docSubjectFilter === s ? "active" : ""}`} onClick={() => setDocSubjectFilter(s)}>{s}</button>
+              ))}
+            </div>
+          </section>
+
+          <section className="bsf-list">
+            {filteredDocs.length === 0 && <p className="bsf-empty">No curriculum documents added yet, start with your ELA handbook.</p>}
+            {filteredDocs.map((d) => (
+              <div key={d.id} className="bsf-card bsf-student bsf-clickable" onClick={() => openEditDoc(d)}>
+                <div>
+                  <span className="bsf-tag">{d.subject}</span>
+                  <strong style={{ display: "block", marginTop: 4 }}>{d.title}</strong>
+                  {d.description && <p className="bsf-muted">{d.description}</p>}
+                  {(d.files || []).length > 0 && <p className="bsf-muted">{d.files.length} file{d.files.length === 1 ? "" : "s"} attached</p>}
+                </div>
+                <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeDoc(d.id); }} aria-label="Remove"><Trash2 size={16} /></button>
+              </div>
+            ))}
+          </section>
+
+          {showDocForm && (
+            <Modal title={editingDocId ? "Edit document" : "New curriculum document"} onClose={() => setShowDocForm(false)}>
+              <Field label="Title">
+                <input value={docForm.title} onChange={(e) => setDocForm({ ...docForm, title: e.target.value })} placeholder="e.g. ELA Handbook" />
+              </Field>
+              <Field label="Subject">
+                <select value={docForm.subject} onChange={(e) => setDocForm({ ...docForm, subject: e.target.value })}>
+                  {CURRICULUM_SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </Field>
+              <Field label="Description (optional)">
+                <textarea rows={2} value={docForm.description} onChange={(e) => setDocForm({ ...docForm, description: e.target.value })} placeholder="What this document covers" />
+              </Field>
+              <Field label="File">
+                <AttachmentField folder="curriculum" files={docForm.files} onChange={(files) => setDocForm({ ...docForm, files })} />
+              </Field>
+              <button className="bsf-btn bsf-btn-block" onClick={saveDoc}>Save document</button>
+              {docFormError && <p className="bsf-formerror">{docFormError}</p>}
+            </Modal>
+          )}
+        </>
+      )}
+
+      {curriculumView === "units" && (
+        <>
       <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
         <span />
         <button className="bsf-btn" onClick={() => setShowAdd(true)}><Plus size={16} /> Add</button>
@@ -2289,6 +2391,8 @@ function PlanningTab({ data, persist }) {
           </div>
         ))}
       </section>
+        </>
+      )}
 
       {showAdd && (
         <Modal title="New unit plan" onClose={() => setShowAdd(false)}>
@@ -5115,6 +5219,7 @@ function ResourcesTab({ data, persist }) {
 const emptyChecklistForm = { name: "", category: "", status: ACCRED_STATUSES[0], evidenceLink: "", notes: "" };
 
 const FEE_CATEGORIES = ["Registration", "Tuition", "Other"];
+const CURRICULUM_SUBJECTS = ["English Language Arts", "Math", "Social Studies", "Science", "French", "Art", "Music", "Physical Education", "Other"];
 
 function BillingTab({ data, persist }) {
   const [studentFilter, setStudentFilter] = useState("");
@@ -5869,7 +5974,7 @@ function BrightStepsHubInner() {
     { id: "portfolio", label: "Portfolio", navKey: "nav.portfolio", icon: BookOpen, category: "core" },
     { id: "assessment", label: "Assessment", navKey: "nav.assessment", icon: ClipboardCheck, category: "core" },
     { id: "gradebook", label: "Gradebook", navKey: "nav.gradebook", icon: Percent, category: "classroom" },
-    { id: "planning", label: "Planning", navKey: "nav.planning", icon: ClipboardList, category: "classroom" },
+    { id: "planning", label: "Curriculum", navKey: "nav.planning", icon: ClipboardList, category: "classroom" },
     { id: "calendar", label: "Calendar", navKey: "nav.calendar", icon: CalendarIcon, category: "office" },
     { id: "admissions", label: "Admissions", navKey: "nav.admissions", icon: UserPlus, category: "office" },
     { id: "assignments", label: "Assignments", navKey: "nav.assignments", icon: FileText, category: "classroom" },
@@ -6001,6 +6106,12 @@ function BrightStepsHubInner() {
           transition: height 0.4s ease;
         }
         .bsf-stair-label { font-size: 9.5px; font-weight: 600; color: #8A9698; margin-top: 6px; white-space: nowrap; }
+        .bsf-tiletoggle { display: flex; background: var(--sand-deep); border-radius: 12px; padding: 3px; margin-bottom: 16px; }
+        .bsf-tiletoggle-btn {
+          flex: 1; padding: 9px 10px; border-radius: 9px; border: none; background: transparent;
+          font-size: 13.5px; font-weight: 600; color: var(--gold-dark); cursor: pointer;
+        }
+        .bsf-tiletoggle-btn.active { background: #fff; color: var(--ink); box-shadow: var(--shadow-sm); }
         .bsf-stair-interactive { background: none; border: none; cursor: pointer; padding: 0; font-family: inherit; }
         .bsf-stair-interactive .bsf-stair-bar { transition: height 0.4s ease, opacity 0.15s ease; opacity: 0.55; }
         .bsf-stair-interactive:hover .bsf-stair-bar { opacity: 0.8; }
