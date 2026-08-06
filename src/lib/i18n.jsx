@@ -12,7 +12,7 @@ const translations = {
   "nav.portfolio": { en: "Portfolio", fr: "Portfolio" },
   "nav.assessment": { en: "Assessment", fr: "Évaluation" },
   "nav.gradebook": { en: "Gradebook", fr: "Carnet de notes" },
-  "nav.planning": { en: "Planning", fr: "Planification" },
+  "nav.planning": { en: "Curriculum", fr: "Curriculum" },
   "nav.calendar": { en: "Calendar", fr: "Calendrier" },
   "nav.admissions": { en: "Admissions", fr: "Admissions" },
   "nav.assignments": { en: "Assignments", fr: "Devoirs" },
@@ -20,10 +20,11 @@ const translations = {
   "nav.behavior": { en: "Behavior", fr: "Comportement" },
   "nav.resources": { en: "Resources", fr: "Ressources" },
   "nav.accreditation": { en: "Accreditation", fr: "Accréditation" },
+  "nav.billing": { en: "Billing", fr: "Facturation" },
   "nav.ai": { en: "AI Assistant", fr: "Assistant IA" },
   "nav.updates": { en: "Communication", fr: "Communication" },
   "nav.more": { en: "More", fr: "Plus" },
-  "nav.allSections": { en: "All sections", fr: "Toutes les sections" },
+  "nav.allSections": { en: "Explore", fr: "Explorer" },
   "nav.moreSectionsNote": {
     en: "",
     fr: ""
