@@ -2235,8 +2235,13 @@ function PlanningTab({ data, persist }) {
 
   return (
     <div className="bsf-screen">
-      <div className="bsf-screen-head">
-        <h1>Planning</h1>
+      <div className="bsf-hero">
+        <p className="bsf-eyebrow">Planning</p>
+        <h1>{data.plans.length} unit plan{data.plans.length === 1 ? "" : "s"}</h1>
+      </div>
+
+      <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
+        <span />
         <button className="bsf-btn" onClick={() => setShowAdd(true)}><Plus size={16} /> Add</button>
       </div>
 
@@ -2450,10 +2455,18 @@ function UpdatesTab({ data, persist }) {
     return a.grades.join(", ");
   };
 
+  const recentCount = posts.filter((a) => a.date >= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)).length;
+
   return (
     <div className="bsf-screen">
-      <div className="bsf-screen-head">
-        <h1>Family Updates</h1>
+      <div className="bsf-hero">
+        <p className="bsf-eyebrow">Family Updates</p>
+        <h1>{posts.length} post{posts.length === 1 ? "" : "s"}</h1>
+        {recentCount > 0 && <p className="bsf-hero-sub">{recentCount} in the last 7 days</p>}
+      </div>
+
+      <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
+        <span />
         {!isParent && <button className="bsf-btn" onClick={() => { setFormError(""); setForm({ titleEn: "", bodyEn: "", titleFr: "", bodyFr: "", grades: isTeacherRole ? [] : [] }); setShowAdd(true); }}><Plus size={16} /> Post</button>}
       </div>
 
@@ -3468,8 +3481,13 @@ function AdmissionsTab({ data, persist }) {
 
   return (
     <div className="bsf-screen">
-      <div className="bsf-screen-head">
-        <h1>Admissions</h1>
+      <div className="bsf-hero">
+        <p className="bsf-eyebrow">Admissions</p>
+        <h1>{(data.admissions || []).length} in the pipeline</h1>
+      </div>
+
+      <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
+        <span />
         <button className="bsf-btn" onClick={openAdd}><Plus size={16} /> Add</button>
       </div>
 
@@ -4533,8 +4551,13 @@ function BehaviorTab({ data, persist }) {
 
   return (
     <div className="bsf-screen">
-      <div className="bsf-screen-head">
-        <h1>Behavior</h1>
+      <div className="bsf-hero">
+        <p className="bsf-eyebrow">Behavior</p>
+        <h1>{(data.behaviorIncidents || []).length} note{(data.behaviorIncidents || []).length === 1 ? "" : "s"} logged</h1>
+      </div>
+
+      <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
+        <span />
         <button className="bsf-btn" onClick={openAdd} disabled={data.students.length === 0}><Plus size={16} /> Add</button>
       </div>
       {data.students.length === 0 && <p className="bsf-empty">Add students first, then log behavior notes here.</p>}
@@ -4877,8 +4900,13 @@ function StaffTab({ data, persist }) {
 
   return (
     <div className="bsf-screen">
-      <div className="bsf-screen-head">
-        <h1>Staff</h1>
+      <div className="bsf-hero">
+        <p className="bsf-eyebrow">Staff</p>
+        <h1>{(data.staff || []).length} team member{(data.staff || []).length === 1 ? "" : "s"}</h1>
+      </div>
+
+      <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
+        <span />
         <button className="bsf-btn" onClick={openAdd}><Plus size={16} /> Add</button>
       </div>
 
@@ -5014,8 +5042,13 @@ function ResourcesTab({ data, persist }) {
 
   return (
     <div className="bsf-screen">
-      <div className="bsf-screen-head">
-        <h1>Resources</h1>
+      <div className="bsf-hero">
+        <p className="bsf-eyebrow">Resources</p>
+        <h1>{(data.resources || []).length} file{(data.resources || []).length === 1 ? "" : "s"} shared</h1>
+      </div>
+
+      <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
+        <span />
         <button className="bsf-btn" onClick={openAdd}><Plus size={16} /> Add</button>
       </div>
 
