@@ -10,6 +10,7 @@ const BRAND_BURGUNDY = "#801524";
 // Students log in with just their ID, not a real email. Under the hood we turn
 // that ID into a fake-but-valid email address, since Supabase accounts need one.
 const STUDENT_LOGIN_DOMAIN = "students.brightstepshub.local";
+const SCHOOL_DATA_KEY = "brightsteps-hub-data";
 
 export default function LoginGate({ children }) {
   const [session, setSession] = useState(undefined);
@@ -22,6 +23,7 @@ export default function LoginGate({ children }) {
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [logoUrl, setLogoUrl] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSetError, setPasswordSetError] = useState("");
@@ -37,6 +39,30 @@ export default function LoginGate({ children }) {
     return () => {
       listener.subscription.unsubscribe();
     };
+  }, []);
+
+  useEffect(() => {
+    // The school's logo lives inside the shared app data, which is readable
+    // before signing in, so the real uploaded logo can show up right on the
+    // login screen instead of a generic placeholder.
+    let cancelled = false;
+    supabase
+      .from("app_storage")
+      .select("value")
+      .eq("key", SCHOOL_DATA_KEY)
+      .eq("shared", true)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled || error || !data?.value) return;
+        try {
+          const parsed = JSON.parse(data.value);
+          const url = parsed?.settings?.branding?.logoUrl;
+          if (url) setLogoUrl(url);
+        } catch {
+          // If parsing fails, just keep the default placeholder logo.
+        }
+      });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -143,7 +169,7 @@ export default function LoginGate({ children }) {
       <div style={styles.centerScreen}>
         <BrandStyles />
         <div style={styles.card}>
-          <Logo />
+          <Logo url={logoUrl} />
           <h1 style={styles.title}>BrightSteps Hub</h1>
           <p style={styles.subtitle}>Please sign in to continue</p>
 
@@ -229,7 +255,7 @@ export default function LoginGate({ children }) {
       <div style={styles.centerScreen}>
         <BrandStyles />
         <div style={styles.card}>
-          <Logo />
+          <Logo url={logoUrl} />
           <h1 style={styles.title}>BrightSteps Hub</h1>
           <p style={{ color: "#801524", marginTop: 16, fontFamily: "'Work Sans', sans-serif", fontSize: 14 }}>{profileError}</p>
           <button onClick={handleSignOut} style={{ ...styles.button, marginTop: 20 }} className="bsh-btn">
@@ -254,7 +280,7 @@ export default function LoginGate({ children }) {
       <div style={styles.centerScreen}>
         <BrandStyles />
         <div style={styles.card}>
-          <Logo />
+          <Logo url={logoUrl} />
           <h1 style={styles.title}>Welcome to BrightSteps Hub</h1>
           <p style={styles.subtitle}>
             For your security, please choose your own password before continuing.
@@ -321,7 +347,20 @@ function BrandStyles() {
   );
 }
 
-function Logo() {
+function Logo({ url }) {
+  if (url) {
+    return (
+      <img
+        src={url}
+        alt="School logo"
+        style={{
+          width: 56, height: 56, borderRadius: 14, margin: "0 auto 16px",
+          objectFit: "contain", display: "block",
+          boxShadow: "0 6px 16px rgba(128, 21, 36, 0.2)"
+        }}
+      />
+    );
+  }
   return (
     <div
       style={{
