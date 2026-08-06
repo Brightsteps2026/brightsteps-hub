@@ -1799,6 +1799,15 @@ function PortfolioTab({ data, persist, profile }) {
   const renderEntry = (p) => {
     const student = data.students.find((s) => s.id === p.studentId);
     const canEditThisEntry = !isParent && (!isStudent || p.author === "student");
+    const reactions = p.reactions || [];
+    const iReacted = profile?.id && reactions.some((r) => r.profileId === profile.id);
+    const toggleReaction = () => {
+      if (!profile?.id) return;
+      const nextReactions = iReacted
+        ? reactions.filter((r) => r.profileId !== profile.id)
+        : [...reactions, { profileId: profile.id, name: profile.full_name || "Someone" }];
+      persist({ ...data, portfolio: data.portfolio.map((e) => (e.id === p.id ? { ...e, reactions: nextReactions } : e)) });
+    };
     return (
       <div key={p.id} className="bsf-card bsf-portfolio-entry">
         <StudentThumb photo={student?.photo} />
@@ -1824,6 +1833,17 @@ function PortfolioTab({ data, persist, profile }) {
               readOnly={isParent}
             />
           )}
+          <div className="bsf-reactionrow">
+            <button type="button" className={`bsf-reactbtn ${iReacted ? "active" : ""}`} onClick={toggleReaction}>
+              <span>{iReacted ? "❤️" : "🤍"}</span>
+              {reactions.length > 0 && <span>{reactions.length}</span>}
+            </button>
+            {reactions.length > 0 && (
+              <span className="bsf-muted bsf-reactionnames">
+                {reactions.slice(0, 3).map((r) => r.name.split(" ")[0]).join(", ")}{reactions.length > 3 ? ` and ${reactions.length - 3} more` : ""}
+              </span>
+            )}
+          </div>
         </div>
         {canEditThisEntry && <button className="bsf-iconbtn" onClick={() => removeEntry(p.id)} aria-label={t("common.remove")}><Trash2 size={16} /></button>}
       </div>
@@ -3738,8 +3758,11 @@ function AssignmentsTab({ data, persist, profile }) {
   );
 }
 
-function ReportViewModal({ report, onClose, onRemove }) {
+function ReportViewModal({ report, data, onClose, onRemove }) {
   const kind = report.kind || "student";
+  const settings = data?.settings || DEFAULT_SETTINGS;
+  const student = data?.students.find((s) => s.id === report.studentId);
+  const isLevelsReport = (report.grades || []).some((g) => g.scoreType === "Levels");
 
   return (
     <Modal
@@ -3753,11 +3776,53 @@ function ReportViewModal({ report, onClose, onRemove }) {
       }
       onClose={onClose}
     >
+      {(kind === "student" || kind === "transcript") && (
+        <button className="bsf-btn bsf-btn-block bsf-noprint" style={{ marginBottom: 16 }} onClick={() => window.print()}>
+          Print / Save as PDF
+        </button>
+      )}
+
+      <div className={(kind === "student" || kind === "transcript") ? "bsf-printable" : ""}>
+        {(kind === "student" || kind === "transcript") && (
+          <div className="bsf-letterhead">
+            {settings.branding.logoUrl && <img src={settings.branding.logoUrl} alt="" className="bsf-letterhead-logo" />}
+            <h2>BrightSteps International School</h2>
+            <p className="bsf-muted">{kind === "student" ? "Progress Report" : "Academic Transcript"}</p>
+            <table className="bsf-letterhead-table">
+              <tbody>
+                <tr><td>Student Name</td><td>{report.studentName}</td></tr>
+                <tr><td>Grade</td><td>{report.grade}</td></tr>
+                <tr><td>Academic Year</td><td>{settings.academicYear.startDate ? settings.academicYear.startDate.slice(0, 4) : "?"}/{settings.academicYear.endDate ? settings.academicYear.endDate.slice(0, 4) : "?"}</td></tr>
+                <tr><td>Period</td><td>{report.periodStart || "?"} to {report.periodEnd || "?"}</td></tr>
+                {student?.nationalities?.length > 0 && <tr><td>Nationality</td><td>{student.nationalities.join(" - ")}</td></tr>}
+              </tbody>
+            </table>
+            {kind === "student" && (
+              <div className="bsf-letterhead-legend">
+                {isLevelsReport ? (
+                  <>
+                    <strong>Understanding Progress Levels</strong>
+                    <p>Emerging – Beginning to explore and show early understanding</p>
+                    <p>Developing – Growing and applying skills with support</p>
+                    <p>Proficient – Using skills consistently and independently</p>
+                    <p>Confident – Applying skills confidently across situations</p>
+                  </>
+                ) : (
+                  <>
+                    <strong>Understanding Grades</strong>
+                    {Object.entries(LETTER_GRADE_MEANING).map(([letter, meaning]) => (
+                      <p key={letter}><strong>{letter}</strong> — {meaning} ({LEARNING_PROGRESS_BAND[letter]})</p>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
       {kind === "student" && (
         <>
-          <p className="bsf-muted">{report.template} · {report.grade}</p>
-          <p className="bsf-muted">Period: {report.periodStart || "?"} to {report.periodEnd || "?"}</p>
-          <p className="bsf-muted">Generated {report.createdDate}</p>
+          <p className="bsf-muted bsf-noprint">{report.template} · Generated {report.createdDate}</p>
 
           <hr className="bsf-divider" />
           <h3 className="bsf-subheading">Attendance</h3>
@@ -3825,6 +3890,15 @@ function ReportViewModal({ report, onClose, onRemove }) {
           <hr className="bsf-divider" />
           <h3 className="bsf-subheading">Teacher comments</h3>
           <p>{report.teacherComments || "No comments added."}</p>
+
+          <div className="bsf-signatureblock">
+            <div>
+              <p>Teacher: ________________________________</p>
+            </div>
+            <div>
+              <p>Date: ________________________________</p>
+            </div>
+          </div>
         </>
       )}
 
@@ -3964,6 +4038,7 @@ function ReportViewModal({ report, onClose, onRemove }) {
           ))}
         </>
       )}
+      </div>
 
       {kind === "standards" && (
         <>
@@ -4005,6 +4080,55 @@ const REPORT_KINDS = [
 ];
 
 const GPA_POINTS = { A: 4, B: 3, C: 2, D: 1, F: 0 };
+
+// Composes a starter report comment from a student's actual grades and attendance
+// in the given period. This is a smart template, not generative AI, it never invents
+// details, it only describes what's genuinely in the data, so the teacher can edit
+// and personalize it rather than write the whole thing from a blank page.
+function suggestReportComment(data, studentId, studentName, start, end) {
+  const firstName = studentName.split(" ")[0];
+  const grades = (data.gradeEntries || []).filter((e) => e.studentId === studentId && e.date >= (start || "0000-00-00") && e.date <= (end || "9999-99-99"));
+  const attendance = attendanceCountsForRange(data.attendance, studentId, start, end);
+  const totalDays = attendance.present + attendance.absent + attendance.late;
+  const attendanceRate = totalDays > 0 ? Math.round((attendance.present / totalDays) * 100) : null;
+
+  const parts = [];
+
+  if (grades.length > 0) {
+    const bySubject = {};
+    grades.forEach((g) => { if (!bySubject[g.subject]) bySubject[g.subject] = []; bySubject[g.subject].push(g); });
+    const subjects = Object.keys(bySubject);
+    if (subjects.length > 0) {
+      parts.push(`${firstName} was assessed this period in ${subjects.join(", ")}.`);
+    }
+    const levelGrades = grades.filter((g) => g.scoreType === "Levels" && g.letter);
+    if (levelGrades.length > 0) {
+      const topLevel = levelGrades.some((g) => g.letter === "Confident" || g.letter === "Proficient");
+      parts.push(topLevel
+        ? `${firstName} is showing strong, consistent progress toward grade-level expectations.`
+        : `${firstName} is developing steadily and continuing to build confidence in these skills.`);
+    }
+    const letterGrades = grades.filter((g) => g.letter && g.scoreType !== "Levels");
+    if (letterGrades.length > 0) {
+      const strongCount = letterGrades.filter((g) => ["A+", "A", "B+"].includes(g.letter)).length;
+      parts.push(strongCount >= letterGrades.length / 2
+        ? `Overall academic performance this period has been strong.`
+        : `There are some areas that would benefit from extra focus and support going forward.`);
+    }
+  } else {
+    parts.push(`${firstName} has been an active participant in class this period.`);
+  }
+
+  if (attendanceRate !== null) {
+    parts.push(attendanceRate >= 95
+      ? `Attendance has been excellent, at ${attendanceRate}% for this period.`
+      : `Attendance was ${attendanceRate}% for this period.`);
+  }
+
+  parts.push(`[Add a specific highlight or next step for ${firstName} here.]`);
+
+  return parts.join(" ");
+}
 
 function ReportsTab({ data, persist }) {
   const [showForm, setShowForm] = useState(false);
@@ -4308,6 +4432,19 @@ function ReportsTab({ data, persist }) {
           {kind === "student" && (
             <Field label="Teacher comments">
               <textarea rows={4} value={form.teacherComments} onChange={(e) => setForm({ ...form, teacherComments: e.target.value })} placeholder="Overall summary for this period" />
+              <button
+                type="button"
+                className="bsf-textbtn"
+                style={{ marginTop: 6 }}
+                disabled={!form.studentId}
+                onClick={() => {
+                  const student = data.students.find((s) => s.id === form.studentId);
+                  if (!student) return;
+                  setForm({ ...form, teacherComments: suggestReportComment(data, student.id, student.name, form.periodStart, form.periodEnd) });
+                }}
+              >
+                Suggest a starter draft, from this student's actual grades and attendance
+              </button>
             </Field>
           )}
 
@@ -4325,7 +4462,7 @@ function ReportsTab({ data, persist }) {
       )}
 
       {viewingReport && (
-        <ReportViewModal report={viewingReport} onClose={() => setViewingId(null)} onRemove={removeReport} />
+        <ReportViewModal report={viewingReport} data={data} onClose={() => setViewingId(null)} onRemove={removeReport} />
       )}
     </div>
   );
@@ -5839,6 +5976,15 @@ function BrightStepsHubInner() {
 
         .bsf-portfolio-row { display: flex; align-items: flex-start; gap: 10px; }
         .bsf-portfolio-entry { display: flex; align-items: flex-start; gap: 12px; }
+        .bsf-reactionrow { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+        .bsf-reactbtn {
+          display: flex; align-items: center; gap: 5px; background: var(--sand-deep);
+          border: none; border-radius: 100px; padding: 5px 11px; font-size: 13px;
+          font-weight: 600; color: var(--ink); cursor: pointer; transition: transform 0.1s ease;
+        }
+        .bsf-reactbtn:active { transform: scale(0.94); }
+        .bsf-reactbtn.active { background: #FCE8E8; }
+        .bsf-reactionnames { font-size: 12px; }
 
         .bsf-screen-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding: 4px; }
         .bsf-screen-head-wrap { flex-wrap: wrap; row-gap: 10px; }
@@ -6210,6 +6356,27 @@ function BrightStepsHubInner() {
         .bsf-rubric-form-row { background: #FCFAF4; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
         .bsf-rubric-form-label { font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--ink); }
         .bsf-mission { font-style: italic; color: var(--teal-light); margin: 10px 0 0; font-size: 14px; }
+
+        .bsf-letterhead { text-align: center; margin-bottom: 20px; }
+        .bsf-letterhead-logo { width: 56px; height: 56px; object-fit: contain; margin-bottom: 8px; }
+        .bsf-letterhead h2 { font-family: 'Fraunces', serif; font-size: 20px; margin: 0 0 2px; }
+        .bsf-letterhead-table { width: 100%; margin-top: 14px; border-collapse: collapse; text-align: left; font-size: 13px; }
+        .bsf-letterhead-table td { padding: 5px 8px; border: 1px solid var(--line); }
+        .bsf-letterhead-table td:first-child { font-weight: 600; width: 40%; background: var(--sand-deep); }
+        .bsf-letterhead-legend {
+          text-align: left; margin-top: 16px; padding: 12px 14px; background: var(--sand-deep);
+          border-radius: 10px; font-size: 12.5px; line-height: 1.6;
+        }
+        .bsf-letterhead-legend strong { display: block; margin-bottom: 4px; color: var(--gold-dark); }
+        .bsf-letterhead-legend p { margin: 0; }
+        .bsf-signatureblock { display: flex; gap: 24px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; flex-wrap: wrap; }
+
+        @media print {
+          body * { visibility: hidden; }
+          .bsf-printable, .bsf-printable * { visibility: visible; }
+          .bsf-printable { position: absolute; top: 0; left: 0; width: 100%; padding: 20px; }
+          .bsf-noprint { display: none !important; }
+        }
         .bsf-editable-chip {
           display: inline-flex;
           align-items: center;
