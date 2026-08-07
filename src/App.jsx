@@ -6563,12 +6563,16 @@ function BrightStepsHubInner() {
 
         .bsf-tabbar {
           position: sticky;
-          bottom: 0;
-          background: var(--white);
-          border-top: 1px solid var(--line);
+          bottom: 8px;
+          margin: 0 10px calc(8px + env(safe-area-inset-bottom));
+          background: rgba(255, 255, 255, 0.94);
+          backdrop-filter: blur(12px);
+          border-radius: 22px;
           display: flex;
-          padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
-          box-shadow: 0 -6px 20px rgba(36, 16, 18, 0.08);
+          gap: 2px;
+          padding: 6px;
+          box-shadow: 0 14px 34px rgba(36, 16, 18, 0.16), 0 2px 8px rgba(36, 16, 18, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.7);
         }
         .bsf-tab {
           flex: 1;
@@ -6578,15 +6582,20 @@ function BrightStepsHubInner() {
           flex-direction: column;
           align-items: center;
           gap: 3px;
-          padding: 7px 2px;
+          padding: 8px 2px;
           color: #8A9698;
-          font-size: 10.5px;
+          font-size: 10px;
           font-weight: 600;
           cursor: pointer;
-          border-radius: 10px;
-          transition: background 0.15s ease, color 0.15s ease;
+          border-radius: 15px;
+          transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
         }
-        .bsf-tab.active { color: var(--teal); background: var(--sand-deep); }
+        .bsf-tab.active {
+          color: #fff;
+          background: linear-gradient(135deg, #801524, #A02E3B);
+          box-shadow: 0 6px 16px rgba(128, 21, 36, 0.35);
+          transform: translateY(-3px);
+        }
 
         .bsf-modal-backdrop {
           position: fixed;
