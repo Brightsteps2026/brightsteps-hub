@@ -5387,7 +5387,7 @@ function ResourcesTab({ data, persist, profile }) {
         <h2>Filter by category</h2>
         <div className="bsf-chiprow">
           <button className={`bsf-chip ${categoryFilter === null ? "active" : ""}`} onClick={() => setCategoryFilter(null)}>All</button>
-          {RESOURCE_CATEGORIES.map((c) => (
+          {(isParent ? [...new Set(resources.map((r) => r.category))] : RESOURCE_CATEGORIES).map((c) => (
             <button key={c} className={`bsf-chip ${categoryFilter === c ? "active" : ""}`} onClick={() => setCategoryFilter(c)}>{c}</button>
           ))}
         </div>

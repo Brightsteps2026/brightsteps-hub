@@ -12,11 +12,52 @@ const BRAND_BURGUNDY = "#801524";
 const STUDENT_LOGIN_DOMAIN = "students.brightstepshub.local";
 const SCHOOL_DATA_KEY = "brightsteps-hub-data";
 
+// Kept simple and self-contained here, since the login screen renders before
+// the rest of the app's translation system has anything to work with.
+const LOGIN_TEXT = {
+  en: {
+    title: "BrightSteps Hub",
+    subtitle: "Please sign in to continue",
+    staffParent: "Staff & Parent",
+    student: "Student",
+    email: "Email",
+    studentId: "Student ID",
+    studentIdPlaceholder: "e.g. 2026001",
+    password: "Password",
+    showPassword: "Show password",
+    signIn: "Sign in",
+    signingIn: "Signing in...",
+    noAccount: "Don't have an account? Ask your BrightSteps administrator to create one for you.",
+  },
+  fr: {
+    title: "BrightSteps Hub",
+    subtitle: "Veuillez vous connecter pour continuer",
+    staffParent: "Personnel et parents",
+    student: "Élève",
+    email: "E-mail",
+    studentId: "Identifiant élève",
+    studentIdPlaceholder: "ex. 2026001",
+    password: "Mot de passe",
+    showPassword: "Afficher le mot de passe",
+    signIn: "Se connecter",
+    signingIn: "Connexion...",
+    noAccount: "Vous n'avez pas de compte ? Demandez à votre administrateur BrightSteps d'en créer un pour vous.",
+  }
+};
+
 export default function LoginGate({ children }) {
   const [session, setSession] = useState(undefined);
   const [profile, setProfile] = useState(null);
   const [profileError, setProfileError] = useState("");
   const [loginMode, setLoginMode] = useState("staff"); // "staff" or "student"
+  const [loginLang, setLoginLang] = useState(() => {
+    try { return localStorage.getItem("bsf-login-lang") || "en"; } catch { return "en"; }
+  });
+  const lt = LOGIN_TEXT[loginLang];
+  const setLoginLangPersisted = (lang) => {
+    setLoginLang(lang);
+    try { localStorage.setItem("bsf-login-lang", lang); } catch {}
+  };
   const [email, setEmail] = useState("");
   const [studentId, setStudentId] = useState("");
   const [password, setPassword] = useState("");
@@ -193,9 +234,25 @@ export default function LoginGate({ children }) {
       <div style={styles.centerScreen}>
         <BrandStyles />
         <div style={styles.card}>
+          <div style={styles.langToggle}>
+            <button
+              type="button"
+              onClick={() => setLoginLangPersisted("en")}
+              style={{ ...styles.langButton, ...(loginLang === "en" ? styles.langButtonActive : {}) }}
+            >
+              EN
+            </button>
+            <button
+              type="button"
+              onClick={() => setLoginLangPersisted("fr")}
+              style={{ ...styles.langButton, ...(loginLang === "fr" ? styles.langButtonActive : {}) }}
+            >
+              FR
+            </button>
+          </div>
           <Logo url={logoUrl} />
-          <h1 style={styles.title}>BrightSteps Hub</h1>
-          <p style={styles.subtitle}>Please sign in to continue</p>
+          <h1 style={styles.title}>{lt.title}</h1>
+          <p style={styles.subtitle}>{lt.subtitle}</p>
 
           <div style={styles.modeToggle}>
             <button
@@ -203,21 +260,21 @@ export default function LoginGate({ children }) {
               onClick={() => setLoginMode("staff")}
               style={{ ...styles.modeButton, ...(loginMode === "staff" ? styles.modeButtonActive : {}) }}
             >
-              Staff & Parent
+              {lt.staffParent}
             </button>
             <button
               type="button"
               onClick={() => setLoginMode("student")}
               style={{ ...styles.modeButton, ...(loginMode === "student" ? styles.modeButtonActive : {}) }}
             >
-              Student
+              {lt.student}
             </button>
           </div>
 
           <form onSubmit={handleSubmit}>
             {loginMode === "student" ? (
               <>
-                <label style={styles.label}>Student ID</label>
+                <label style={styles.label}>{lt.studentId}</label>
                 <input
                   type="text"
                   required
@@ -226,12 +283,12 @@ export default function LoginGate({ children }) {
                   style={styles.input}
                   className="bsh-input"
                   autoComplete="username"
-                  placeholder="e.g. 2026001"
+                  placeholder={lt.studentIdPlaceholder}
                 />
               </>
             ) : (
               <>
-                <label style={styles.label}>Email</label>
+                <label style={styles.label}>{lt.email}</label>
                 <input
                   type="email"
                   required
@@ -243,7 +300,7 @@ export default function LoginGate({ children }) {
                 />
               </>
             )}
-            <label style={styles.label}>Password</label>
+            <label style={styles.label}>{lt.password}</label>
             <input
               type={showPassword ? "text" : "password"}
               required
@@ -259,15 +316,15 @@ export default function LoginGate({ children }) {
                 checked={showPassword}
                 onChange={(e) => setShowPassword(e.target.checked)}
               />
-              <span style={{ marginLeft: 6 }}>Show password</span>
+              <span style={{ marginLeft: 6 }}>{lt.showPassword}</span>
             </label>
             {formError && <p style={styles.error}>{formError}</p>}
             <button type="submit" disabled={submitting} style={styles.button} className="bsh-btn">
-              {submitting ? "Signing in..." : "Sign in"}
+              {submitting ? lt.signingIn : lt.signIn}
             </button>
           </form>
           <p style={styles.footnote}>
-            Don't have an account? Ask your BrightSteps administrator to create one for you.
+            {lt.noAccount}
           </p>
         </div>
         <div style={styles.footerBar}>
@@ -507,5 +564,28 @@ const styles = {
     background: "#fff",
     color: "#801524",
     boxShadow: "0 1px 3px rgba(128, 21, 36, 0.18)",
+  },
+  langToggle: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 4,
+    marginBottom: 10,
+  },
+  langButton: {
+    padding: "4px 10px",
+    borderRadius: 100,
+    border: "1px solid #EFD9DB",
+    background: "transparent",
+    color: "#A67680",
+    fontSize: 11.5,
+    fontWeight: 700,
+    fontFamily: "'Work Sans', sans-serif",
+    cursor: "pointer",
+    letterSpacing: "0.02em",
+  },
+  langButtonActive: {
+    background: "#801524",
+    borderColor: "#801524",
+    color: "#fff",
   },
 };
