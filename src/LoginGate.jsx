@@ -93,6 +93,30 @@ export default function LoginGate({ children }) {
     };
   }, [session]);
 
+  // Signs someone out automatically after 10 minutes of no activity, a normal
+  // safety practice for a system holding student and family information.
+  useEffect(() => {
+    if (!session) return;
+    const IDLE_LIMIT_MS = 10 * 60 * 1000;
+    let idleTimer;
+
+    const resetTimer = () => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        supabase.auth.signOut();
+      }, IDLE_LIMIT_MS);
+    };
+
+    const activityEvents = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
+    activityEvents.forEach((evt) => window.addEventListener(evt, resetTimer));
+    resetTimer();
+
+    return () => {
+      clearTimeout(idleTimer);
+      activityEvents.forEach((evt) => window.removeEventListener(evt, resetTimer));
+    };
+  }, [session]);
+
   async function handleSubmit(e) {
     e.preventDefault();
     setFormError("");
@@ -247,7 +271,7 @@ export default function LoginGate({ children }) {
           </p>
         </div>
         <div style={styles.footerBar}>
-          <p style={styles.footerBarText}>© 2026 BrightSteps International School. All rights reserved.</p>
+          <p style={styles.footerBarText}>2026 BrightSteps International School. All rights reserved.</p>
         </div>
       </div>
     );
