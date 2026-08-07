@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment } from "react";
+import { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, Plus, X, Trash2, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Flag, Percent, Briefcase, FolderOpen, Award, Sparkles, Send, LogOut, Bell, Wallet } from "lucide-react";
 import AttachmentField from "./AttachmentField";
 import StudentPhotoField from "./StudentPhotoField";
@@ -387,12 +387,55 @@ function AvatarStack({ students }) {
   );
 }
 
-function Dashboard({ data, profile }) {
+function Dashboard({ data, profile, persist }) {
   const { t, language } = useLanguage();
   const settings = data.settings || DEFAULT_SETTINGS;
   const isParent = profile?.role === "parent";
   const linkedIds = profile?.student_ids || [];
   const myStudents = isParent ? data.students.filter((s) => linkedIds.includes(s.id)) : [];
+
+  const [signingDocId, setSigningDocId] = useState(null);
+  const [signatureName, setSignatureName] = useState(profile?.full_name || "");
+  const [signatureDataUrl, setSignatureDataUrl] = useState("");
+  const [signatureConfirmed, setSignatureConfirmed] = useState(false);
+  const [signatureError, setSignatureError] = useState("");
+
+  const openSign = (docId) => {
+    setSigningDocId(docId);
+    setSignatureName(profile?.full_name || "");
+    setSignatureDataUrl("");
+    setSignatureConfirmed(false);
+    setSignatureError("");
+  };
+
+  const saveSignature = () => {
+    if (!signatureName.trim()) {
+      setSignatureError("Please type your full name.");
+      return;
+    }
+    if (!signatureDataUrl) {
+      setSignatureError("Please sign in the box above.");
+      return;
+    }
+    if (!signatureConfirmed) {
+      setSignatureError("Please confirm you've read the document before signing.");
+      return;
+    }
+    const signature = {
+      id: uid(),
+      parentId: profile.id,
+      parentName: signatureName.trim(),
+      signatureDataUrl,
+      date: todayStr()
+    };
+    persist({
+      ...data,
+      curriculumDocuments: (data.curriculumDocuments || []).map((d) =>
+        d.id === signingDocId ? { ...d, signatures: [...(d.signatures || []).filter((s) => s.parentId !== profile.id), signature] } : d
+      )
+    });
+    setSigningDocId(null);
+  };
 
   const balanceFor = (studentId) => {
     const entries = (data.billing || []).filter((b) => b.studentId === studentId);
@@ -464,6 +507,70 @@ function Dashboard({ data, profile }) {
           <p className="bsf-muted">Academic year: {settings.academicYear.startDate || "?"} to {settings.academicYear.endDate || "?"}</p>
         )}
       </div>
+
+      {isParent && (() => {
+        const parentDocs = (data.curriculumDocuments || []).filter((d) => d.visibleToParents);
+        if (parentDocs.length === 0) return null;
+        return (
+          <section className="bsf-card">
+            <h2>School Documents</h2>
+            <div className="bsf-list">
+              {parentDocs.map((d) => {
+                const mySignature = (d.signatures || []).find((s) => s.parentId === profile?.id);
+                return (
+                <div key={d.id} style={{ marginBottom: 14 }}>
+                  <strong>{d.title}</strong>
+                  {d.description && <p className="bsf-muted">{d.description}</p>}
+                  {(d.files || []).length > 0 && (
+                    <div style={{ marginTop: 6 }}>
+                      <p className="bsf-muted" style={{ marginBottom: 2 }}>English</p>
+                      <AttachmentField folder="curriculum" files={d.files} onChange={() => {}} readOnly />
+                    </div>
+                  )}
+                  {(d.filesFr || []).length > 0 && (
+                    <div style={{ marginTop: 6 }}>
+                      <p className="bsf-muted" style={{ marginBottom: 2 }}>Français</p>
+                      <AttachmentField folder="curriculum" files={d.filesFr} onChange={() => {}} readOnly />
+                    </div>
+                  )}
+                  {d.requiresSignature && (
+                    mySignature ? (
+                      <p className="bsf-minitag" style={{ marginTop: 8, display: "inline-block" }}>Signed on {mySignature.date}</p>
+                    ) : (
+                      <button className="bsf-btn" style={{ marginTop: 8 }} onClick={() => openSign(d.id)}>Read and sign</button>
+                    )
+                  )}
+                </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })()}
+
+      {signingDocId && (() => {
+        const doc = (data.curriculumDocuments || []).find((d) => d.id === signingDocId);
+        if (!doc) return null;
+        return (
+          <Modal title={`Sign: ${doc.title}`} onClose={() => setSigningDocId(null)}>
+            <p className="bsf-muted" style={{ marginBottom: 12 }}>
+              By signing below, you confirm you have read and understood this document.
+            </p>
+            <Field label="Your full name">
+              <input value={signatureName} onChange={(e) => setSignatureName(e.target.value)} />
+            </Field>
+            <Field label="Signature">
+              <SignaturePad onChange={setSignatureDataUrl} />
+            </Field>
+            <label className="bsf-checkboxrow" style={{ marginBottom: 14 }}>
+              <input type="checkbox" checked={signatureConfirmed} onChange={(e) => setSignatureConfirmed(e.target.checked)} />
+              <span>I confirm I have read and understood {doc.title}.</span>
+            </label>
+            <button className="bsf-btn bsf-btn-block" onClick={saveSignature}>Submit signature</button>
+            {signatureError && <p className="bsf-formerror">{signatureError}</p>}
+          </Modal>
+        );
+      })()}
 
       {isParent && myStudents.length === 0 && (
         <section className="bsf-card">
@@ -829,6 +936,81 @@ const emptyStudentForm = {
 };
 
 const fullName = (p) => [p.firstName, p.middleName, p.lastName].filter((x) => x && x.trim()).join(" ");
+
+function SignaturePad({ onChange }) {
+  const canvasRef = useRef(null);
+  const [isEmpty, setIsEmpty] = useState(true);
+  const drawing = useRef(false);
+
+  const getPos = (e, canvas) => {
+    const rect = canvas.getBoundingClientRect();
+    const point = e.touches ? e.touches[0] : e;
+    return { x: point.clientX - rect.left, y: point.clientY - rect.top };
+  };
+
+  const start = (e) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    drawing.current = true;
+    const ctx = canvas.getContext("2d");
+    const { x, y } = getPos(e, canvas);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const move = (e) => {
+    if (!drawing.current) return;
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const { x, y } = getPos(e, canvas);
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#1F2A2E";
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    setIsEmpty(false);
+  };
+
+  const end = () => {
+    if (!drawing.current) return;
+    drawing.current = false;
+    const canvas = canvasRef.current;
+    if (canvas && onChange) onChange(canvas.toDataURL("image/png"));
+  };
+
+  const clear = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setIsEmpty(true);
+    if (onChange) onChange("");
+  };
+
+  return (
+    <div>
+      <canvas
+        ref={canvasRef}
+        width={400}
+        height={140}
+        className="bsf-signaturepad"
+        onMouseDown={start}
+        onMouseMove={move}
+        onMouseUp={end}
+        onMouseLeave={end}
+        onTouchStart={start}
+        onTouchMove={move}
+        onTouchEnd={end}
+      />
+      <div className="bsf-row-head" style={{ marginTop: 6 }}>
+        <p className="bsf-muted" style={{ margin: 0 }}>{isEmpty ? "Sign above with your mouse or finger" : "Signed"}</p>
+        <button type="button" className="bsf-textbtn" onClick={clear}>Clear</button>
+      </div>
+    </div>
+  );
+}
 
 function StudentThumb({ photo }) {
   const [url, setUrl] = useState("");
@@ -2184,7 +2366,7 @@ function PlanningTab({ data, persist }) {
 
   const [showDocForm, setShowDocForm] = useState(false);
   const [editingDocId, setEditingDocId] = useState(null);
-  const [docForm, setDocForm] = useState({ title: "", subject: CURRICULUM_SUBJECTS[0], description: "", files: [] });
+  const [docForm, setDocForm] = useState({ title: "", subject: CURRICULUM_SUBJECTS[0], description: "", files: [], filesFr: [], visibleToParents: false, requiresSignature: false });
   const [docFormError, setDocFormError] = useState("");
   const [docSubjectFilter, setDocSubjectFilter] = useState(null);
 
@@ -2193,14 +2375,14 @@ function PlanningTab({ data, persist }) {
 
   const openAddDoc = () => {
     setEditingDocId(null);
-    setDocForm({ title: "", subject: CURRICULUM_SUBJECTS[0], description: "", files: [] });
+    setDocForm({ title: "", subject: CURRICULUM_SUBJECTS[0], description: "", files: [], filesFr: [], visibleToParents: false, requiresSignature: false });
     setDocFormError("");
     setShowDocForm(true);
   };
 
   const openEditDoc = (d) => {
     setEditingDocId(d.id);
-    setDocForm({ title: d.title, subject: d.subject, description: d.description || "", files: d.files || [] });
+    setDocForm({ title: d.title, subject: d.subject, description: d.description || "", files: d.files || [], filesFr: d.filesFr || [], visibleToParents: !!d.visibleToParents, requiresSignature: !!d.requiresSignature });
     setDocFormError("");
     setShowDocForm(true);
   };
@@ -2310,7 +2492,10 @@ function PlanningTab({ data, persist }) {
                   <span className="bsf-tag">{d.subject}</span>
                   <strong style={{ display: "block", marginTop: 4 }}>{d.title}</strong>
                   {d.description && <p className="bsf-muted">{d.description}</p>}
-                  {(d.files || []).length > 0 && <p className="bsf-muted">{d.files.length} file{d.files.length === 1 ? "" : "s"} attached</p>}
+                  {(d.files || []).length > 0 && <p className="bsf-muted">English: {d.files.length} file{d.files.length === 1 ? "" : "s"}</p>}
+                  {(d.filesFr || []).length > 0 && <p className="bsf-muted">Français: {d.filesFr.length} file{d.filesFr.length === 1 ? "" : "s"}</p>}
+                  {d.visibleToParents && <span className="bsf-minitag" style={{ marginTop: 4, display: "inline-block" }}>Visible to parents</span>}
+                  {d.requiresSignature && <span className="bsf-minitag" style={{ marginTop: 4, marginLeft: 6, display: "inline-block" }}>{(d.signatures || []).length} signed</span>}
                 </div>
                 <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeDoc(d.id); }} aria-label="Remove"><Trash2 size={16} /></button>
               </div>
@@ -2330,9 +2515,40 @@ function PlanningTab({ data, persist }) {
               <Field label="Description (optional)">
                 <textarea rows={2} value={docForm.description} onChange={(e) => setDocForm({ ...docForm, description: e.target.value })} placeholder="What this document covers" />
               </Field>
-              <Field label="File">
+              <Field label="File (English)">
                 <AttachmentField folder="curriculum" files={docForm.files} onChange={(files) => setDocForm({ ...docForm, files })} />
               </Field>
+              <Field label="File (Français)">
+                <AttachmentField folder="curriculum" files={docForm.filesFr} onChange={(filesFr) => setDocForm({ ...docForm, filesFr })} />
+              </Field>
+              <label className="bsf-checkboxrow" style={{ marginBottom: 10 }}>
+                <input
+                  type="checkbox"
+                  checked={docForm.visibleToParents}
+                  onChange={(e) => setDocForm({ ...docForm, visibleToParents: e.target.checked })}
+                />
+                <span>Visible to parents (e.g. the Parent and Student Handbook)</span>
+              </label>
+              {docForm.visibleToParents && (
+                <label className="bsf-checkboxrow" style={{ marginBottom: 14 }}>
+                  <input
+                    type="checkbox"
+                    checked={docForm.requiresSignature}
+                    onChange={(e) => setDocForm({ ...docForm, requiresSignature: e.target.checked })}
+                  />
+                  <span>Requires a signature to acknowledge (parents must sign before it's marked read)</span>
+                </label>
+              )}
+              {editingDocId && (data.curriculumDocuments || []).find((d) => d.id === editingDocId)?.requiresSignature && (
+                <div className="bsf-inlinenote">
+                  <strong style={{ display: "block", marginBottom: 6 }}>
+                    {((data.curriculumDocuments || []).find((d) => d.id === editingDocId)?.signatures || []).length} parent{((data.curriculumDocuments || []).find((d) => d.id === editingDocId)?.signatures || []).length === 1 ? "" : "s"} signed so far
+                  </strong>
+                  {((data.curriculumDocuments || []).find((d) => d.id === editingDocId)?.signatures || []).map((s) => (
+                    <p key={s.id} className="bsf-muted" style={{ margin: "2px 0" }}>{s.parentName} · {s.date}</p>
+                  ))}
+                </div>
+              )}
               <button className="bsf-btn bsf-btn-block" onClick={saveDoc}>Save document</button>
               {docFormError && <p className="bsf-formerror">{docFormError}</p>}
             </Modal>
@@ -6181,6 +6397,11 @@ function BrightStepsHubInner() {
           white-space: nowrap;
         }
         .bsf-tag-alert { background: #FCE8E8; color: #B23A3A; margin-top: 4px; }
+        .bsf-checkboxrow { display: flex; align-items: center; gap: 8px; font-size: 13.5px; cursor: pointer; }
+        .bsf-signaturepad {
+          width: 100%; height: 140px; background: #FCFAF4; border: 1.5px dashed var(--line);
+          border-radius: 12px; touch-action: none; cursor: crosshair;
+        }
         .bsf-group-label {
           font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
           color: var(--gold-dark); margin: 4px 4px 8px;
@@ -6687,7 +6908,7 @@ function BrightStepsHubInner() {
         </div>
       </div>
 
-      {tab === "dashboard" && <Dashboard data={data} profile={profile} />}
+      {tab === "dashboard" && <Dashboard data={data} profile={profile} persist={persist} />}
       {tab === "students" && !isLearningAssistant && (isParent ? <ParentStudentView data={data} persist={persist} profile={profile} /> : <StudentsTab data={data} persist={persist} profile={profile} />)}
       {tab === "classes" && !isParent && <ClassesTab data={data} persist={persist} profile={profile} />}
       {tab === "staff" && !isParent && !isLearningAssistant && <StaffTab data={data} persist={persist} />}
