@@ -246,6 +246,9 @@ export default function LoginGate({ children }) {
             Don't have an account? Ask your BrightSteps administrator to create one for you.
           </p>
         </div>
+        <div style={styles.footerBar}>
+          <p style={styles.footerBarText}>© 2026 BrightSteps International School. All rights reserved.</p>
+        </div>
       </div>
     );
   }
@@ -385,6 +388,22 @@ const styles = {
     background: "linear-gradient(165deg, #801524 0%, #5C0F1A 55%, #2A0A10 100%)",
     padding: 20,
     fontFamily: "'Work Sans', sans-serif",
+    position: "relative",
+  },
+  footerBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    background: "linear-gradient(135deg, #5C0F1A 0%, #2A0A10 100%)",
+    padding: "16px 20px",
+    textAlign: "center",
+  },
+  footerBarText: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 13,
+    fontFamily: "'Work Sans', sans-serif",
+    margin: 0,
   },
   card: {
     background: "#fff",
