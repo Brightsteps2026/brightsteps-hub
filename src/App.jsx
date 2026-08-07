@@ -129,6 +129,8 @@ const LETTER_GRADE_COLOR = {
 const STAFF_ROLES = ["Administrator", "Teacher", "Learning Assistant", "Coordinator", "Support Staff", "Other"];
 
 const RESOURCE_CATEGORIES = ["Policies", "Curriculum", "Forms & Templates", "Professional Development", "Parent Resources", "Other"];
+// A parent should only ever browse by these, the rest are internal/staff categories.
+const PARENT_RESOURCE_CATEGORIES = ["Policies", "Parent Resources", "Forms & Templates"];
 
 const ACCRED_STATUSES = ["Not Started", "In Progress", "Met"];
 const ACCRED_STATUS_COLOR = { "Not Started": "#8A9698", "In Progress": "#B8842F", "Met": "#2F7A5C" };
@@ -639,6 +641,26 @@ function Dashboard({ data, profile, persist }) {
                 </div>
               )}
             </section>
+
+            {(() => {
+              const history = [...(data.billing || [])].filter((b) => b.studentId === s.id).sort((a, b) => b.date.localeCompare(a.date));
+              if (history.length === 0) return null;
+              return (
+                <section className="bsf-card">
+                  <h2>Transaction history</h2>
+                  <div className="bsf-list">
+                    {history.map((b) => (
+                      <div key={b.id} className="bsf-termsummary-row" style={{ alignItems: "flex-start" }}>
+                        <span className="bsf-status-pill" style={{ background: b.type === "charge" ? "#FCE8E8" : "#E6F2EC", color: b.type === "charge" ? "#B23A3A" : "#2F7A5C", flexShrink: 0 }}>
+                          {b.type === "charge" ? "Charge" : "Payment"}
+                        </span>
+                        <span className="bsf-muted">{b.category || "Tuition"} · {formatCurrency(b.amount)}{b.description ? ` · ${b.description}` : ""} · {b.date}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            })()}
 
             <section className="bsf-card">
               <h2>Attendance for {s.firstName || s.name.split(" ")[0]}</h2>
@@ -5387,7 +5409,7 @@ function ResourcesTab({ data, persist, profile }) {
         <h2>Filter by category</h2>
         <div className="bsf-chiprow">
           <button className={`bsf-chip ${categoryFilter === null ? "active" : ""}`} onClick={() => setCategoryFilter(null)}>All</button>
-          {(isParent ? [...new Set(resources.map((r) => r.category))] : RESOURCE_CATEGORIES).map((c) => (
+          {(isParent ? PARENT_RESOURCE_CATEGORIES : RESOURCE_CATEGORIES).map((c) => (
             <button key={c} className={`bsf-chip ${categoryFilter === c ? "active" : ""}`} onClick={() => setCategoryFilter(c)}>{c}</button>
           ))}
         </div>
@@ -5549,6 +5571,25 @@ function BillingTab({ data, persist }) {
     return charges - payments;
   };
 
+  // Same itemized, by-category breakdown parents see on their Dashboard, so
+  // admin and parent are always looking at the exact same picture.
+  const feeBreakdownFor = (studentId) => {
+    const entries = billing.filter((b) => b.studentId === studentId);
+    const categories = {};
+    entries.forEach((b) => {
+      const cat = b.category || "Tuition";
+      if (!categories[cat]) categories[cat] = { charged: 0, paid: 0 };
+      if (b.type === "charge") categories[cat].charged += Number(b.amount || 0);
+      else categories[cat].paid += Number(b.amount || 0);
+    });
+    return Object.entries(categories)
+      .map(([category, v]) => ({
+        category, charged: v.charged, paid: v.paid, due: v.charged - v.paid,
+        pct: v.charged > 0 ? Math.min(100, Math.round((v.paid / v.charged) * 100)) : 0
+      }))
+      .sort((a, b) => (a.category === "Registration" ? -1 : b.category === "Registration" ? 1 : 0));
+  };
+
   const filteredEntries = [...billing]
     .filter((b) => !studentFilter || b.studentId === studentFilter)
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -5574,6 +5615,7 @@ function BillingTab({ data, persist }) {
   const removeEntry = (id) => persist({ ...data, billing: billing.filter((b) => b.id !== id) });
 
   const totalOwed = students.reduce((sum, s) => sum + Math.max(0, balanceForStudent(s.id)), 0);
+  const selectedStudent = students.find((s) => s.id === studentFilter);
 
   return (
     <div className="bsf-screen">
@@ -5588,25 +5630,85 @@ function BillingTab({ data, persist }) {
       </div>
 
       <section className="bsf-card">
-        <h2>Filter by student</h2>
+        <h2>Select a student</h2>
         <select value={studentFilter} onChange={(e) => setStudentFilter(e.target.value)}>
           <option value="">All students</option>
           {students.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
         </select>
       </section>
 
-      {studentFilter && (
-        <section className="bsf-card">
-          <h2>Current balance</h2>
-          <p style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 600, color: balanceForStudent(studentFilter) > 0 ? "#B23A3A" : "#2F7A5C" }}>
-            {formatCurrency(balanceForStudent(studentFilter))}
-          </p>
-          <p className="bsf-muted">{balanceForStudent(studentFilter) > 0 ? "Amount still owed" : "Fully paid, or in credit"}</p>
+      {!studentFilter && (
+        <section className="bsf-list">
+          <p className="bsf-group-label">Every student, at a glance</p>
+          {students.length === 0 && <p className="bsf-empty">Add students first, then track their billing here.</p>}
+          {students.map((s) => {
+            const bal = balanceForStudent(s.id);
+            return (
+              <div key={s.id} className="bsf-card bsf-student bsf-clickable" onClick={() => setStudentFilter(s.id)}>
+                <StudentThumb photo={s.photo} />
+                <div style={{ flex: 1 }}>
+                  <strong>{s.name}</strong>
+                  <p className="bsf-muted">{s.grade}</p>
+                </div>
+                <span className="bsf-status-pill" style={{ background: bal > 0 ? "#FCE8E8" : "#E6F2EC", color: bal > 0 ? "#B23A3A" : "#2F7A5C" }}>
+                  {formatCurrency(bal)}{bal > 0 ? " due" : ""}
+                </span>
+              </div>
+            );
+          })}
         </section>
       )}
 
+      {studentFilter && selectedStudent && (() => {
+        const feeItems = feeBreakdownFor(studentFilter);
+        const balance = balanceForStudent(studentFilter);
+        return (
+          <>
+            <section className="bsf-card bsf-invoicecard">
+              <div className="bsf-invoicehead">
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <StudentThumb photo={selectedStudent.photo} />
+                  <div>
+                    <p className="bsf-eyebrow" style={{ margin: 0 }}>{selectedStudent.name}</p>
+                    <p className="bsf-muted" style={{ margin: "2px 0 0" }}>{selectedStudent.grade}</p>
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <p className="bsf-invoicetotal" style={{ color: balance > 0 ? "#B23A3A" : "#2F7A5C" }}>{formatCurrency(balance)}</p>
+                  <p className="bsf-muted" style={{ margin: 0 }}>{balance > 0 ? "Total balance due" : "Fully settled"}</p>
+                </div>
+              </div>
+              {feeItems.length === 0 ? (
+                <p className="bsf-empty">No fees recorded for this student yet.</p>
+              ) : (
+                <div className="bsf-invoicelines">
+                  {feeItems.map((item) => {
+                    const status = item.due <= 0 && item.charged > 0 ? "Paid in full" : item.paid > 0 ? "Partially paid" : "Not yet paid";
+                    const statusColor = status === "Paid in full" ? "#2F7A5C" : status === "Partially paid" ? "#B8842F" : "#B23A3A";
+                    return (
+                      <div key={item.category} className="bsf-invoiceline">
+                        <div className="bsf-invoiceline-top">
+                          <strong>{item.category === "Registration" ? "Registration Fee" : item.category}</strong>
+                          <span className="bsf-status-pill" style={{ background: `${statusColor}1A`, color: statusColor }}>{status}</span>
+                        </div>
+                        <div className="bsf-invoicebar"><span style={{ width: `${item.pct}%`, background: statusColor }} /></div>
+                        <div className="bsf-invoiceline-bottom">
+                          <span className="bsf-muted">{formatCurrency(item.paid)} paid of {formatCurrency(item.charged)}</span>
+                          {item.due > 0 && <span style={{ color: statusColor, fontWeight: 600 }}>{formatCurrency(item.due)} due</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+            <p className="bsf-group-label">Full transaction history</p>
+          </>
+        );
+      })()}
+
       <section className="bsf-list">
-        {filteredEntries.length === 0 && <p className="bsf-empty">No billing entries yet.</p>}
+        {studentFilter && filteredEntries.length === 0 && <p className="bsf-empty">No transactions recorded for this student yet.</p>}
         {filteredEntries.map((b) => (
           <div key={b.id} className="bsf-card bsf-student">
             <div>
@@ -5616,7 +5718,7 @@ function BillingTab({ data, persist }) {
                 </span>
                 <span className="bsf-muted">{b.date}</span>
               </div>
-              <strong>{b.studentName}</strong>
+              {!studentFilter && <strong>{b.studentName}</strong>}
               <p>{b.category || "Tuition"} · {formatCurrency(b.amount)}{b.description ? ` · ${b.description}` : ""}</p>
             </div>
             <button className="bsf-iconbtn" onClick={() => removeEntry(b.id)} aria-label="Remove"><Trash2 size={16} /></button>
