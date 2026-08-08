@@ -206,6 +206,12 @@ function computeFeeBreakdown(data, studentId) {
     .sort((a, b) => (a.category === "Registration" ? -1 : b.category === "Registration" ? 1 : 0));
 }
 
+function feeCategoryIcon(category) {
+  if (category === "Registration") return UserPlus;
+  if (category === "Tuition") return Wallet;
+  return FileText;
+}
+
 // Counts messages the current person hasn't seen yet, across every student
 // thread they're allowed to view. Parents only see messages from staff;
 // staff only see messages from parents (staff-to-staff notes don't count).
@@ -622,8 +628,8 @@ function Dashboard({ data, profile, persist }) {
                   <p className="bsf-muted" style={{ margin: "2px 0 0" }}>{s.firstName || s.name.split(" ")[0]} · {settings.academicYear.startDate ? settings.academicYear.startDate.slice(0, 4) : ""}{settings.academicYear.endDate ? `–${settings.academicYear.endDate.slice(2, 4)}` : ""}</p>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <p className="bsf-invoicetotal" style={{ color: balance > 0 ? "#B23A3A" : "#2F7A5C" }}>{formatCurrency(balance)}</p>
-                  <p className="bsf-muted" style={{ margin: 0 }}>{balance > 0 ? "Total balance due" : "Fully settled"}</p>
+                  <p className="bsf-invoicetotal" style={{ color: balance > 0 ? "#B23A3A" : "#2F7A5C" }}>{formatCurrency(Math.abs(balance))}</p>
+                  <p className="bsf-muted" style={{ margin: 0 }}>{balance > 0 ? "Total balance due" : balance < 0 ? "Credit on file" : "Fully settled"}</p>
                 </div>
               </div>
 
@@ -633,10 +639,14 @@ function Dashboard({ data, profile, persist }) {
                 <div className="bsf-invoicelines">
                   {feeItems.map((item) => {
                     const statusColor = item.status === "Paid in full" ? "#2F7A5C" : item.status === "Partially paid" ? "#B8842F" : item.status === "No fee set" ? "#8A9698" : "#B23A3A";
+                    const CatIcon = feeCategoryIcon(item.category);
                     return (
                       <div key={item.category} className="bsf-invoiceline">
                         <div className="bsf-invoiceline-top">
-                          <strong>{item.category === "Registration" ? "Registration Fee" : item.category}</strong>
+                          <div className="bsf-invoiceline-label">
+                            <span className="bsf-invoiceline-icon" style={{ background: `${statusColor}1A`, color: statusColor }}><CatIcon size={15} /></span>
+                            <strong>{item.category === "Registration" ? "Registration Fee" : item.category}</strong>
+                          </div>
                           <span className="bsf-status-pill" style={{ background: `${statusColor}1A`, color: statusColor }}>{item.status}</span>
                         </div>
                         <div className="bsf-invoicebar">
@@ -660,14 +670,23 @@ function Dashboard({ data, profile, persist }) {
                 <section className="bsf-card">
                   <h2>Transaction history</h2>
                   <div className="bsf-list">
-                    {history.map((b) => (
-                      <div key={b.id} className="bsf-termsummary-row" style={{ alignItems: "flex-start" }}>
-                        <span className="bsf-status-pill" style={{ background: b.type === "charge" ? "#FCE8E8" : "#E6F2EC", color: b.type === "charge" ? "#B23A3A" : "#2F7A5C", flexShrink: 0 }}>
-                          {b.type === "charge" ? "Charge" : "Payment"}
-                        </span>
-                        <span className="bsf-muted">{b.category || "Tuition"} · {formatCurrency(b.amount)}{b.description ? ` · ${b.description}` : ""} · {b.date}</span>
-                      </div>
-                    ))}
+                    {history.map((b) => {
+                      const isPayment = b.type !== "charge";
+                      return (
+                        <div key={b.id} className="bsf-txnrow" style={{ padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
+                          <span className="bsf-txnicon" style={{ background: isPayment ? "#E6F2EC" : "#FCE8E8", color: isPayment ? "#2F7A5C" : "#B23A3A" }}>
+                            {isPayment ? "+" : "−"}
+                          </span>
+                          <div style={{ flex: 1 }}>
+                            <div className="bsf-row-head">
+                              <strong style={{ color: isPayment ? "#2F7A5C" : "#B23A3A" }}>{formatCurrency(b.amount)}</strong>
+                              <span className="bsf-muted">{b.date}</span>
+                            </div>
+                            <p className="bsf-muted" style={{ margin: 0 }}>{b.category || "Tuition"}{b.description ? ` · ${b.description}` : ""}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </section>
               );
@@ -5662,7 +5681,7 @@ function BillingTab({ data, persist }) {
                   <p className="bsf-muted">{s.grade}</p>
                 </div>
                 <span className="bsf-status-pill" style={{ background: bal > 0 ? "#FCE8E8" : "#E6F2EC", color: bal > 0 ? "#B23A3A" : "#2F7A5C" }}>
-                  {formatCurrency(bal)}{bal > 0 ? " due" : ""}
+                  {formatCurrency(Math.abs(bal))}{bal > 0 ? " due" : bal < 0 ? " credit" : " settled"}
                 </span>
               </div>
             );
@@ -5689,8 +5708,8 @@ function BillingTab({ data, persist }) {
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <p className="bsf-invoicetotal" style={{ color: balance > 0 ? "#B23A3A" : "#2F7A5C" }}>{formatCurrency(balance)}</p>
-                  <p className="bsf-muted" style={{ margin: 0 }}>{balance > 0 ? "Total balance due" : "Fully settled"}</p>
+                  <p className="bsf-invoicetotal" style={{ color: balance > 0 ? "#B23A3A" : "#2F7A5C" }}>{formatCurrency(Math.abs(balance))}</p>
+                  <p className="bsf-muted" style={{ margin: 0 }}>{balance > 0 ? "Total balance due" : balance < 0 ? "Credit on file" : "Fully settled"}</p>
                 </div>
               </div>
               {feeItems.length === 0 ? (
@@ -5699,10 +5718,14 @@ function BillingTab({ data, persist }) {
                 <div className="bsf-invoicelines">
                   {feeItems.map((item) => {
                     const statusColor = item.status === "Paid in full" ? "#2F7A5C" : item.status === "Partially paid" ? "#B8842F" : item.status === "No fee set" ? "#8A9698" : "#B23A3A";
+                    const CatIcon = feeCategoryIcon(item.category);
                     return (
                       <div key={item.category} className="bsf-invoiceline">
                         <div className="bsf-invoiceline-top">
-                          <strong>{item.category === "Registration" ? "Registration Fee" : item.category}</strong>
+                          <div className="bsf-invoiceline-label">
+                            <span className="bsf-invoiceline-icon" style={{ background: `${statusColor}1A`, color: statusColor }}><CatIcon size={15} /></span>
+                            <strong>{item.category === "Registration" ? "Registration Fee" : item.category}</strong>
+                          </div>
                           <span className="bsf-status-pill" style={{ background: `${statusColor}1A`, color: statusColor }}>{item.status}</span>
                         </div>
                         <div className="bsf-invoicebar"><span style={{ width: `${item.pct}%`, background: statusColor }} /></div>
@@ -5723,21 +5746,25 @@ function BillingTab({ data, persist }) {
 
       <section className="bsf-list">
         {studentFilter && filteredEntries.length === 0 && <p className="bsf-empty">No transactions recorded for this student yet.</p>}
-        {filteredEntries.map((b) => (
-          <div key={b.id} className="bsf-card bsf-student">
-            <div>
+        {filteredEntries.map((b) => {
+          const isPayment = b.type !== "charge";
+          return (
+          <div key={b.id} className="bsf-card bsf-txnrow">
+            <span className="bsf-txnicon" style={{ background: isPayment ? "#E6F2EC" : "#FCE8E8", color: isPayment ? "#2F7A5C" : "#B23A3A" }}>
+              {isPayment ? "+" : "−"}
+            </span>
+            <div style={{ flex: 1 }}>
+              {!studentFilter && <strong style={{ display: "block" }}>{b.studentName}</strong>}
               <div className="bsf-row-head">
-                <span className="bsf-status-pill" style={{ background: b.type === "charge" ? "#FCE8E8" : "#E6F2EC", color: b.type === "charge" ? "#B23A3A" : "#2F7A5C" }}>
-                  {b.type === "charge" ? "Charge" : "Payment"}
-                </span>
+                <strong style={{ color: isPayment ? "#2F7A5C" : "#B23A3A" }}>{formatCurrency(b.amount)}</strong>
                 <span className="bsf-muted">{b.date}</span>
               </div>
-              {!studentFilter && <strong>{b.studentName}</strong>}
-              <p>{b.category || "Tuition"} · {formatCurrency(b.amount)}{b.description ? ` · ${b.description}` : ""}</p>
+              <p className="bsf-muted" style={{ margin: 0 }}>{b.category || "Tuition"}{b.description ? ` · ${b.description}` : ""}</p>
             </div>
             <button className="bsf-iconbtn" onClick={() => removeEntry(b.id)} aria-label="Remove"><Trash2 size={16} /></button>
           </div>
-        ))}
+          );
+        })}
       </section>
 
       {showAdd && (
@@ -6792,6 +6819,17 @@ function BrightStepsHubInner() {
         .bsf-invoicetotal { font-family: 'Fraunces', serif; font-size: 26px; font-weight: 600; margin: 0; line-height: 1.1; }
         .bsf-invoicelines { display: flex; flex-direction: column; gap: 16px; }
         .bsf-invoiceline-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .bsf-invoiceline-label { display: flex; align-items: center; gap: 8px; }
+        .bsf-invoiceline-icon {
+          width: 26px; height: 26px; border-radius: 8px; display: flex;
+          align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .bsf-txnrow { display: flex; align-items: flex-start; gap: 12px; }
+        .bsf-txnicon {
+          width: 30px; height: 30px; border-radius: 50%; display: flex;
+          align-items: center; justify-content: center; flex-shrink: 0;
+          font-weight: 700; font-size: 16px; line-height: 1;
+        }
         .bsf-invoicebar { height: 6px; border-radius: 4px; background: var(--sand-deep); overflow: hidden; margin-bottom: 6px; }
         .bsf-invoicebar span { display: block; height: 100%; border-radius: 4px; transition: width 0.4s ease; }
         .bsf-invoiceline-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
