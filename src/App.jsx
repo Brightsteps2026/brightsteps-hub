@@ -2418,7 +2418,7 @@ function PlanningTab({ data, persist }) {
 
   const [showDocForm, setShowDocForm] = useState(false);
   const [editingDocId, setEditingDocId] = useState(null);
-  const [docForm, setDocForm] = useState({ title: "", subject: CURRICULUM_SUBJECTS[0], description: "", files: [], filesFr: [] });
+  const [docForm, setDocForm] = useState({ title: "", subject: CURRICULUM_SUBJECTS[0], description: "", files: [] });
   const [docFormError, setDocFormError] = useState("");
   const [docSubjectFilter, setDocSubjectFilter] = useState(null);
 
@@ -2427,14 +2427,14 @@ function PlanningTab({ data, persist }) {
 
   const openAddDoc = () => {
     setEditingDocId(null);
-    setDocForm({ title: "", subject: CURRICULUM_SUBJECTS[0], description: "", files: [], filesFr: [] });
+    setDocForm({ title: "", subject: CURRICULUM_SUBJECTS[0], description: "", files: [] });
     setDocFormError("");
     setShowDocForm(true);
   };
 
   const openEditDoc = (d) => {
     setEditingDocId(d.id);
-    setDocForm({ title: d.title, subject: d.subject, description: d.description || "", files: d.files || [], filesFr: d.filesFr || [] });
+    setDocForm({ title: d.title, subject: d.subject, description: d.description || "", files: d.files || [] });
     setDocFormError("");
     setShowDocForm(true);
   };
@@ -2544,8 +2544,7 @@ function PlanningTab({ data, persist }) {
                   <span className="bsf-tag">{d.subject}</span>
                   <strong style={{ display: "block", marginTop: 4 }}>{d.title}</strong>
                   {d.description && <p className="bsf-muted">{d.description}</p>}
-                  {(d.files || []).length > 0 && <p className="bsf-muted">English: {d.files.length} file{d.files.length === 1 ? "" : "s"}</p>}
-                  {(d.filesFr || []).length > 0 && <p className="bsf-muted">Français: {d.filesFr.length} file{d.filesFr.length === 1 ? "" : "s"}</p>}
+                  {(d.files || []).length > 0 && <p className="bsf-muted">{d.files.length} file{d.files.length === 1 ? "" : "s"} attached</p>}
                 </div>
                 <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeDoc(d.id); }} aria-label="Remove"><Trash2 size={16} /></button>
               </div>
@@ -2565,11 +2564,8 @@ function PlanningTab({ data, persist }) {
               <Field label="Description (optional)">
                 <textarea rows={2} value={docForm.description} onChange={(e) => setDocForm({ ...docForm, description: e.target.value })} placeholder="What this document covers" />
               </Field>
-              <Field label="File (English)">
+              <Field label="File">
                 <AttachmentField folder="curriculum" files={docForm.files} onChange={(files) => setDocForm({ ...docForm, files })} />
-              </Field>
-              <Field label="File (Français)">
-                <AttachmentField folder="curriculum" files={docForm.filesFr} onChange={(filesFr) => setDocForm({ ...docForm, filesFr })} />
               </Field>
               <button className="bsf-btn bsf-btn-block" onClick={saveDoc}>Save document</button>
               {docFormError && <p className="bsf-formerror">{docFormError}</p>}
