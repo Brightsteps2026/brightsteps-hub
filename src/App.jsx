@@ -169,6 +169,43 @@ function formatCurrency(amount) {
   return `${n.toLocaleString("en-US")} FCFA`;
 }
 
+// Compares what's actually owed (the fee schedule, set once per category)
+// against what's been paid, category by category. This is the single source
+// of truth both the admin Billing screen and the parent Dashboard read from,
+// so a status like "Partially paid" always means the same thing everywhere.
+function computeFeeBreakdown(data, studentId) {
+  const schedule = (data.feeSchedule || []).filter((f) => f.studentId === studentId);
+  const entries = (data.billing || []).filter((b) => b.studentId === studentId);
+
+  const categories = {};
+  schedule.forEach((f) => {
+    if (!categories[f.category]) categories[f.category] = { charged: 0, paid: 0 };
+    categories[f.category].charged += Number(f.amountDue || 0);
+  });
+  entries.forEach((b) => {
+    const cat = b.category || "Tuition";
+    if (!categories[cat]) categories[cat] = { charged: 0, paid: 0 };
+    if (b.type === "charge") categories[cat].charged += Number(b.amount || 0);
+    else categories[cat].paid += Number(b.amount || 0);
+  });
+
+  return Object.entries(categories)
+    .map(([category, v]) => {
+      const due = v.charged - v.paid;
+      const status = v.charged === 0
+        ? (v.paid > 0 ? "Payment received" : "No fee set")
+        : due <= 0 ? "Paid in full"
+        : v.paid > 0 ? "Partially paid"
+        : "Not yet paid";
+      return {
+        category, charged: v.charged, paid: v.paid, due,
+        pct: v.charged > 0 ? Math.min(100, Math.round((v.paid / v.charged) * 100)) : (v.paid > 0 ? 100 : 0),
+        status
+      };
+    })
+    .sort((a, b) => (a.category === "Registration" ? -1 : b.category === "Registration" ? 1 : 0));
+}
+
 // Counts messages the current person hasn't seen yet, across every student
 // thread they're allowed to view. Parents only see messages from staff;
 // staff only see messages from parents (staff-to-staff notes don't count).
@@ -439,32 +476,11 @@ function Dashboard({ data, profile, persist }) {
     setSigningDocId(null);
   };
 
-  const balanceFor = (studentId) => {
-    const entries = (data.billing || []).filter((b) => b.studentId === studentId);
-    return entries.reduce((sum, b) => sum + (b.type === "charge" ? Number(b.amount || 0) : -Number(b.amount || 0)), 0);
-  };
+  const balanceFor = (studentId) => computeFeeBreakdown(data, studentId).reduce((sum, item) => sum + item.due, 0);
 
   // Breaks a child's fees down by category (Registration, Tuition, Other), the
   // way a real school invoice would, rather than one lump number.
-  const feeBreakdownFor = (studentId) => {
-    const entries = (data.billing || []).filter((b) => b.studentId === studentId);
-    const categories = {};
-    entries.forEach((b) => {
-      const cat = b.category || "Tuition";
-      if (!categories[cat]) categories[cat] = { charged: 0, paid: 0 };
-      if (b.type === "charge") categories[cat].charged += Number(b.amount || 0);
-      else categories[cat].paid += Number(b.amount || 0);
-    });
-    return Object.entries(categories)
-      .map(([category, v]) => ({
-        category,
-        charged: v.charged,
-        paid: v.paid,
-        due: v.charged - v.paid,
-        pct: v.charged > 0 ? Math.min(100, Math.round((v.paid / v.charged) * 100)) : 0
-      }))
-      .sort((a, b) => (a.category === "Registration" ? -1 : b.category === "Registration" ? 1 : 0));
-  };
+  const feeBreakdownFor = (studentId) => computeFeeBreakdown(data, studentId);
 
   const attendanceFor = (studentId) => attendanceCountsForRange(data.attendance, studentId);
 
@@ -612,27 +628,22 @@ function Dashboard({ data, profile, persist }) {
               </div>
 
               {feeItems.length === 0 ? (
-                <p className="bsf-empty">No fees have been recorded yet.</p>
+                <p className="bsf-empty">No fee schedule set yet, contact the school office for details.</p>
               ) : (
                 <div className="bsf-invoicelines">
                   {feeItems.map((item) => {
-                    const status = item.due <= 0 && item.charged > 0
-                      ? "Paid in full"
-                      : item.paid > 0
-                      ? "Partially paid"
-                      : "Not yet paid";
-                    const statusColor = status === "Paid in full" ? "#2F7A5C" : status === "Partially paid" ? "#B8842F" : "#B23A3A";
+                    const statusColor = item.status === "Paid in full" ? "#2F7A5C" : item.status === "Partially paid" ? "#B8842F" : item.status === "No fee set" ? "#8A9698" : "#B23A3A";
                     return (
                       <div key={item.category} className="bsf-invoiceline">
                         <div className="bsf-invoiceline-top">
                           <strong>{item.category === "Registration" ? "Registration Fee" : item.category}</strong>
-                          <span className="bsf-status-pill" style={{ background: `${statusColor}1A`, color: statusColor }}>{status}</span>
+                          <span className="bsf-status-pill" style={{ background: `${statusColor}1A`, color: statusColor }}>{item.status}</span>
                         </div>
                         <div className="bsf-invoicebar">
                           <span style={{ width: `${item.pct}%`, background: statusColor }} />
                         </div>
                         <div className="bsf-invoiceline-bottom">
-                          <span className="bsf-muted">{formatCurrency(item.paid)} paid of {formatCurrency(item.charged)}</span>
+                          <span className="bsf-muted">{formatCurrency(item.paid)} paid of {formatCurrency(item.charged)} owed</span>
                           {item.due > 0 && <span style={{ color: statusColor, fontWeight: 600 }}>{formatCurrency(item.due)} due</span>}
                         </div>
                       </div>
@@ -5558,36 +5569,36 @@ const CURRICULUM_SUBJECTS = ["English Language Arts", "Math", "Social Studies", 
 function BillingTab({ data, persist }) {
   const [studentFilter, setStudentFilter] = useState("");
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ studentId: "", type: "charge", category: "Tuition", amount: "", description: "", date: todayStr() });
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleAmounts, setScheduleAmounts] = useState({});
+  const [form, setForm] = useState({ studentId: "", type: "payment", category: "Tuition", amount: "", description: "", date: todayStr() });
   const [formError, setFormError] = useState("");
 
   const billing = data.billing || [];
   const students = [...data.students].sort((a, b) => a.name.localeCompare(b.name));
 
-  const balanceForStudent = (studentId) => {
-    const entries = billing.filter((b) => b.studentId === studentId);
-    const charges = entries.filter((b) => b.type === "charge").reduce((sum, b) => sum + Number(b.amount || 0), 0);
-    const payments = entries.filter((b) => b.type === "payment").reduce((sum, b) => sum + Number(b.amount || 0), 0);
-    return charges - payments;
+  const balanceForStudent = (studentId) =>
+    computeFeeBreakdown(data, studentId).reduce((sum, item) => sum + item.due, 0);
+
+  const feeBreakdownFor = (studentId) => computeFeeBreakdown(data, studentId);
+
+  const openSchedule = (studentId) => {
+    const existing = {};
+    FEE_CATEGORIES.forEach((cat) => {
+      const entry = (data.feeSchedule || []).find((f) => f.studentId === studentId && f.category === cat);
+      existing[cat] = entry ? String(entry.amountDue) : "";
+    });
+    setScheduleAmounts(existing);
+    setShowSchedule(true);
   };
 
-  // Same itemized, by-category breakdown parents see on their Dashboard, so
-  // admin and parent are always looking at the exact same picture.
-  const feeBreakdownFor = (studentId) => {
-    const entries = billing.filter((b) => b.studentId === studentId);
-    const categories = {};
-    entries.forEach((b) => {
-      const cat = b.category || "Tuition";
-      if (!categories[cat]) categories[cat] = { charged: 0, paid: 0 };
-      if (b.type === "charge") categories[cat].charged += Number(b.amount || 0);
-      else categories[cat].paid += Number(b.amount || 0);
-    });
-    return Object.entries(categories)
-      .map(([category, v]) => ({
-        category, charged: v.charged, paid: v.paid, due: v.charged - v.paid,
-        pct: v.charged > 0 ? Math.min(100, Math.round((v.paid / v.charged) * 100)) : 0
-      }))
-      .sort((a, b) => (a.category === "Registration" ? -1 : b.category === "Registration" ? 1 : 0));
+  const saveSchedule = () => {
+    const withoutThisStudent = (data.feeSchedule || []).filter((f) => f.studentId !== studentFilter);
+    const newEntries = FEE_CATEGORIES
+      .filter((cat) => scheduleAmounts[cat] && Number(scheduleAmounts[cat]) > 0)
+      .map((cat) => ({ id: uid(), studentId: studentFilter, category: cat, amountDue: Number(scheduleAmounts[cat]) }));
+    persist({ ...data, feeSchedule: [...withoutThisStudent, ...newEntries] });
+    setShowSchedule(false);
   };
 
   const filteredEntries = [...billing]
@@ -5607,7 +5618,7 @@ function BillingTab({ data, persist }) {
     }
     const entry = { id: uid(), studentId: student.id, studentName: student.name, type: form.type, category: form.category, amount: amt, description: form.description, date: form.date || todayStr() };
     persist({ ...data, billing: [...billing, entry] });
-    setForm({ studentId: "", type: "charge", category: "Tuition", amount: "", description: "", date: todayStr() });
+    setForm({ studentId: "", type: "payment", category: "Tuition", amount: "", description: "", date: todayStr() });
     setFormError("");
     setShowAdd(false);
   };
@@ -5664,6 +5675,10 @@ function BillingTab({ data, persist }) {
         const balance = balanceForStudent(studentFilter);
         return (
           <>
+            <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
+              <span />
+              <button className="bsf-btn bsf-btn-ghost" onClick={() => openSchedule(studentFilter)}>Set fee schedule</button>
+            </div>
             <section className="bsf-card bsf-invoicecard">
               <div className="bsf-invoicehead">
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -5679,21 +5694,20 @@ function BillingTab({ data, persist }) {
                 </div>
               </div>
               {feeItems.length === 0 ? (
-                <p className="bsf-empty">No fees recorded for this student yet.</p>
+                <p className="bsf-empty">No fee schedule set for this student yet. Tap "Set fee schedule" above to get started.</p>
               ) : (
                 <div className="bsf-invoicelines">
                   {feeItems.map((item) => {
-                    const status = item.due <= 0 && item.charged > 0 ? "Paid in full" : item.paid > 0 ? "Partially paid" : "Not yet paid";
-                    const statusColor = status === "Paid in full" ? "#2F7A5C" : status === "Partially paid" ? "#B8842F" : "#B23A3A";
+                    const statusColor = item.status === "Paid in full" ? "#2F7A5C" : item.status === "Partially paid" ? "#B8842F" : item.status === "No fee set" ? "#8A9698" : "#B23A3A";
                     return (
                       <div key={item.category} className="bsf-invoiceline">
                         <div className="bsf-invoiceline-top">
                           <strong>{item.category === "Registration" ? "Registration Fee" : item.category}</strong>
-                          <span className="bsf-status-pill" style={{ background: `${statusColor}1A`, color: statusColor }}>{status}</span>
+                          <span className="bsf-status-pill" style={{ background: `${statusColor}1A`, color: statusColor }}>{item.status}</span>
                         </div>
                         <div className="bsf-invoicebar"><span style={{ width: `${item.pct}%`, background: statusColor }} /></div>
                         <div className="bsf-invoiceline-bottom">
-                          <span className="bsf-muted">{formatCurrency(item.paid)} paid of {formatCurrency(item.charged)}</span>
+                          <span className="bsf-muted">{formatCurrency(item.paid)} paid of {formatCurrency(item.charged)} owed</span>
                           {item.due > 0 && <span style={{ color: statusColor, fontWeight: 600 }}>{formatCurrency(item.due)} due</span>}
                         </div>
                       </div>
@@ -5743,9 +5757,12 @@ function BillingTab({ data, persist }) {
           </Field>
           <Field label="Type">
             <div className="bsf-chiprow">
-              <button type="button" className={`bsf-chip ${form.type === "charge" ? "active" : ""}`} onClick={() => setForm({ ...form, type: "charge" })}>Charge (adds to balance)</button>
-              <button type="button" className={`bsf-chip ${form.type === "payment" ? "active" : ""}`} onClick={() => setForm({ ...form, type: "payment" })}>Payment (reduces balance)</button>
+              <button type="button" className={`bsf-chip ${form.type === "payment" ? "active" : ""}`} onClick={() => setForm({ ...form, type: "payment" })}>Payment received</button>
+              <button type="button" className={`bsf-chip ${form.type === "charge" ? "active" : ""}`} onClick={() => setForm({ ...form, type: "charge" })}>Extra charge (e.g. a late fee)</button>
             </div>
+            <p className="bsf-muted" style={{ marginTop: 4 }}>
+              What's normally owed is set once in "Set fee schedule." Use "Extra charge" only for something additional, like a late fee.
+            </p>
           </Field>
           <Field label="Amount (FCFA)">
             <input type="number" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="e.g. 500000" />
@@ -5758,6 +5775,26 @@ function BillingTab({ data, persist }) {
           </Field>
           <button className="bsf-btn bsf-btn-block" onClick={addEntry}>Save entry</button>
           {formError && <p className="bsf-formerror">{formError}</p>}
+        </Modal>
+      )}
+
+      {showSchedule && selectedStudent && (
+        <Modal title={`Fee schedule: ${selectedStudent.name}`} onClose={() => setShowSchedule(false)}>
+          <p className="bsf-muted" style={{ marginBottom: 12 }}>
+            Enter what this student is actually supposed to pay in each category. Leave a category blank if it doesn't apply.
+          </p>
+          {FEE_CATEGORIES.map((cat) => (
+            <Field key={cat} label={`${cat} (FCFA)`}>
+              <input
+                type="number"
+                min="0"
+                value={scheduleAmounts[cat] || ""}
+                onChange={(e) => setScheduleAmounts({ ...scheduleAmounts, [cat]: e.target.value })}
+                placeholder="e.g. 150000"
+              />
+            </Field>
+          ))}
+          <button className="bsf-btn bsf-btn-block" onClick={saveSchedule}>Save fee schedule</button>
         </Modal>
       )}
     </div>
