@@ -2719,6 +2719,14 @@ function PlanningTab({ data, persist }) {
               <input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} />
             </Field>
           </div>
+          <Field label="Reflection">
+            <textarea
+              rows={4}
+              value={form.reflection}
+              onChange={(e) => setForm({ ...form, reflection: e.target.value })}
+              placeholder="What worked, what would you change next time"
+            />
+          </Field>
           <button className="bsf-btn bsf-btn-block" onClick={addPlan}>Save unit plan</button>
           {formError && <p className="bsf-formerror">{formError}</p>}
         </Modal>
