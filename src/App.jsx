@@ -128,9 +128,9 @@ const LETTER_GRADE_COLOR = {
 
 const STAFF_ROLES = ["Administrator", "Teacher", "Learning Assistant", "Coordinator", "Support Staff", "Other"];
 
-const RESOURCE_CATEGORIES = ["Policies", "Curriculum", "Forms & Templates", "Professional Development", "Parent Resources", "Other"];
+const RESOURCE_CATEGORIES = ["Policies", "Curriculum", "Staff Resources", "Professional Development", "Forms & Templates", "Parent Resources"];
 // A parent should only ever browse by these, the rest are internal/staff categories.
-const PARENT_RESOURCE_CATEGORIES = ["Policies", "Parent Resources", "Forms & Templates"];
+const PARENT_RESOURCE_CATEGORIES = ["Policies", "Forms & Templates", "Parent Resources"];
 
 const ACCRED_STATUSES = ["Not Started", "In Progress", "Met"];
 const ACCRED_STATUS_COLOR = { "Not Started": "#8A9698", "In Progress": "#B8842F", "Met": "#2F7A5C" };
@@ -179,27 +179,40 @@ function computeFeeBreakdown(data, studentId) {
 
   const categories = {};
   schedule.forEach((f) => {
-    if (!categories[f.category]) categories[f.category] = { charged: 0, paid: 0 };
-    categories[f.category].charged += Number(f.amountDue || 0);
+    if (!categories[f.category]) categories[f.category] = { listPrice: 0, discountAmount: 0, discountReason: "", waived: false, paid: 0 };
+    // Older schedule entries only had amountDue, treat that as the list price for them.
+    const listPrice = f.listPrice != null ? Number(f.listPrice || 0) : Number(f.amountDue || 0);
+    categories[f.category].listPrice += listPrice;
+    categories[f.category].discountAmount += Number(f.discountAmount || 0);
+    if (f.discountReason) categories[f.category].discountReason = f.discountReason;
+    if (f.waived) categories[f.category].waived = true;
   });
   entries.forEach((b) => {
     const cat = b.category || "Tuition";
-    if (!categories[cat]) categories[cat] = { charged: 0, paid: 0 };
-    if (b.type === "charge") categories[cat].charged += Number(b.amount || 0);
+    if (!categories[cat]) categories[cat] = { listPrice: 0, discountAmount: 0, discountReason: "", waived: false, paid: 0 };
+    if (b.type === "charge") categories[cat].listPrice += Number(b.amount || 0);
     else categories[cat].paid += Number(b.amount || 0);
   });
 
   return Object.entries(categories)
     .map(([category, v]) => {
-      const due = v.charged - v.paid;
-      const status = v.charged === 0
+      const charged = v.waived ? 0 : Math.max(0, v.listPrice - v.discountAmount);
+      const due = charged - v.paid;
+      const status = v.waived
+        ? "Waived"
+        : v.listPrice === 0
         ? (v.paid > 0 ? "Payment received" : "No fee set")
         : due <= 0 ? "Paid in full"
         : v.paid > 0 ? "Partially paid"
         : "Not yet paid";
       return {
-        category, charged: v.charged, paid: v.paid, due,
-        pct: v.charged > 0 ? Math.min(100, Math.round((v.paid / v.charged) * 100)) : (v.paid > 0 ? 100 : 0),
+        category,
+        listPrice: v.listPrice,
+        discountAmount: v.discountAmount,
+        discountReason: v.discountReason,
+        waived: v.waived,
+        charged, paid: v.paid, due,
+        pct: charged > 0 ? Math.min(100, Math.round((v.paid / charged) * 100)) : (v.paid > 0 || v.waived ? 100 : 0),
         status
       };
     })
@@ -638,7 +651,7 @@ function Dashboard({ data, profile, persist }) {
               ) : (
                 <div className="bsf-invoicelines">
                   {feeItems.map((item) => {
-                    const statusColor = item.status === "Paid in full" ? "#2F7A5C" : item.status === "Partially paid" ? "#B8842F" : item.status === "No fee set" ? "#8A9698" : "#B23A3A";
+                    const statusColor = item.status === "Paid in full" ? "#2F7A5C" : item.status === "Waived" ? "#6B5B95" : item.status === "Partially paid" ? "#B8842F" : item.status === "No fee set" ? "#8A9698" : "#B23A3A";
                     const CatIcon = feeCategoryIcon(item.category);
                     return (
                       <div key={item.category} className="bsf-invoiceline">
@@ -652,6 +665,13 @@ function Dashboard({ data, profile, persist }) {
                         <div className="bsf-invoicebar">
                           <span style={{ width: `${item.pct}%`, background: statusColor }} />
                         </div>
+                        {item.waived ? (
+                          <p className="bsf-muted" style={{ margin: "4px 0 0" }}>Real price {formatCurrency(item.listPrice)} · fully waived</p>
+                        ) : item.discountAmount > 0 ? (
+                          <p className="bsf-muted" style={{ margin: "4px 0 0" }}>
+                            Real price {formatCurrency(item.listPrice)} · {formatCurrency(item.discountAmount)} discount{item.discountReason ? ` (${item.discountReason})` : ""}
+                          </p>
+                        ) : null}
                         <div className="bsf-invoiceline-bottom">
                           <span className="bsf-muted">{formatCurrency(item.paid)} paid of {formatCurrency(item.charged)} owed</span>
                           {item.due > 0 && <span style={{ color: statusColor, fontWeight: 600 }}>{formatCurrency(item.due)} due</span>}
@@ -5593,7 +5613,7 @@ function BillingTab({ data, persist }) {
   const [studentFilter, setStudentFilter] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
-  const [scheduleAmounts, setScheduleAmounts] = useState({});
+  const [scheduleRows, setScheduleRows] = useState({});
   const [form, setForm] = useState({ studentId: "", type: "payment", category: "Tuition", amount: "", description: "", date: todayStr() });
   const [formError, setFormError] = useState("");
 
@@ -5609,17 +5629,35 @@ function BillingTab({ data, persist }) {
     const existing = {};
     FEE_CATEGORIES.forEach((cat) => {
       const entry = (data.feeSchedule || []).find((f) => f.studentId === studentId && f.category === cat);
-      existing[cat] = entry ? String(entry.amountDue) : "";
+      const listPrice = entry ? (entry.listPrice != null ? entry.listPrice : entry.amountDue) : "";
+      existing[cat] = {
+        listPrice: listPrice ? String(listPrice) : "",
+        discountAmount: entry?.discountAmount ? String(entry.discountAmount) : "",
+        discountReason: entry?.discountReason || "",
+        waived: !!entry?.waived
+      };
     });
-    setScheduleAmounts(existing);
+    setScheduleRows(existing);
     setShowSchedule(true);
+  };
+
+  const updateScheduleRow = (cat, patch) => {
+    setScheduleRows({ ...scheduleRows, [cat]: { ...scheduleRows[cat], ...patch } });
   };
 
   const saveSchedule = () => {
     const withoutThisStudent = (data.feeSchedule || []).filter((f) => f.studentId !== studentFilter);
     const newEntries = FEE_CATEGORIES
-      .filter((cat) => scheduleAmounts[cat] && Number(scheduleAmounts[cat]) > 0)
-      .map((cat) => ({ id: uid(), studentId: studentFilter, category: cat, amountDue: Number(scheduleAmounts[cat]) }));
+      .filter((cat) => (scheduleRows[cat]?.listPrice && Number(scheduleRows[cat].listPrice) > 0) || scheduleRows[cat]?.waived)
+      .map((cat) => ({
+        id: uid(),
+        studentId: studentFilter,
+        category: cat,
+        listPrice: Number(scheduleRows[cat].listPrice || 0),
+        discountAmount: Number(scheduleRows[cat].discountAmount || 0),
+        discountReason: scheduleRows[cat].discountReason || "",
+        waived: !!scheduleRows[cat].waived
+      }));
     persist({ ...data, feeSchedule: [...withoutThisStudent, ...newEntries] });
     setShowSchedule(false);
   };
@@ -5721,7 +5759,7 @@ function BillingTab({ data, persist }) {
               ) : (
                 <div className="bsf-invoicelines">
                   {feeItems.map((item) => {
-                    const statusColor = item.status === "Paid in full" ? "#2F7A5C" : item.status === "Partially paid" ? "#B8842F" : item.status === "No fee set" ? "#8A9698" : "#B23A3A";
+                    const statusColor = item.status === "Paid in full" ? "#2F7A5C" : item.status === "Waived" ? "#6B5B95" : item.status === "Partially paid" ? "#B8842F" : item.status === "No fee set" ? "#8A9698" : "#B23A3A";
                     const CatIcon = feeCategoryIcon(item.category);
                     return (
                       <div key={item.category} className="bsf-invoiceline">
@@ -5733,6 +5771,13 @@ function BillingTab({ data, persist }) {
                           <span className="bsf-status-pill" style={{ background: `${statusColor}1A`, color: statusColor }}>{item.status}</span>
                         </div>
                         <div className="bsf-invoicebar"><span style={{ width: `${item.pct}%`, background: statusColor }} /></div>
+                        {item.waived ? (
+                          <p className="bsf-muted" style={{ margin: "4px 0 0" }}>Real price {formatCurrency(item.listPrice)} · fully waived</p>
+                        ) : item.discountAmount > 0 ? (
+                          <p className="bsf-muted" style={{ margin: "4px 0 0" }}>
+                            Real price {formatCurrency(item.listPrice)} · {formatCurrency(item.discountAmount)} discount{item.discountReason ? ` (${item.discountReason})` : ""}
+                          </p>
+                        ) : null}
                         <div className="bsf-invoiceline-bottom">
                           <span className="bsf-muted">{formatCurrency(item.paid)} paid of {formatCurrency(item.charged)} owed</span>
                           {item.due > 0 && <span style={{ color: statusColor, fontWeight: 600 }}>{formatCurrency(item.due)} due</span>}
@@ -5812,19 +5857,59 @@ function BillingTab({ data, persist }) {
       {showSchedule && selectedStudent && (
         <Modal title={`Fee schedule: ${selectedStudent.name}`} onClose={() => setShowSchedule(false)}>
           <p className="bsf-muted" style={{ marginBottom: 12 }}>
-            Enter what this student is actually supposed to pay in each category. Leave a category blank if it doesn't apply.
+            Enter the real price for each category, then add a discount or mark it waived if this student doesn't pay full price.
           </p>
-          {FEE_CATEGORIES.map((cat) => (
-            <Field key={cat} label={`${cat} (FCFA)`}>
-              <input
-                type="number"
-                min="0"
-                value={scheduleAmounts[cat] || ""}
-                onChange={(e) => setScheduleAmounts({ ...scheduleAmounts, [cat]: e.target.value })}
-                placeholder="e.g. 150000"
-              />
-            </Field>
-          ))}
+          {FEE_CATEGORIES.map((cat) => {
+            const row = scheduleRows[cat] || { listPrice: "", discountAmount: "", discountReason: "", waived: false };
+            const net = row.waived ? 0 : Math.max(0, Number(row.listPrice || 0) - Number(row.discountAmount || 0));
+            return (
+              <div key={cat} className="bsf-schedulerow">
+                <p className="bsf-group-label" style={{ margin: "0 0 8px" }}>{cat}</p>
+                <Field label="Real price (FCFA)">
+                  <input
+                    type="number" min="0"
+                    value={row.listPrice}
+                    onChange={(e) => updateScheduleRow(cat, { listPrice: e.target.value })}
+                    placeholder="e.g. 150000"
+                    disabled={row.waived}
+                  />
+                </Field>
+                <div className="bsf-two-col">
+                  <Field label="Discount amount (optional)">
+                    <input
+                      type="number" min="0"
+                      value={row.discountAmount}
+                      onChange={(e) => updateScheduleRow(cat, { discountAmount: e.target.value })}
+                      placeholder="e.g. 50000"
+                      disabled={row.waived}
+                    />
+                  </Field>
+                  <Field label="Discount reason (optional)">
+                    <input
+                      value={row.discountReason}
+                      onChange={(e) => updateScheduleRow(cat, { discountReason: e.target.value })}
+                      placeholder="e.g. Sibling discount"
+                      disabled={row.waived}
+                    />
+                  </Field>
+                </div>
+                <label className="bsf-checkboxrow" style={{ marginBottom: 4 }}>
+                  <input
+                    type="checkbox"
+                    checked={row.waived}
+                    onChange={(e) => updateScheduleRow(cat, { waived: e.target.checked })}
+                  />
+                  <span>Fully waived, this student doesn't owe anything for {cat.toLowerCase()}</span>
+                </label>
+                {(row.listPrice || row.waived) && (
+                  <p className="bsf-muted" style={{ marginTop: 2 }}>
+                    {row.waived ? "Waived, 0 FCFA owed" : `They actually owe: ${formatCurrency(net)}${Number(row.discountAmount) > 0 ? ` (${formatCurrency(Number(row.discountAmount))} discount applied)` : ""}`}
+                  </p>
+                )}
+                <hr className="bsf-divider" />
+              </div>
+            );
+          })}
           <button className="bsf-btn bsf-btn-block" onClick={saveSchedule}>Save fee schedule</button>
         </Modal>
       )}
@@ -6418,7 +6503,7 @@ function BrightStepsHubInner() {
   const ADMIN_ONLY_TABS = ["accreditation", "billing"];
   // A learning assistant supports specific grades day to day; they don't need
   // enrollment, staffing, or school-wide admin tools, just the classroom-facing ones.
-  const LEARNING_ASSISTANT_ALLOWED_TABS = ["dashboard", "attendance", "portfolio", "assessment", "classes", "calendar", "assignments", "updates"];
+  const LEARNING_ASSISTANT_ALLOWED_TABS = ["dashboard", "attendance", "portfolio", "assessment", "classes", "calendar", "assignments", "updates", "resources"];
   // Pre-N through Grade 2: reflections only. Grade 3 and up: can also see (not edit)
   // their own attendance and grades.
   const STUDENT_ALLOWED_TABS = isUpperStudent ? ["portfolio", "attendance", "gradebook", "assignments", "assessment", "messages"] : ["portfolio"];
@@ -6834,6 +6919,7 @@ function BrightStepsHubInner() {
           align-items: center; justify-content: center; flex-shrink: 0;
           font-weight: 700; font-size: 16px; line-height: 1;
         }
+        .bsf-schedulerow { margin-bottom: 6px; }
         .bsf-invoicebar { height: 6px; border-radius: 4px; background: var(--sand-deep); overflow: hidden; margin-bottom: 6px; }
         .bsf-invoicebar span { display: block; height: 100%; border-radius: 4px; transition: width 0.4s ease; }
         .bsf-invoiceline-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
@@ -7219,7 +7305,7 @@ function BrightStepsHubInner() {
       {tab === "assignments" && <AssignmentsTab data={data} persist={persist} profile={profile} />}
       {tab === "reports" && !isLearningAssistant && <ReportsTab data={data} persist={persist} profile={profile} />}
       {tab === "behavior" && !isParent && !isLearningAssistant && <BehaviorTab data={data} persist={persist} />}
-      {tab === "resources" && !isLearningAssistant && <ResourcesTab data={data} persist={persist} profile={profile} />}
+      {tab === "resources" && <ResourcesTab data={data} persist={persist} profile={profile} />}
       {tab === "accreditation" && isAdmin && <AccreditationTab data={data} persist={persist} />}
       {tab === "billing" && isAdmin && <BillingTab data={data} persist={persist} />}
       {false && tab === "ai" && !isParent && <AIAssistantTab data={data} />}
