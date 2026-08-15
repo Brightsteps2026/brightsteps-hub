@@ -4,6 +4,7 @@ import AttachmentField from "./AttachmentField";
 import StudentPhotoField from "./StudentPhotoField";
 import { getAttachmentUrl } from "./lib/attachments";
 import { useAuth } from "./LoginGate";
+import { supabase } from "./lib/supabaseClient";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
 
 let GRADES = [
