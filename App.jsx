@@ -3305,7 +3305,8 @@ function ReportsTab({ data, persist }) {
               ))}
             </div>
           </Field>
-
+<p className="bsf-muted" style={{ marginBottom: 10 }}>
+            {kind === "student" && "Attendance, assessments, and portfolio entries within this date range will be pulled in automatically."}
           {(kind === "student" || kind === "transcript") && (
             <Field label="Student">
               <select value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value })}>
