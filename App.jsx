@@ -3307,6 +3307,15 @@ function ReportsTab({ data, persist }) {
           </Field>
 <p className="bsf-muted" style={{ marginBottom: 10 }}>
             {kind === "student" && "Attendance, assessments, and portfolio entries within this date range will be pulled in automatically."}
+  {kind === "student" && (
+            <>
+              <button type="button" className="bsf-textbtn" onClick={suggestDraft} disabled={draftLoading || !form.studentId} style={{ marginBottom: 8 }}>
+                {draftLoading ? "Writing a draft…" : "Suggest a starter draft, from this student's actual grades and attendance"}
+              </button>
+              {draftError && <p className="bsf-formerror">{draftError}</p>}
+            </>
+          )}
+          <p className="bsf-muted" style={{ marginBottom: 10 }}>
           {(kind === "student" || kind === "transcript") && (
             <Field label="Student">
               <select value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value })}>
