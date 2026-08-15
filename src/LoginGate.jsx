@@ -10,7 +10,6 @@ const BRAND_BURGUNDY = "#801524";
 // Students log in with just their ID, not a real email. Under the hood we turn
 // that ID into a fake-but-valid email address, since Supabase accounts need one.
 const STUDENT_LOGIN_DOMAIN = "students.brightstepshub.local";
-const SCHOOL_DATA_KEY = "brightsteps-hub-data";
 
 // Kept simple and self-contained here, since the login screen renders before
 // the rest of the app's translation system has anything to work with.
@@ -83,25 +82,18 @@ export default function LoginGate({ children }) {
   }, []);
 
   useEffect(() => {
-    // The school's logo lives inside the shared app data, which is readable
-    // before signing in, so the real uploaded logo can show up right on the
-    // login screen instead of a generic placeholder.
+    // The logo lives in its own small, separate row, safely readable before
+    // signing in, without exposing anything else about the school's data.
     let cancelled = false;
     supabase
       .from("app_storage")
       .select("value")
-      .eq("key", SCHOOL_DATA_KEY)
+      .eq("key", "brightsteps-hub-logo")
       .eq("shared", true)
       .maybeSingle()
       .then(({ data, error }) => {
         if (cancelled || error || !data?.value) return;
-        try {
-          const parsed = JSON.parse(data.value);
-          const url = parsed?.settings?.branding?.logoUrl;
-          if (url) setLogoUrl(url);
-        } catch {
-          // If parsing fails, just keep the default placeholder logo.
-        }
+        setLogoUrl(data.value);
       });
     return () => { cancelled = true; };
   }, []);

@@ -225,6 +225,33 @@ function feeCategoryIcon(category) {
   return FileText;
 }
 
+// Human-readable names for each part of the school's data, used to describe
+// what changed in the activity log without needing to know every field.
+const ACTIVITY_AREA_LABELS = {
+  students: "Students",
+  billing: "Billing",
+  feeSchedule: "Billing (fee schedule)",
+  assessments: "Assessment",
+  gradeEntries: "Gradebook",
+  attendance: "Attendance",
+  portfolio: "Portfolio",
+  resources: "Resources",
+  curriculumDocuments: "Curriculum",
+  plans: "Curriculum (unit planning)",
+  announcements: "Family Updates",
+  events: "Calendar",
+  classes: "Classes",
+  staff: "Staff",
+  admissions: "Admissions",
+  behaviorIncidents: "Behavior",
+  reports: "Reports",
+  settings: "Settings",
+  standards: "Standards library",
+  rubrics: "Rubrics",
+  checklist: "Accreditation",
+  assignments: "Assignments"
+};
+
 // Counts messages the current person hasn't seen yet, across every student
 // thread they're allowed to view. Parents only see messages from staff;
 // staff only see messages from parents (staff-to-staff notes don't count).
@@ -6304,10 +6331,19 @@ function SettingsModal({ data, persist, onClose }) {
     }
   };
   const update = (patch) => persist({ ...data, settings: { ...settings, ...patch } });
-  const updateBranding = (patch) => update({ branding: { ...settings.branding, ...patch } });
+  const updateBranding = (patch) => {
+    update({ branding: { ...settings.branding, ...patch } });
+    // The logo needs to be visible on the login screen, before anyone signs
+    // in. Rather than exposing the whole shared dataset to do that, it lives
+    // in its own small, separate row that only ever holds this one thing.
+    if (patch.logoUrl !== undefined && window.storage) {
+      window.storage.set("brightsteps-hub-logo", patch.logoUrl || "", true);
+    }
+  };
   const updateYear = (patch) => update({ academicYear: { ...settings.academicYear, ...patch } });
 
   const isParent = profile?.role === "parent";
+  const isAdmin = profile?.role === "admin";
 
   return (
     <Modal title={isParent ? t("settings.account") : "School settings"} onClose={onClose}>
@@ -6466,6 +6502,33 @@ function SettingsModal({ data, persist, onClose }) {
         {passwordSaving ? "Updating..." : "Update password"}
       </button>
 
+      {isAdmin && (
+        <>
+          <hr className="bsf-divider" />
+          <h3 className="bsf-subheading">Activity Log</h3>
+          <p className="bsf-muted" style={{ marginBottom: 12 }}>
+            A record of who changed what, and when, across the whole Hub. Keeps the most recent 500 changes.
+          </p>
+          <div className="bsf-activitylog">
+            {(!data.activityLog || data.activityLog.length === 0) && <p className="bsf-empty">No activity recorded yet.</p>}
+            {[...(data.activityLog || [])].reverse().slice(0, 100).map((entry) => (
+              <div key={entry.id} className="bsf-activityrow">
+                <div className="bsf-row-head">
+                  <strong>{entry.actorName}</strong>
+                  <span className="bsf-muted">{new Date(entry.timestamp).toLocaleString()}</span>
+                </div>
+                <p className="bsf-muted" style={{ margin: 0 }}>
+                  {entry.actorRole} · updated {entry.areas.join(", ")}
+                </p>
+              </div>
+            ))}
+            {data.activityLog && data.activityLog.length > 100 && (
+              <p className="bsf-muted" style={{ marginTop: 8 }}>Showing the 100 most recent changes of {data.activityLog.length} recorded.</p>
+            )}
+          </div>
+        </>
+      )}
+
       <button
         className="bsf-btn bsf-btn-block"
         style={{ background: "#801524", marginTop: 10 }}
@@ -6488,7 +6551,7 @@ export default function BrightStepsHub() {
 
 function BrightStepsHubInner() {
   const { profile, signOut } = useAuth();
-  const { data, persist, loaded, saving, loadError } = useSchoolData();
+  const { data, persist: rawPersist, loaded, saving, loadError } = useSchoolData();
   const { t, language, canSwitch, setLanguage } = useLanguage();
   const [tab, setTab] = useState("dashboard");
   const [showSettings, setShowSettings] = useState(false);
@@ -6496,14 +6559,45 @@ function BrightStepsHubInner() {
   const isParent = profile?.role === "parent";
   const isAdmin = profile?.role === "admin";
   const isLearningAssistant = profile?.role === "learning_assistant";
+  const isAccountant = profile?.role === "accountant";
+  const isViewer = profile?.role === "viewer";
   const isStudent = profile?.role === "student";
+  // A Viewer can open and browse every screen in the app, but this makes it
+  // impossible for anything they do to actually save, no matter which button,
+  // form, or screen they're on. This is enforced once, centrally, rather than
+  // trying to individually lock every Add/Edit/Delete control across the app.
+  const persist = isViewer
+    ? () => { window.alert("Viewer accounts can see everything, but can't make any changes."); }
+    : (newData) => {
+        const changedAreas = Object.keys(newData)
+          .filter((key) => key !== "activityLog" && newData[key] !== data[key])
+          .map((key) => ACTIVITY_AREA_LABELS[key] || key);
+        if (changedAreas.length === 0) {
+          rawPersist(newData);
+          return;
+        }
+        const entry = {
+          id: uid(),
+          timestamp: new Date().toISOString(),
+          actorName: profile?.full_name || profile?.email || "Someone",
+          actorRole: profile?.role || "unknown",
+          areas: changedAreas
+        };
+        const existingLog = newData.activityLog || data.activityLog || [];
+        rawPersist({ ...newData, activityLog: [...existingLog, entry].slice(-500) });
+      };
   const myLinkedStudent = isStudent ? data.students.find((s) => (profile.student_ids || [])[0] === s.id) : null;
   const isUpperStudent = !!myLinkedStudent && GRADES.indexOf(myLinkedStudent.grade) >= GRADES.indexOf("Grade 3");
   const PARENT_HIDDEN_TABS = ["classes", "staff", "admissions", "behavior", "accreditation", "ai", "planning", "gradebook"];
-  const ADMIN_ONLY_TABS = ["accreditation", "billing"];
+  const ADMIN_ONLY_TABS = ["accreditation"];
+  // Only admin and the accountant role can see billing, everyone else is blocked outright.
+  const BILLING_ALLOWED_ROLES = ["admin", "accountant", "viewer"];
   // A learning assistant supports specific grades day to day; they don't need
   // enrollment, staffing, or school-wide admin tools, just the classroom-facing ones.
   const LEARNING_ASSISTANT_ALLOWED_TABS = ["dashboard", "attendance", "portfolio", "assessment", "classes", "calendar", "assignments", "updates", "resources"];
+  // An accountant only ever needs billing, nothing about students' academic
+  // records, behavior, or staff information.
+  const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "billing"];
   // Pre-N through Grade 2: reflections only. Grade 3 and up: can also see (not edit)
   // their own attendance and grades.
   const STUDENT_ALLOWED_TABS = isUpperStudent ? ["portfolio", "attendance", "gradebook", "assignments", "assessment", "messages"] : ["portfolio"];
@@ -6511,10 +6605,12 @@ function BrightStepsHubInner() {
 
   useEffect(() => {
     if (isParent && PARENT_HIDDEN_TABS.includes(tab)) setTab("dashboard");
-    if (!isAdmin && ADMIN_ONLY_TABS.includes(tab)) setTab("dashboard");
+    if (!isAdmin && !isViewer && ADMIN_ONLY_TABS.includes(tab)) setTab("dashboard");
+    if (tab === "billing" && !BILLING_ALLOWED_ROLES.includes(profile?.role)) setTab("dashboard");
     if (isLearningAssistant && !LEARNING_ASSISTANT_ALLOWED_TABS.includes(tab)) setTab("dashboard");
+    if (isAccountant && !ACCOUNTANT_ALLOWED_TABS.includes(tab)) setTab("dashboard");
     if (isStudent && !STUDENT_ALLOWED_TABS.includes(tab)) setTab("portfolio");
-  }, [isParent, isAdmin, isLearningAssistant, isStudent, tab]);
+  }, [isParent, isAdmin, isLearningAssistant, isAccountant, isStudent, tab, profile]);
 
   if (loadError) {
     return (
@@ -6556,11 +6652,17 @@ function BrightStepsHubInner() {
   const allSections = allSectionsRaw
     .filter((s) => !s.hidden)
     .filter((s) => !isParent || !PARENT_HIDDEN_TABS.includes(s.id))
-    .filter((s) => isAdmin || !ADMIN_ONLY_TABS.includes(s.id))
+    .filter((s) => isAdmin || isViewer || !ADMIN_ONLY_TABS.includes(s.id))
+    .filter((s) => s.id !== "billing" || BILLING_ALLOWED_ROLES.includes(profile?.role))
     .filter((s) => !isLearningAssistant || LEARNING_ASSISTANT_ALLOWED_TABS.includes(s.id))
+    .filter((s) => !isAccountant || ACCOUNTANT_ALLOWED_TABS.includes(s.id))
     .filter((s) => !isStudent || STUDENT_ALLOWED_TABS.includes(s.id));
 
-  const primaryIds = isStudent ? STUDENT_ALLOWED_TABS.filter((id) => id !== "messages") : ["dashboard", "attendance", "portfolio", "assessment"];
+  const primaryIds = isStudent
+    ? STUDENT_ALLOWED_TABS.filter((id) => id !== "messages")
+    : isAccountant
+    ? ACCOUNTANT_ALLOWED_TABS
+    : ["dashboard", "attendance", "portfolio", "assessment"];
   const bottomTabs = primaryIds.map((id) => allSections.find((s) => s.id === id)).filter(Boolean);
   if (isStudent && isUpperStudent) {
     bottomTabs.push({ id: "messages", label: "Messages", icon: Megaphone });
@@ -6920,6 +7022,9 @@ function BrightStepsHubInner() {
           font-weight: 700; font-size: 16px; line-height: 1;
         }
         .bsf-schedulerow { margin-bottom: 6px; }
+        .bsf-activitylog { max-height: 360px; overflow-y: auto; }
+        .bsf-activityrow { padding: 10px 0; border-bottom: 1px solid var(--line); }
+        .bsf-activityrow:last-child { border-bottom: none; }
         .bsf-invoicebar { height: 6px; border-radius: 4px; background: var(--sand-deep); overflow: hidden; margin-bottom: 6px; }
         .bsf-invoicebar span { display: block; height: 100%; border-radius: 4px; transition: width 0.4s ease; }
         .bsf-invoiceline-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
@@ -7306,8 +7411,8 @@ function BrightStepsHubInner() {
       {tab === "reports" && !isLearningAssistant && <ReportsTab data={data} persist={persist} profile={profile} />}
       {tab === "behavior" && !isParent && !isLearningAssistant && <BehaviorTab data={data} persist={persist} />}
       {tab === "resources" && <ResourcesTab data={data} persist={persist} profile={profile} />}
-      {tab === "accreditation" && isAdmin && <AccreditationTab data={data} persist={persist} />}
-      {tab === "billing" && isAdmin && <BillingTab data={data} persist={persist} />}
+      {tab === "accreditation" && (isAdmin || isViewer) && <AccreditationTab data={data} persist={persist} />}
+      {tab === "billing" && BILLING_ALLOWED_ROLES.includes(profile?.role) && <BillingTab data={data} persist={persist} />}
       {false && tab === "ai" && !isParent && <AIAssistantTab data={data} />}
       {tab === "updates" && <UpdatesTab data={data} persist={persist} />}
 
