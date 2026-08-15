@@ -3013,6 +3013,7 @@ function ReportsTab({ data, persist }) {
     periodStart: "", periodEnd: "", teacherComments: ""
   });
   const [formError, setFormError] = useState("");
+  const [formError, setFormError] = useState("");
 
   const reports = [...(data.reports || [])].sort((a, b) => b.createdDate.localeCompare(a.createdDate));
   const viewingReport = reports.find((r) => r.id === viewingId);
