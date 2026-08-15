@@ -3013,6 +3013,51 @@ function ReportsTab({ data, persist }) {
     periodStart: "", periodEnd: "", teacherComments: ""
   });
   const [formError, setFormError] = useState("");
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [draftError, setDraftError] = useState("");
+
+  const suggestDraft = async () => {
+    const student = data.students.find((s) => s.id === form.studentId);
+    if (!student) {
+      setDraftError("Please choose a student first.");
+      return;
+    }
+    setDraftError("");
+    setDraftLoading(true);
+    try {
+      const start = form.periodStart || "0000-00-00";
+      const end = form.periodEnd || "9999-99-99";
+      const grades = (data.gradeEntries || []).filter(
+        (g) => g.studentId === student.id && g.date >= start && g.date <= end
+      );
+      const attendanceSummary = { present: 0, absent: 0, late: 0 };
+      Object.entries(data.attendance || {}).forEach(([date, day]) => {
+        if (date >= start && date <= end) {
+          const status = day[student.id];
+          if (status) attendanceSummary[status] += 1;
+        }
+      });
+      const strengths = grades.filter((g) => ["A", "B"].includes(g.letter)).map((g) => g.subject).join(", ");
+      const areasToImprove = grades.filter((g) => ["D", "F"].includes(g.letter)).map((g) => g.subject).join(", ");
+
+      const { data: result, error } = await supabase.functions.invoke("generate-report-comment", {
+        body: {
+          studentName: student.firstName || student.name,
+          subject: form.subject || "General",
+          strengths: strengths || "steady overall effort",
+          areasToImprove: areasToImprove || "none noted",
+          teacherNotes: `Attendance this period: ${attendanceSummary.present} present, ${attendanceSummary.absent} absent, ${attendanceSummary.late} late.`
+        }
+      });
+      if (error) throw error;
+      setForm((f) => ({ ...f, teacherComments: result.comment || "" }));
+    } catch (e) {
+      console.error("Draft suggestion failed", e);
+      setDraftError("Couldn't generate a draft right now. Please try again.");
+    } finally {
+      setDraftLoading(false);
+    }
+  };
   const [formError, setFormError] = useState("");
 
   const reports = [...(data.reports || [])].sort((a, b) => b.createdDate.localeCompare(a.createdDate));
