@@ -1165,7 +1165,7 @@ function StudentMessages({ student, data, persist }) {
           : s
       )
     });
-    setMessageText("");
+    setMessageText("");    supabase.functions.invoke("notify-message", { body: { studentId: student.id, senderRole: (profile && profile.role) || "", senderName: (profile && profile.full_name) || "Someone" } }).catch((e) => console.error("notify-message failed", e));
   };
 
   const removeMessage = (msgId) => {
