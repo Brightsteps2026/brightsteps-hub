@@ -4872,14 +4872,14 @@ function BrightStepsHubInner() {
       {tab === "dashboard" && <Dashboard data={data} profile={profile} />}
       {tab === "students" && (isParent ? <ParentStudentView data={data} persist={persist} profile={profile} /> : <StudentsTab data={data} persist={persist} />)}
       {tab === "classes" && !isParent && <ClassesTab data={data} persist={persist} />}
-      {tab === "staff" && !isParent && <StaffTab data={data} persist={persist} />}
+      {tab === "staff" && !isParent && profile?.role !== "teacher" && <StaffTab data={data} persist={persist} />}
       {tab === "attendance" && <AttendanceTab data={data} persist={persist} />}
       {tab === "portfolio" && <PortfolioTab data={data} persist={persist} />}
       {tab === "assessment" && <AssessmentTab data={data} persist={persist} profile={profile} />}
       {tab === "gradebook" && !isParent && <GradebookTab data={data} persist={persist} onNavigate={goTo} />}
       {tab === "planning" && !isParent && <PlanningTab data={data} persist={persist} />}
       {tab === "calendar" && <CalendarTab data={data} persist={persist} />}
-      {tab === "admissions" && !isParent && <AdmissionsTab data={data} persist={persist} />}
+      {tab === "admissions" && !isParent && profile?.role !== "teacher" && <AdmissionsTab data={data} persist={persist} />}
       {tab === "assignments" && <AssignmentsTab data={data} persist={persist} profile={profile} />}
       {tab === "reports" && !isParent && <ReportsTab data={data} persist={persist} />}
       {tab === "behavior" && !isParent && <BehaviorTab data={data} persist={persist} />}
