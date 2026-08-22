@@ -561,7 +561,7 @@ function Dashboard({ data, profile, persist }) {
         {!isParent && (
           <p className="bsf-hero-sub">{total} student{total === 1 ? "" : "s"} across {Object.keys(counts).length} grade level{Object.keys(counts).length === 1 ? "" : "s"}</p>
         )}
-        {!isParent && recentStudents.length > 0 && (
+        {{recentStudents.length > 0 && (
           <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 12 }}>
             <AvatarStack students={recentStudents} />
           </div>
