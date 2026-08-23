@@ -6589,7 +6589,7 @@ function BrightStepsHubInner() {
   const myLinkedStudent = isStudent ? data.students.find((s) => (profile.student_ids || [])[0] === s.id) : null;
   const isUpperStudent = !!myLinkedStudent && GRADES.indexOf(myLinkedStudent.grade) >= GRADES.indexOf("Grade 3");
   const PARENT_HIDDEN_TABS = ["classes", "staff", "admissions", "behavior", "accreditation", "ai", "planning", "gradebook"];
-  const ADMIN_ONLY_TABS = ["accreditation"];
+  const ADMIN_ONLY_TABS = ["accreditation","staff","admissions"];
   // Only admin and the accountant role can see billing, everyone else is blocked outright.
   const BILLING_ALLOWED_ROLES = ["admin", "accountant", "viewer"];
   // A learning assistant supports specific grades day to day; they don't need
