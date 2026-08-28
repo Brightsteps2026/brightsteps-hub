@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, Fragment } from "react";
-import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, Plus, X, Trash2, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Flag, Percent, Briefcase, FolderOpen, Award, Sparkles, Send, LogOut, Bell, Wallet } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, Plus, X, Trash2, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Flag, Percent, Briefcase, FolderOpen, Award, Sparkles, Send, LogOut, Bell, Utensils, Wallet } from "lucide-react";
 import AttachmentField from "./AttachmentField";
 import StudentPhotoField from "./StudentPhotoField";
 import { getAttachmentUrl } from "./lib/attachments";
