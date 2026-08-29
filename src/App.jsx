@@ -813,7 +813,7 @@ function Dashboard({ data, profile, persist }) {
           })}
         </section>
       </div> 
-      <section className="bsf-card">
+           <section className="bsf-card">
         <div className="bsf-row-head">
           <h2>Lunch Menu</h2>
           {isAdmin && !editingLunch && (
@@ -822,10 +822,15 @@ function Dashboard({ data, profile, persist }) {
         </div>
         {lunchMenu.weekOf && <p className="bsf-muted" style={{ marginBottom: 8 }}>Week of {lunchMenu.weekOf}</p>}
         {hasLunchMenu && LUNCH_DAYS.map((day) => (
-          <div key={day} className="bsf-comment" style={day === todayLunchName ? { borderLeft: "3px solid #2563eb", paddingLeft: 10 } : undefined}>
-            <strong>{t(`day.${day}`)}{day === todayLunchName ? " — Today" : ""}</strong>
-            <p>{activeLunchDays[day]?.dish || "—"}</p>
-            {activeLunchDays[day]?.dessert && <p className="bsf-muted">{activeLunchDays[day].dessert}</p>}
+          <div key={day} style={{ display: "grid", gridTemplateColumns: "56px 1fr", gap: 8, padding: "8px 10px", borderRadius: 8, background: day === todayLunchName ? "#eaf1fb" : "transparent" }}>
+            <p style={{ fontWeight: 500, fontSize: 13, margin: 0, color: day === todayLunchName ? "#185fa5" : "#666" }}>
+              {LUNCH_DAY_LABELS[language]?.[day] || day}
+              {day === todayLunchName && <><br /><span style={{ fontWeight: 400, fontSize: 11 }}>Today</span></>}
+            </p>
+            <p style={{ fontSize: 13, margin: 0 }}>
+              {activeLunchDays[day]?.dish || "—"}
+              {activeLunchDays[day]?.dessert && <span style={{ color: "#888" }}> · {activeLunchDays[day].dessert}</span>}
+            </p>
           </div>
         ))}
       </section>
@@ -839,42 +844,44 @@ function Dashboard({ data, profile, persist }) {
               placeholder="e.g. Aug 31, 2026"
             />
           </Field>
-                   {LUNCH_DAYS.map((day) => (
-            <div key={day} style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #eee" }}>
-              <strong>{t(`day.${day}`)}</strong>
-              <p className="bsf-muted" style={{ marginTop: 6, marginBottom: 4 }}>English</p>
-              <Field label="Dish">
+          <div style={{ display: "grid", gridTemplateColumns: "56px 1fr 1fr", gap: "6px 8px", fontSize: 12, color: "#888", marginTop: 12 }}>
+            <span></span><span>English</span><span>Français</span>
+          </div>
+          {LUNCH_DAYS.map((day) => (
+            <div key={day}>
+              <div style={{ display: "grid", gridTemplateColumns: "56px 1fr 1fr", gap: "6px 8px", alignItems: "center", padding: "6px 0", borderTop: "1px solid #eee" }}>
+                <p style={{ fontSize: 13, fontWeight: 500, margin: 0 }}>{LUNCH_DAY_LABELS.en[day]}</p>
                 <input
                   value={lunchForm.days?.[day]?.dish || ""}
                   onChange={(e) => setLunchForm({ ...lunchForm, days: { ...lunchForm.days, [day]: { ...lunchForm.days?.[day], dish: e.target.value } } })}
-                  placeholder="Main dish"
+                  placeholder="Dish"
+                  style={{ height: 30, fontSize: 13 }}
                 />
-              </Field>
-              <Field label="Dessert">
+                <input
+                  value={lunchForm.daysFr?.[day]?.dish || ""}
+                  onChange={(e) => setLunchForm({ ...lunchForm, daysFr: { ...lunchForm.daysFr, [day]: { ...lunchForm.daysFr?.[day], dish: e.target.value } } })}
+                  placeholder="Plat"
+                  style={{ height: 30, fontSize: 13 }}
+                />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "56px 1fr 1fr", gap: "6px 8px", alignItems: "center", padding: "0 0 8px" }}>
+                <span></span>
                 <input
                   value={lunchForm.days?.[day]?.dessert || ""}
                   onChange={(e) => setLunchForm({ ...lunchForm, days: { ...lunchForm.days, [day]: { ...lunchForm.days?.[day], dessert: e.target.value } } })}
                   placeholder="Dessert"
+                  style={{ height: 30, fontSize: 13 }}
                 />
-              </Field>
-              <p className="bsf-muted" style={{ marginTop: 10, marginBottom: 4 }}>Français</p>
-              <Field label="Plat">
-                <input
-                  value={lunchForm.daysFr?.[day]?.dish || ""}
-                  onChange={(e) => setLunchForm({ ...lunchForm, daysFr: { ...lunchForm.daysFr, [day]: { ...lunchForm.daysFr?.[day], dish: e.target.value } } })}
-                  placeholder="Plat principal"
-                />
-              </Field>
-              <Field label="Dessert">
                 <input
                   value={lunchForm.daysFr?.[day]?.dessert || ""}
                   onChange={(e) => setLunchForm({ ...lunchForm, daysFr: { ...lunchForm.daysFr, [day]: { ...lunchForm.daysFr?.[day], dessert: e.target.value } } })}
                   placeholder="Dessert"
+                  style={{ height: 30, fontSize: 13 }}
                 />
-              </Field>
+              </div>
             </div>
           ))}
-          <button className="bsf-btn bsf-btn-block" onClick={saveLunchMenu}>Save menu</button>
+          <button className="bsf-btn bsf-btn-block" onClick={saveLunchMenu} style={{ marginTop: 14 }}>Save menu</button>
         </Modal>
       )}
 
