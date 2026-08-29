@@ -484,6 +484,24 @@ function Dashboard({ data, profile, persist }) {
   const [signatureDataUrl, setSignatureDataUrl] = useState("");
   const [signatureConfirmed, setSignatureConfirmed] = useState(false);
   const [signatureError, setSignatureError] = useState("");
+  const isAdmin = profile?.role === "admin";
+  const LUNCH_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  const lunchMenu = data.lunchMenu || { weekOf: "", days: {} };
+  const [editingLunch, setEditingLunch] = useState(false);
+  const [lunchForm, setLunchForm] = useState(lunchMenu);
+
+  const openLunchEdit = () => {
+    setLunchForm(data.lunchMenu || { weekOf: "", days: {} });
+    setEditingLunch(true);
+  };
+
+  const saveLunchMenu = () => {
+    persist({ ...data, lunchMenu: lunchForm });
+    setEditingLunch(false);
+  };
+
+  const todayLunchName = LUNCH_DAYS[new Date().getDay() - 1];
+  const hasLunchMenu = lunchMenu.weekOf || LUNCH_DAYS.some((d) => lunchMenu.days?.[d]);
 
   const openSign = (docId) => {
     setSigningDocId(docId);
