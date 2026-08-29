@@ -501,7 +501,8 @@ function Dashboard({ data, profile, persist }) {
   };
 
   const todayLunchName = LUNCH_DAYS[new Date().getDay() - 1];
-  const hasLunchMenu = lunchMenu.weekOf || LUNCH_DAYS.some((d) => lunchMenu.days?.[d]);
+  const activeLunchDays = language === "fr" ? (lunchMenu.daysFr || {}) : (lunchMenu.days || {});
+  const hasLunchMenu = lunchMenu.weekOf || LUNCH_DAYS.some((d) => lunchMenu.days?.[d] || lunchMenu.daysFr?.[d]);
 
   const openSign = (docId) => {
     setSigningDocId(docId);
