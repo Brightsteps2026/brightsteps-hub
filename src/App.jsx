@@ -591,8 +591,6 @@ function Dashboard({ data, profile, persist }) {
         )}
       </div>
 
-           <section className="bsf-card">
-        <div className="bsf-row-head">
          {isParent && (() => {
         const parentDocs = (data.resources || []).filter((d) => d.visibleToParents);
         if (parentDocs.length === 0) return null;
