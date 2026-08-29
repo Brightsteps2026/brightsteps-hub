@@ -6643,7 +6643,6 @@ function BrightStepsHubInner() {
     { id: "assignments", label: "Assignments", navKey: "nav.assignments", icon: FileText, category: "classroom" },
     { id: "reports", label: "Reports", navKey: "nav.reports", icon: FileCheck, category: "compliance" },
     { id: "resources", label: "Resources", navKey: "nav.resources", icon: FolderOpen, category: "compliance" },
-    { id: "lunch", label: "Lunch Menu", navKey: "nav.lunch", icon: Utensils, category: "compliance" },
     { id: "accreditation", label: "Accreditation", navKey: "nav.accreditation", icon: Award, category: "compliance" },
     { id: "billing", label: "Billing", navKey: "nav.billing", icon: Wallet, category: "office" },
     { id: "ai", label: "AI Assistant", navKey: "nav.ai", icon: Sparkles, hidden: true, category: "office" },
