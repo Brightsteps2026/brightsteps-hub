@@ -590,7 +590,44 @@ function Dashboard({ data, profile, persist }) {
         )}
       </div>
 
-      {isParent && (() => {
+           <section className="bsf-card">
+        <div className="bsf-row-head">
+          <h2>Lunch Menu</h2>
+          {isAdmin && !editingLunch && (
+            <button className="bsf-textbtn" onClick={openLunchEdit}>Edit menu</button>
+          )}
+        </div>
+        {lunchMenu.weekOf && <p className="bsf-muted" style={{ marginBottom: 8 }}>Week of {lunchMenu.weekOf}</p>}
+        {!hasLunchMenu && <p className="bsf-empty">Menu not posted yet.</p>}
+        {hasLunchMenu && LUNCH_DAYS.map((day) => (
+          <div key={day} className="bsf-comment" style={day === todayLunchName ? { borderLeft: "3px solid #2563eb", paddingLeft: 10 } : undefined}>
+            <strong>{day}{day === todayLunchName ? " — Today" : ""}</strong>
+            <p>{lunchMenu.days?.[day] || "—"}</p>
+          </div>
+        ))}
+      </section>
+
+      {editingLunch && (
+        <Modal title="Edit lunch menu" onClose={() => setEditingLunch(false)}>
+          <Field label="Week of">
+            <input
+              value={lunchForm.weekOf || ""}
+              onChange={(e) => setLunchForm({ ...lunchForm, weekOf: e.target.value })}
+              placeholder="e.g. Aug 31, 2026"
+            />
+          </Field>
+          {LUNCH_DAYS.map((day) => (
+            <Field key={day} label={day}>
+              <input
+                value={lunchForm.days?.[day] || ""}
+                onChange={(e) => setLunchForm({ ...lunchForm, days: { ...lunchForm.days, [day]: e.target.value } })}
+                placeholder={`What's for lunch on ${day}?`}
+              />
+            </Field>
+          ))}
+          <button className="bsf-btn bsf-btn-block" onClick={saveLunchMenu}>Save menu</button>
+        </Modal>
+      )} {isParent && (() => {
         const parentDocs = (data.resources || []).filter((d) => d.visibleToParents);
         if (parentDocs.length === 0) return null;
         return (
