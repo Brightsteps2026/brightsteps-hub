@@ -835,14 +835,40 @@ function Dashboard({ data, profile, persist }) {
               placeholder="e.g. Aug 31, 2026"
             />
           </Field>
-          {LUNCH_DAYS.map((day) => (
-            <Field key={day} label={day}>
-              <input
-                value={lunchForm.days?.[day] || ""}
-                onChange={(e) => setLunchForm({ ...lunchForm, days: { ...lunchForm.days, [day]: e.target.value } })}
-                placeholder={`What's for lunch on ${day}?`}
-              />
-            </Field>
+                   {LUNCH_DAYS.map((day) => (
+            <div key={day} style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #eee" }}>
+              <strong>{t(`day.${day}`)}</strong>
+              <p className="bsf-muted" style={{ marginTop: 6, marginBottom: 4 }}>English</p>
+              <Field label="Dish">
+                <input
+                  value={lunchForm.days?.[day]?.dish || ""}
+                  onChange={(e) => setLunchForm({ ...lunchForm, days: { ...lunchForm.days, [day]: { ...lunchForm.days?.[day], dish: e.target.value } } })}
+                  placeholder="Main dish"
+                />
+              </Field>
+              <Field label="Dessert">
+                <input
+                  value={lunchForm.days?.[day]?.dessert || ""}
+                  onChange={(e) => setLunchForm({ ...lunchForm, days: { ...lunchForm.days, [day]: { ...lunchForm.days?.[day], dessert: e.target.value } } })}
+                  placeholder="Dessert"
+                />
+              </Field>
+              <p className="bsf-muted" style={{ marginTop: 10, marginBottom: 4 }}>Français</p>
+              <Field label="Plat">
+                <input
+                  value={lunchForm.daysFr?.[day]?.dish || ""}
+                  onChange={(e) => setLunchForm({ ...lunchForm, daysFr: { ...lunchForm.daysFr, [day]: { ...lunchForm.daysFr?.[day], dish: e.target.value } } })}
+                  placeholder="Plat principal"
+                />
+              </Field>
+              <Field label="Dessert">
+                <input
+                  value={lunchForm.daysFr?.[day]?.dessert || ""}
+                  onChange={(e) => setLunchForm({ ...lunchForm, daysFr: { ...lunchForm.daysFr, [day]: { ...lunchForm.daysFr?.[day], dessert: e.target.value } } })}
+                  placeholder="Dessert"
+                />
+              </Field>
+            </div>
           ))}
           <button className="bsf-btn bsf-btn-block" onClick={saveLunchMenu}>Save menu</button>
         </Modal>
