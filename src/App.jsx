@@ -599,11 +599,10 @@ function Dashboard({ data, profile, persist }) {
           )}
         </div>
         {lunchMenu.weekOf && <p className="bsf-muted" style={{ marginBottom: 8 }}>Week of {lunchMenu.weekOf}</p>}
-        {!hasLunchMenu && <p className="bsf-empty">Menu not posted yet.</p>}
         {hasLunchMenu && LUNCH_DAYS.map((day) => (
           <div key={day} className="bsf-comment" style={day === todayLunchName ? { borderLeft: "3px solid #2563eb", paddingLeft: 10 } : undefined}>
-            <strong>{day}{day === todayLunchName ? " — Today" : ""}</strong>
-            <p>{lunchMenu.days?.[day] || "—"}</p>
+            <strong>{t(`day.${day}`)}{day === todayLunchName ? " — Today" : ""}</strong>
+            <p>{activeLunchDays[day] || "—"}</p>
           </div>
         ))}
       </section>
