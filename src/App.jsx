@@ -486,6 +486,10 @@ function Dashboard({ data, profile, persist }) {
   const [signatureError, setSignatureError] = useState("");
   const isAdmin = profile?.role === "admin";
   const LUNCH_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  const LUNCH_DAY_LABELS = {
+    en: { Monday: "Mon", Tuesday: "Tue", Wednesday: "Wed", Thursday: "Thu", Friday: "Fri" },
+    fr: { Monday: "Lun", Tuesday: "Mar", Wednesday: "Mer", Thursday: "Jeu", Friday: "Ven" }
+  };
   const lunchMenu = data.lunchMenu || { weekOf: "", days: {} };
   const [editingLunch, setEditingLunch] = useState(false);
   const [lunchForm, setLunchForm] = useState(lunchMenu);
