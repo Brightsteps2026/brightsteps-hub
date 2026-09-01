@@ -5766,13 +5766,14 @@ function ResourcesTab({ data, persist, profile }) {
 const emptyChecklistForm = { name: "", category: "", status: ACCRED_STATUSES[0], evidenceLink: "", notes: "" };
 
 const FEE_CATEGORIES = ["Registration", "Tuition", "Other"];
-const CURRICULUM_SUBJECTS = ["English Language Arts", "Math", "Unit of Inquiry", "French", "Art", "Music", "Physical Education", "Other"];
+const CURRICULUM_SUBJECTS = ["English Language Arts", "Math", "Unit of Inquiry", "French", "Art", "Music", "Physical Education", "Baseline Assessment"];
 
-// Social Studies and Science were folded into Unit of Inquiry. Documents already
-// filed under the old names are NOT touched or deleted, they just stop being
-// offered for new documents. RETIRED_CURRICULUM_SUBJECTS keeps a filter chip
-// visible for them so nothing becomes unreachable in the UI.
-const RETIRED_CURRICULUM_SUBJECTS = ["Social Studies", "Science"];
+// Social Studies and Science were folded into Unit of Inquiry, and the catch-all
+// "Other" was replaced by Baseline Assessment. Documents already filed under the
+// old names are NOT touched or deleted, they just stop being offered for new
+// documents. RETIRED_CURRICULUM_SUBJECTS keeps a filter chip visible for them so
+// nothing becomes unreachable in the UI.
+const RETIRED_CURRICULUM_SUBJECTS = ["Social Studies", "Science", "Other"];
 
 function BillingTab({ data, persist }) {
   const [studentFilter, setStudentFilter] = useState("");
