@@ -161,7 +161,37 @@ function syncGlobalsFromSettings(settings) {
 }
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  // Use the LOCAL calendar date, not the UTC one. toISOString() converts to UTC
+  // first, so anyone west of Greenwich saw yesterday's date late in the evening,
+  // and anyone east of it saw tomorrow's date early in the morning.
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// Returns the weekday name for right now, and re-renders the component when the
+// day actually rolls over. Without this, a tab left open on a front-desk screen
+// keeps showing whatever day it was when the page was first loaded.
+function useTodayWeekday() {
+  const NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const [name, setName] = useState(() => NAMES[new Date().getDay()]);
+
+  useEffect(() => {
+    const tick = () => setName(NAMES[new Date().getDay()]);
+    // Check on a short interval so it also catches the machine waking from sleep
+    // or the clock being corrected, not just the stroke of midnight.
+    const id = setInterval(tick, 60 * 1000);
+    const onVisible = () => { if (!document.hidden) tick(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", tick);
+    };
+  }, []);
+
+  return name;
 }
 
 function formatCurrency(amount) {
@@ -504,7 +534,11 @@ function Dashboard({ data, profile, persist }) {
     setEditingLunch(false);
   };
 
-  const todayLunchName = LUNCH_DAYS[new Date().getDay() - 1];
+  // Was: LUNCH_DAYS[new Date().getDay() - 1]. That was computed once per render,
+  // so an open tab kept highlighting a stale day, and on Sat/Sun it read index
+  // 5 / -1 and quietly produced undefined.
+  const todayWeekday = useTodayWeekday();
+  const todayLunchName = LUNCH_DAYS.includes(todayWeekday) ? todayWeekday : null;
   const activeLunchDays = language === "fr" ? (lunchMenu.daysFr || {}) : (lunchMenu.days || {});
   const hasLunchMenu = lunchMenu.weekOf || LUNCH_DAYS.some((d) => lunchMenu.days?.[d] || lunchMenu.daysFr?.[d]);
 
@@ -2671,7 +2705,11 @@ function PlanningTab({ data, persist }) {
             <h2>Filter by subject</h2>
             <div className="bsf-chiprow">
               <button className={`bsf-chip ${docSubjectFilter === null ? "active" : ""}`} onClick={() => setDocSubjectFilter(null)}>All</button>
-              {CURRICULUM_SUBJECTS.map((s) => (
+              {[
+                ...CURRICULUM_SUBJECTS,
+                // Only show a retired subject if a document is actually still filed under it.
+                ...RETIRED_CURRICULUM_SUBJECTS.filter((r) => documents.some((d) => d.subject === r))
+              ].map((s) => (
                 <button key={s} className={`bsf-chip ${docSubjectFilter === s ? "active" : ""}`} onClick={() => setDocSubjectFilter(s)}>{s}</button>
               ))}
             </div>
@@ -5728,7 +5766,13 @@ function ResourcesTab({ data, persist, profile }) {
 const emptyChecklistForm = { name: "", category: "", status: ACCRED_STATUSES[0], evidenceLink: "", notes: "" };
 
 const FEE_CATEGORIES = ["Registration", "Tuition", "Other"];
-const CURRICULUM_SUBJECTS = ["English Language Arts", "Math", "Social Studies", "Science", "French", "Art", "Music", "Physical Education", "Other"];
+const CURRICULUM_SUBJECTS = ["English Language Arts", "Math", "Unit of Inquiry", "French", "Art", "Music", "Physical Education", "Other"];
+
+// Social Studies and Science were folded into Unit of Inquiry. Documents already
+// filed under the old names are NOT touched or deleted, they just stop being
+// offered for new documents. RETIRED_CURRICULUM_SUBJECTS keeps a filter chip
+// visible for them so nothing becomes unreachable in the UI.
+const RETIRED_CURRICULUM_SUBJECTS = ["Social Studies", "Science"];
 
 function BillingTab({ data, persist }) {
   const [studentFilter, setStudentFilter] = useState("");
