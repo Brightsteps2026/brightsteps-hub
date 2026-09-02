@@ -4384,6 +4384,7 @@ function BrightStepsHubInner() {
     { id: "gradebook", label: "Gradebook", navKey: "nav.gradebook", icon: Percent },
     { id: "planning", label: "Planning", navKey: "nav.planning", icon: ClipboardList },
     { id: "calendar", label: "Calendar", navKey: "nav.calendar", icon: CalendarIcon },
+    { id: "canteen", label: "Canteen", navKey: "nav.canteen", icon: UtensilsCrossed },
     { id: "admissions", label: "Admissions", navKey: "nav.admissions", icon: UserPlus },
     { id: "assignments", label: "Assignments", navKey: "nav.assignments", icon: FileText },
     { id: "reports", label: "Reports", navKey: "nav.reports", icon: FileCheck },
