@@ -14,6 +14,7 @@ const translations = {
   "nav.gradebook": { en: "Gradebook", fr: "Carnet de notes" },
   "nav.planning": { en: "Curriculum", fr: "Curriculum" },
   "nav.calendar": { en: "Calendar", fr: "Calendrier" },
+  "nav.canteen": { en: "Canteen", fr: "Cantine" },
   "nav.admissions": { en: "Admissions", fr: "Admissions" },
   "nav.assignments": { en: "Assignments", fr: "Devoirs" },
   "nav.reports": { en: "Reports", fr: "Bulletins" },
