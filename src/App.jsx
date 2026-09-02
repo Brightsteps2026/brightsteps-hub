@@ -6,6 +6,7 @@ import { getAttachmentUrl } from "./lib/attachments";
 import { useAuth } from "./LoginGate";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
 import { supabase } from "./lib/supabaseClient";
+import CanteenTab from "./CanteenTab";
 
 let GRADES = [
   "Pre-N", "PreK", "Kindergarten",
