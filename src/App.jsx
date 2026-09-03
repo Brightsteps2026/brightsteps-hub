@@ -1166,76 +1166,33 @@ const emptyStudentForm = {
 const fullName = (p) => [p.firstName, p.middleName, p.lastName].filter((x) => x && x.trim()).join(" ");
 
 function SignaturePad({ onChange }) {
-  const canvasRef = useRef(null);
-  const [isEmpty, setIsEmpty] = useState(true);
-  const drawing = useRef(false);
+  const [typed, setTyped] = useState("");
 
-  const getPos = (e, canvas) => {
-    const rect = canvas.getBoundingClientRect();
-    const point = e.touches ? e.touches[0] : e;
-    return { x: point.clientX - rect.left, y: point.clientY - rect.top };
-  };
-
-  const start = (e) => {
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    drawing.current = true;
-    const ctx = canvas.getContext("2d");
-    const { x, y } = getPos(e, canvas);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  };
-
-  const move = (e) => {
-    if (!drawing.current) return;
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    const { x, y } = getPos(e, canvas);
-    ctx.lineWidth = 2.2;
-    ctx.lineCap = "round";
-    ctx.strokeStyle = "#1F2A2E";
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    setIsEmpty(false);
-  };
-
-  const end = () => {
-    if (!drawing.current) return;
-    drawing.current = false;
-    const canvas = canvasRef.current;
-    if (canvas && onChange) onChange(canvas.toDataURL("image/png"));
-  };
-
-  const clear = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    setIsEmpty(true);
-    if (onChange) onChange("");
+  const handle = (value) => {
+    setTyped(value);
+    if (onChange) onChange(value.trim());
   };
 
   return (
     <div>
-      <canvas
-        ref={canvasRef}
-        width={400}
-        height={140}
-        className="bsf-signaturepad"
-        onMouseDown={start}
-        onMouseMove={move}
-        onMouseUp={end}
-        onMouseLeave={end}
-        onTouchStart={start}
-        onTouchMove={move}
-        onTouchEnd={end}
+      <input
+        value={typed}
+        onChange={(e) => handle(e.target.value)}
+        placeholder="Type your full name"
+        style={{
+          fontFamily: "'Fraunces', serif",
+          fontSize: 22,
+          padding: "14px 12px",
+          width: "100%",
+          border: "1px solid #EAD7DA",
+          borderRadius: 12,
+          background: "#FCFAF4",
+          color: "#241012"
+        }}
       />
-      <div className="bsf-row-head" style={{ marginTop: 6 }}>
-        <p className="bsf-muted" style={{ margin: 0 }}>{isEmpty ? "Sign above with your mouse or finger" : "Signed"}</p>
-        <button type="button" className="bsf-textbtn" onClick={clear}>Clear</button>
-      </div>
+      <p className="bsf-muted" style={{ marginTop: 6 }}>
+        Typing your name here counts as your signature.
+      </p>
     </div>
   );
 }
