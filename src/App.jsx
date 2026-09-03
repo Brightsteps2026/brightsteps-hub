@@ -7298,7 +7298,7 @@ function BrightStepsHubInner() {
         }
         .bsf-chatbubble:hover .bsf-chatremove { opacity: 1; }
         .bsf-chatremove:hover { background: rgba(0,0,0,0.08); }
-        .bsf-chatrow.mine .bsf-chatremove { display: none; }
+        .bsf-chatrow.mine .bsf-chatremove { color: rgba(255,255,255,0.8); }
         .bsf-chatinputbar {
           display: flex; align-items: flex-end; gap: 8px;
           background: #FCFAF4; border: 1px solid var(--line); border-radius: 22px;
