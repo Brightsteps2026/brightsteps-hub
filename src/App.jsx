@@ -1341,6 +1341,7 @@ function StudentMessages({ student, data, persist }) {
                   <button className="bsf-chatremove" onClick={() => removeMessage(m.id)} aria-label="Remove message">
                     <X size={12} />
                   </button>
+              )}
                 </div>
               </div>
             </Fragment>
