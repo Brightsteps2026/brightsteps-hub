@@ -385,7 +385,7 @@ export default function CanteenTab({ profile }) {
                   <span style={{ color: "#6E7B7D" }}> · {tr(p.pass_type)} · {p.start_date} · {money(p.amount)}</span>
                 </span>
                 <button onClick={() => setPaid(p.id, true)} style={{ ...chip, borderColor: "#2F7A5C", color: "#2F7A5C" }}>
-                  Mark paid
+                  Confirm payment
                 </button>
               </div>
             );
