@@ -1337,6 +1337,7 @@ function StudentMessages({ student, data, persist }) {
                 <div className="bsf-chatbubble">
                   {!isMine && <div className="bsf-chatauthor">{m.author}{m.role ? ` · ${m.role}` : ""}</div>}
                   <p>{m.text}</p>
+                                   {(isMine || profile?.role === "admin") && (
                   <button className="bsf-chatremove" onClick={() => removeMessage(m.id)} aria-label="Remove message">
                     <X size={12} />
                   </button>
