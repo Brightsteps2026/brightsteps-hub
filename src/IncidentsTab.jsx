@@ -51,6 +51,8 @@ const T = {
   concernText: { en: "Your concern", fr: "Votre inquiétude" },
   concernHint: { en: "Only Patrick (DSL) and the Director can read this. It does not go into the incident log, and parents never see it.", fr: "Seuls Patrick (DSL) et la Directrice peuvent lire ceci. Ce n'est pas inscrit au registre et les parents ne le voient jamais." },
   alreadyTold: { en: "The parent has already been told", fr: "Le parent a déjà été informé" },
+  callBox: { en: "Call the parent now. Once you have spoken to them, tick the box below, then save. The report becomes visible to the parent at that moment.", fr: "Appelez le parent maintenant. Une fois que vous lui avez parlé, cochez la case ci-dessous puis enregistrez. Le rapport devient alors visible pour le parent." },
+  parentReads: { en: "Parents will read this and the first aid box. Don't name other children here. Put names under Witnesses, which only staff can see.", fr: "Les parents liront ceci ainsi que les premiers soins. Ne nommez pas d'autres enfants ici. Indiquez les noms dans Témoins, visible uniquement par le personnel." },
   informedBy: { en: "Told by", fr: "Informé par" },
   how: { en: "How", fr: "Comment" },
   in_person: { en: "In person", fr: "En personne" },
@@ -486,6 +488,7 @@ function EntryForm({ students, profile, initial, startType, tr, onCancel, onSave
     setF((prev) => {
       const next = { ...prev, [key]: value };
       if (isEscalated(next) && next.level === 1) next.level = 2;
+      if (!editing && next.level >= 2 && !(prev.level >= 2)) next.method = "phone";
       return next;
     });
   }
@@ -674,6 +677,7 @@ function EntryForm({ students, profile, initial, startType, tr, onCancel, onSave
       )}
 
       <span style={label}>{type === "concern" ? tr("concernText") : type === "arrival" ? tr("markNoticed") : tr("description")} *</span>
+      {type === "incident" && <p style={{ fontSize: 12, color: MUTED, margin: "0 0 6px" }}>{tr("parentReads")}</p>}
       <textarea rows={3} value={f.description} onChange={(e) => set("description", e.target.value)} style={input} />
 
       {(type === "arrival" || type === "concern") && (
@@ -696,7 +700,8 @@ function EntryForm({ students, profile, initial, startType, tr, onCancel, onSave
           <input value={f.witnesses} onChange={(e) => set("witnesses", e.target.value)} style={input} />
 
           {!editing && (
-            <>
+            <div style={f.level >= 2 ? { background: LEVEL_TONE[f.level].bg, borderRadius: 10, padding: "4px 12px 12px", marginTop: 14 } : {}}>
+              {f.level >= 2 && <p style={{ fontSize: 13, fontWeight: 600, color: LEVEL_TONE[f.level].fg, margin: "10px 0 0" }}>{tr("callBox")}</p>}
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, marginTop: 14, cursor: "pointer" }}>
                 <input type="checkbox" checked={f.told} onChange={(e) => set("told", e.target.checked)} /> {tr("alreadyTold")}
               </label>
@@ -710,7 +715,7 @@ function EntryForm({ students, profile, initial, startType, tr, onCancel, onSave
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
         </>
       )}
