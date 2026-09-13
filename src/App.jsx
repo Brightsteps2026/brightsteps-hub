@@ -933,6 +933,9 @@ textFr: "Le menu du déjeuner pour " + week + " a été mis à jour. Vous pouvez
         <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>{a.audience === "school" ? "Whole school" : a.audience === "lower" ? "Lower school" : a.audience === "upper" ? "Upper school" : a.audience} · {new Date(a.created_at).toLocaleDateString()}</p>
         <p style={{ fontSize: 14, fontWeight: 500, margin: "0 0 2px" }}>{language === "fr" && a.title_fr ? a.title_fr : a.title}</p>
         <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>{language === "fr" && a.body_fr ? a.body_fr : a.body}</p>
+        {isAdmin && (
+  <button className="bsf-textbtn" style={{ fontSize: 12, marginTop: 6 }} onClick={() => deleteAnnouncement(a.id)}>Delete</button>
+)}  
         </div>
         ))}
         </section>
