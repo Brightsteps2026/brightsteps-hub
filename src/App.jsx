@@ -893,6 +893,33 @@ textFr: "Le menu du déjeuner pour " + week + " a été mis à jour. Vous pouvez
           {isAdmin && !showAnnForm && (
   <button className="bsf-textbtn" onClick={() => setShowAnnForm(true)}>New announcement</button>
 )}
+          {isAdmin && showAnnForm && (
+  <div style={{ borderTop: "1px solid #eee", paddingTop: 12, marginTop: 8 }}>
+    <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>Send to</p>
+    <select value={annForm.audience} onChange={(e) => setAnnForm({ ...annForm, audience: e.target.value })} style={{ width: "100%", height: 34, marginBottom: 10 }}>
+      <option value="school">Whole school</option>
+      <option value="lower">Lower school (Pre-N to Grade 5)</option>
+      <option value="upper">Upper school (Grade 6 to Grade 7)</option>
+      {GRADES.map((g) => <option key={g} value={g}>{g} only</option>)}
+    </select>
+    <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>Title (English)</p>
+    <input value={annForm.title} onChange={(e) => setAnnForm({ ...annForm, title: e.target.value })} style={{ width: "100%", marginBottom: 10 }} />
+    <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>Titre (Français)</p>
+    <input value={annForm.title_fr} onChange={(e) => setAnnForm({ ...annForm, title_fr: e.target.value })} style={{ width: "100%", marginBottom: 10 }} />
+    <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>Message (English)</p>
+    <textarea rows={3} value={annForm.body} onChange={(e) => setAnnForm({ ...annForm, body: e.target.value })} style={{ width: "100%", marginBottom: 10 }} />
+    <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>Message (Français)</p>
+    <textarea rows={3} value={annForm.body_fr} onChange={(e) => setAnnForm({ ...annForm, body_fr: e.target.value })} style={{ width: "100%", marginBottom: 10 }} />
+    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 12 }}>
+      <input type="checkbox" checked={annForm.show_staff} onChange={(e) => setAnnForm({ ...annForm, show_staff: e.target.checked })} />
+      Also show on staff dashboard
+    </label>
+    <div style={{ display: "flex", gap: 8 }}>
+      <button className="bsf-btn" onClick={postAnnouncement}>Post announcement</button>
+      <button className="bsf-textbtn" onClick={() => setShowAnnForm(false)}>Cancel</button>
+    </div>
+  </div>
+)}
         </div>
         {announcements.length === 0 && <p className="bsf-empty">No announcements yet.</p>}
         {announcements.slice(0, 3).map((a) => (
