@@ -893,6 +893,7 @@ textFr: "Le menu du déjeuner pour " + week + " a été mis à jour. Vous pouvez
           <h2>Lunch Menu</h2>
           <section className="bsf-card">
 <div className="bsf-row-head">
+  <h2>Lunch Menu</h2>
           {isAdmin && !editingLunch && (
             <button className="bsf-textbtn" onClick={openLunchEdit}>Edit menu</button>
           )}
