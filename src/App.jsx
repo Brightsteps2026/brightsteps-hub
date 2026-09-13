@@ -526,6 +526,14 @@ function Dashboard({ data, profile, persist }) {
   const [emailLunchMenu, setEmailLunchMenu] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
   const [showAnnForm, setShowAnnForm] = useState(false);
+  const postAnnouncement = async () => {
+  if (!annForm.title.trim() || !annForm.body.trim()) return;
+  const { data: row, error } = await supabase.from("announcements").insert({ title: annForm.title.trim(), title_fr: annForm.title_fr.trim(), body: annForm.body.trim(), body_fr: annForm.body_fr.trim(), audience: annForm.audience, show_staff: annForm.show_staff }).select().single();
+  if (error) { console.error("announcement failed", error); alert("Could not post announcement."); return; }
+  setAnnouncements([row, ...announcements]);
+  setAnnForm({ title: "", title_fr: "", body: "", body_fr: "", audience: "school", show_staff: true, email: false });
+  setShowAnnForm(false);
+};
 const [annForm, setAnnForm] = useState({ title: "", title_fr: "", body: "", body_fr: "", audience: "school", show_staff: true, email: false });
 useEffect(() => {
   supabase.from("announcements").select("*").order("created_at", { ascending: false }).limit(20).then(({ data, error }) => {
