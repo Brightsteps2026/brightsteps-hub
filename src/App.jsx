@@ -880,6 +880,10 @@ function Dashboard({ data, profile, persist }) {
               placeholder="e.g. Aug 31, 2026"
             />
           </Field>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 13 }}>
+          <input type="checkbox" checked={emailLunchMenu} onChange={(e) => setEmailLunchMenu(e.target.checked)} />
+          Also email parents about this menu
+          </label>
           <div style={{ display: "grid", gridTemplateColumns: "56px 1fr 1fr", gap: "6px 8px", fontSize: 12, color: "#888", marginTop: 12 }}>
             <span></span><span>English</span><span>Français</span>
           </div>
