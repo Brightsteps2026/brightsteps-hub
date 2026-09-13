@@ -877,8 +877,6 @@ textFr: "Le menu du déjeuner pour " + week + " a été mis à jour. Vous pouvez
           })}
         </section>
       </div> 
-           <section className="bsf-card">
-        <div className="bsf-row-head">
           <section className="bsf-card">
         <div className="bsf-row-head">
         <h2>School announcements</h2>
