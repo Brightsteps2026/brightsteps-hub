@@ -553,8 +553,7 @@ useEffect(() => {
     setLunchForm(data.lunchMenu || { weekOf: "", days: {} });
     setEditingLunch(true);
   };
-
- const saveLunchMenu = async () => {
+const saveLunchMenu = async () => {
     const week = lunchForm.weekOf || "";
     persist({ ...data, lunchMenu: lunchForm });
     const { data: row, error } = await supabase.from("announcements").insert({
@@ -569,24 +568,8 @@ useEffect(() => {
     else { setAnnouncements([row, ...announcements]); }
     setEmailLunchMenu(false);
     setEditingLunch(false);
-};
-    persist({
-      ...data,
-      lunchMenu: lunchForm,
-      students: data.students.map((s) => ({ ...s, messages: [...(s.messages || []), note] }))
-    });
-    if (emailLunchMenu) {
-      data.students.forEach((s, i) => {
-        setTimeout(() => {
-          supabase.functions.invoke("notify-message", { body: { studentId: s.id, senderRole: "admin", senderName: "BrightSteps Canteen" } }).catch((e) => console.error("lunch menu email failed", e));
-        }, i * 400);
-      });
-    }
-    setEmailLunchMenu(false);
-    setEditingLunch(false);
   };
-
-  // Was: LUNCH_DAYS[new Date().getDay() - 1]. That was computed once per render,
+ // Was: LUNCH_DAYS[new Date().getDay() - 1]. That was computed once per render,
   // so an open tab kept highlighting a stale day, and on Sat/Sun it read index
   // 5 / -1 and quietly produced undefined.
   const todayWeekday = useTodayWeekday();
