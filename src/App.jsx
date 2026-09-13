@@ -3465,7 +3465,7 @@ function StandardsLibraryModal({ data, persist, onClose }) {
   );
 }
 
-const ASSESSMENT_TYPES = ["Pre-Assessment", "Formative", "Summative (End of Unit)", "MAP Test", "End of Grade Test", "Other"];
+const ASSESSMENT_TYPES = ["Baseline Assessment", "Pre-Assessment", "Formative", "Summative (End of Unit)", "MAP Test", "End of Grade Test", "Other"];
 
 // Pre-N through Kindergarten: no formal assessment, their record lives in Portfolio.
 // Grade 1: Pre-Assessment, Formative, Summative.
