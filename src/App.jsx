@@ -523,6 +523,7 @@ function Dashboard({ data, profile, persist }) {
   };
   const lunchMenu = data.lunchMenu || { weekOf: "", days: {} };
   const [editingLunch, setEditingLunch] = useState(false);
+  const [emailLunchMenu, setEmailLunchMenu] = useState(false);
   const [lunchForm, setLunchForm] = useState(lunchMenu);
 
   const openLunchEdit = () => {
