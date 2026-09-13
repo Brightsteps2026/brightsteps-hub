@@ -525,6 +525,8 @@ function Dashboard({ data, profile, persist }) {
   const [editingLunch, setEditingLunch] = useState(false);
   const [emailLunchMenu, setEmailLunchMenu] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
+  const [showAnnForm, setShowAnnForm] = useState(false);
+const [annForm, setAnnForm] = useState({ title: "", title_fr: "", body: "", body_fr: "", audience: "school", show_staff: true, email: false });
 useEffect(() => {
   supabase.from("announcements").select("*").order("created_at", { ascending: false }).limit(20).then(({ data, error }) => {
     if (error) { console.error("announcements load failed", error); return; }
