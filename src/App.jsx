@@ -554,16 +554,22 @@ useEffect(() => {
     setEditingLunch(true);
   };
 
-  const saveLunchMenu = () => {
+ const saveLunchMenu = async () => {
     const week = lunchForm.weekOf || "";
-    const note = {
-      id: uid(),
-      author: "BrightSteps Canteen",
-      role: "admin",
-      text: "The lunch menu for " + week + " has been updated. You can see it on your Hub dashboard.",
-textFr: "Le menu du déjeuner pour " + week + " a été mis à jour. Vous pouvez le consulter sur le tableau de bord du Hub.",
-      createdAt: new Date().toISOString()
-    };
+    persist({ ...data, lunchMenu: lunchForm });
+    const { data: row, error } = await supabase.from("announcements").insert({
+      title: "Lunch menu updated",
+      title_fr: "Menu du déjeuner mis à jour",
+      body: "The lunch menu for " + week + " has been updated. You can see it on your dashboard.",
+      body_fr: "Le menu du déjeuner pour " + week + " a été mis à jour. Vous pouvez le consulter sur votre tableau de bord.",
+      audience: "school",
+      show_staff: true
+    }).select().single();
+    if (error) { console.error("menu announcement failed", error); }
+    else { setAnnouncements([row, ...announcements]); }
+    setEmailLunchMenu(false);
+    setEditingLunch(false);
+};
     persist({
       ...data,
       lunchMenu: lunchForm,
