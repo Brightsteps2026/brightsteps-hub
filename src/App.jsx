@@ -524,6 +524,13 @@ function Dashboard({ data, profile, persist }) {
   const lunchMenu = data.lunchMenu || { weekOf: "", days: {} };
   const [editingLunch, setEditingLunch] = useState(false);
   const [emailLunchMenu, setEmailLunchMenu] = useState(false);
+  const [announcements, setAnnouncements] = useState([]);
+useEffect(() => {
+  supabase.from("announcements").select("*").order("created_at", { ascending: false }).limit(20).then(({ data, error }) => {
+    if (error) { console.error("announcements load failed", error); return; }
+    setAnnouncements(data || []);
+  });
+}, []);
   const [lunchForm, setLunchForm] = useState(lunchMenu);
 
   const openLunchEdit = () => {
