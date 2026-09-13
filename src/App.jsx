@@ -527,6 +527,12 @@ function Dashboard({ data, profile, persist }) {
   const [announcements, setAnnouncements] = useState([]);
   const [showAnnForm, setShowAnnForm] = useState(false);
   const postAnnouncement = async () => {
+  const deleteAnnouncement = async (id) => {
+  if (!window.confirm("Delete this announcement? Parents will no longer see it.")) return;
+  const { error } = await supabase.from("announcements").delete().eq("id", id);
+  if (error) { console.error("delete failed", error); alert("Could not delete."); return; }
+  setAnnouncements(announcements.filter((a) => a.id !== id));
+};
   if (!annForm.title.trim() || !annForm.body.trim()) return;
   const { data: row, error } = await supabase.from("announcements").insert({ title: annForm.title.trim(), title_fr: annForm.title_fr.trim(), body: annForm.body.trim(), body_fr: annForm.body_fr.trim(), audience: annForm.audience, show_staff: annForm.show_staff }).select().single();
   if (error) { console.error("announcement failed", error); alert("Could not post announcement."); return; }
