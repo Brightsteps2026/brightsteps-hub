@@ -1319,7 +1319,7 @@ function StudentMessages({ student, data, persist }) {
                 {!isMine && <div className="bsf-chatavatar">{initials(m.author)}</div>}
                 <div className="bsf-chatbubble">
                   {!isMine && <div className="bsf-chatauthor">{m.author}{m.role ? ` · ${m.role}` : ""}</div>}
-                  <p>{lang === "fr" && m.textFr ? m.textFr : m.text}</p>
+                  <p>{language === "fr" && m.textFr ? m.textFr : m.text}</p>
                                    {(isMine || profile?.role === "admin") && (
                   <button className="bsf-chatremove" onClick={() => removeMessage(m.id)} aria-label="Remove message">
                     <X size={12} />
