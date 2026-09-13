@@ -532,7 +532,28 @@ function Dashboard({ data, profile, persist }) {
   };
 
   const saveLunchMenu = () => {
-    persist({ ...data, lunchMenu: lunchForm });
+    const week = lunchForm.weekOf || "";
+    const note = {
+      id: uid(),
+      author: "BrightSteps Canteen",
+      role: "admin",
+      text: "The lunch menu for " + week + " has been updated. You can see it on your Hub dashboard.\n\nLe menu du déjeuner pour " + week + " a été mis à jour. Vous pouvez le consulter sur le tableau de bord du Hub.",
+      date: new Date().toISOString().slice(0, 10),
+      createdAt: new Date().toISOString()
+    };
+    persist({
+      ...data,
+      lunchMenu: lunchForm,
+      students: data.students.map((s) => ({ ...s, messages: [...(s.messages || []), note] }))
+    });
+    if (emailLunchMenu) {
+      data.students.forEach((s, i) => {
+        setTimeout(() => {
+          supabase.functions.invoke("notify-message", { body: { studentId: s.id, senderRole: "admin", senderName: "BrightSteps Canteen" } }).catch((e) => console.error("lunch menu email failed", e));
+        }, i * 400);
+      });
+    }
+    setEmailLunchMenu(false);
     setEditingLunch(false);
   };
 
