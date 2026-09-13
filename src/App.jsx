@@ -3477,7 +3477,7 @@ function assessmentTypesForGrade(grade) {
   const g2 = GRADES.indexOf("Grade 2");
   const g3 = GRADES.indexOf("Grade 3");
   if (idx < g1) return ["Baseline Assessment"];
-  const types = ["Pre-Assessment", "Formative", "Summative (End of Unit)"];
+  const types = ["Baseline Assessment", "Pre-Assessment", "Formative", "Summative (End of Unit)"];
   if (idx >= g2) types.push("MAP Test");
   if (idx >= g3) types.push("End of Grade Test");
   types.push("Other");
