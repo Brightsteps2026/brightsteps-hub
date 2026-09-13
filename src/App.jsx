@@ -537,8 +537,8 @@ function Dashboard({ data, profile, persist }) {
       id: uid(),
       author: "BrightSteps Canteen",
       role: "admin",
-      text: "The lunch menu for " + week + " has been updated. You can see it on your Hub dashboard.\n\nLe menu du déjeuner pour " + week + " a été mis à jour. Vous pouvez le consulter sur le tableau de bord du Hub.",
-      date: new Date().toISOString().slice(0, 10),
+      text: "The lunch menu for " + week + " has been updated. You can see it on your Hub dashboard.",
+textFr: "Le menu du déjeuner pour " + week + " a été mis à jour. Vous pouvez le consulter sur le tableau de bord du Hub.",
       createdAt: new Date().toISOString()
     };
     persist({
