@@ -872,6 +872,19 @@ textFr: "Le menu du déjeuner pour " + week + " a été mis à jour. Vous pouvez
       </div> 
            <section className="bsf-card">
         <div className="bsf-row-head">
+          <section className="bsf-card">
+        <div className="bsf-row-head">
+        <h2>School announcements</h2>
+        </div>
+        {announcements.length === 0 && <p className="bsf-empty">No announcements yet.</p>}
+        {announcements.slice(0, 3).map((a) => (
+        <div key={a.id} style={{ borderTop: "1px solid #eee", padding: "12px 0" }}>
+        <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>{a.audience === "school" ? "Whole school" : a.audience === "lower" ? "Lower school" : a.audience === "upper" ? "Upper school" : a.audience} · {new Date(a.created_at).toLocaleDateString()}</p>
+        <p style={{ fontSize: 14, fontWeight: 500, margin: "0 0 2px" }}>{language === "fr" && a.title_fr ? a.title_fr : a.title}</p>
+        <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>{language === "fr" && a.body_fr ? a.body_fr : a.body}</p>
+        </div>
+        ))}
+        </section>
           <h2>Lunch Menu</h2>
           {isAdmin && !editingLunch && (
             <button className="bsf-textbtn" onClick={openLunchEdit}>Edit menu</button>
