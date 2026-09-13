@@ -890,6 +890,9 @@ textFr: "Le menu du déjeuner pour " + week + " a été mis à jour. Vous pouvez
           <section className="bsf-card">
         <div className="bsf-row-head">
         <h2>School announcements</h2>
+          {isAdmin && !showAnnForm && (
+  <button className="bsf-textbtn" onClick={() => setShowAnnForm(true)}>New announcement</button>
+)}
         </div>
         {announcements.length === 0 && <p className="bsf-empty">No announcements yet.</p>}
         {announcements.slice(0, 3).map((a) => (
