@@ -1303,6 +1303,7 @@ const COUNTRIES = ["Afghanistan","Albania","Algeria","Andorra","Angola","Antigua
 
 function StudentMessages({ student, data, persist }) {
   const { profile } = useAuth();
+    const { language } = useLanguage();
   const [messageText, setMessageText] = useState("");
 
   useEffect(() => {
