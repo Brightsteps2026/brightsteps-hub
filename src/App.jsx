@@ -1409,6 +1409,65 @@ function StudentMessages({ student, data, persist }) {
   );
 }
 
+// Absence notices: created each school morning by the notify-absences function.
+// The bell adds these to its count; the "My child" screen shows them at the top.
+function useUnreadNoticeCount(profile) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!profile?.id || profile.role !== "parent") { setCount(0); return; }
+    let cancelled = false;
+    const load = async () => {
+      const { count: n, error } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", profile.id)
+        .is("read_at", null);
+      if (!cancelled && !error) setCount(n || 0);
+    };
+    load();
+    window.addEventListener("bs-notices-changed", load);
+    return () => { cancelled = true; window.removeEventListener("bs-notices-changed", load); };
+  }, [profile?.id, profile?.role]);
+  return count;
+}
+
+function AbsenceNotices({ profile }) {
+  const { language } = useLanguage();
+  const [notices, setNotices] = useState([]);
+  useEffect(() => {
+    if (!profile?.id) return;
+    supabase
+      .from("notifications")
+      .select("id, title, title_fr, body, body_fr, created_at")
+      .eq("user_id", profile.id)
+      .is("read_at", null)
+      .order("created_at", { ascending: false })
+      .then(({ data: rows, error }) => { if (!error) setNotices(rows || []); });
+  }, [profile?.id]);
+
+  const markRead = async (id) => {
+    setNotices((list) => list.filter((n) => n.id !== id));
+    const { error } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", id);
+    if (error) console.error("Could not mark notice as read", error);
+    window.dispatchEvent(new Event("bs-notices-changed"));
+  };
+
+  if (notices.length === 0) return null;
+  const fr = language === "fr";
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+      {notices.map((n) => (
+        <div key={n.id} style={{ background: "#FBF3E4", border: "1px solid #E8D2A6", borderRadius: 12, padding: "12px 14px" }}>
+          <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: "#6B4A12" }}>{fr && n.title_fr ? n.title_fr : n.title}</p>
+          <p style={{ margin: "4px 0 0", fontSize: 13, lineHeight: 1.5, color: "#6B4A12" }}>{fr && n.body_fr ? n.body_fr : n.body}</p>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+            <button className="bsf-btn-ghost" onClick={() => markRead(n.id)}>{fr ? "Marquer comme lu" : "Mark as read"}</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 function ParentStudentView({ data, persist, profile }) {
   const linkedIds = profile?.student_ids || [];
   const myStudents = data.students.filter((s) => linkedIds.includes(s.id));
