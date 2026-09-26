@@ -1541,6 +1541,7 @@ function ParentStudentView({ data, persist, profile }) {
         </div>
       </div>
 
+            <AbsenceNotices profile={profile} />
       {myStudents.length > 1 && (
         <div className="bsf-card" style={{ display: "flex", gap: 10, overflowX: "auto", padding: 12 }}>
           {myStudents.map((s) => (
