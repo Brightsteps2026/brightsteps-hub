@@ -6847,7 +6847,9 @@ function BrightStepsHubInner() {
   // Pre-N through Grade 2: reflections only. Grade 3 and up: can also see (not edit)
   // their own attendance and grades.
   const STUDENT_ALLOWED_TABS = isUpperStudent ? ["portfolio", "attendance", "gradebook", "assignments", "assessment", "messages"] : ["portfolio"];
-  const unreadCount = useMemo(() => getUnreadMessageCount(data, profile), [data.students, profile]);
+  const unreadMessageCount = useMemo(() => getUnreadMessageCount(data, profile), [data.students, profile]);
+  const unreadNoticeCount = useUnreadNoticeCount(profile);
+  const unreadCount = unreadMessageCount + unreadNoticeCount;
 
   useEffect(() => {
     if (isParent && PARENT_HIDDEN_TABS.includes(tab)) setTab("dashboard");
