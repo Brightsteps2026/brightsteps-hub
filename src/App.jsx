@@ -622,13 +622,18 @@ const saveLunchMenu = async () => {
 
   const attendanceFor = (studentId) => attendanceCountsForRange(data.attendance, studentId);
 
+  const isGradeScopedStaff = profile?.role === "teacher" || profile?.role === "learning_assistant";
+  const dashStudents = isGradeScopedStaff
+    ? data.students.filter((s) => (profile?.grades_assigned || []).includes(s.grade))
+    : data.students;
+
   const counts = useMemo(() => {
     const c = {};
-    data.students.forEach((s) => { c[s.grade] = (c[s.grade] || 0) + 1; });
+    dashStudents.forEach((s) => { c[s.grade] = (c[s.grade] || 0) + 1; });
     return c;
-  }, [data.students]);
+  }, [dashStudents]);
 
-  const total = data.students.length;
+  const total = dashStudents.length;
   const recentPortfolio = [...data.portfolio]
     .filter((p) => !isParent || linkedIds.includes(p.studentId))
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -643,7 +648,7 @@ const saveLunchMenu = async () => {
 
   const recentStudents = isParent
     ? myStudents
-    : [...data.students].sort((a, b) => (b.studentIdNumber || "").localeCompare(a.studentIdNumber || "")).slice(0, 6);
+    : [...dashStudents].sort((a, b) => (b.studentIdNumber || "").localeCompare(a.studentIdNumber || "")).slice(0, 6);
 
   return (
     <div className="bsf-screen">
