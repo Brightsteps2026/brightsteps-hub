@@ -6844,6 +6844,9 @@ function BrightStepsHubInner() {
   // An accountant only ever needs billing, nothing about students' academic
   // records, behavior, or staff information.
   const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "billing"];
+  const RESTRICTED_TEACHER_EMAILS = ["thairy.ekellem@bischoolci.org"];
+  const RESTRICTED_TEACHER_TABS = ["dashboard", "students", "attendance", "portfolio", "assessment", "assignments", "reports", "calendar", "incidents", "updates", "resources"];
+  const isRestrictedTeacher = profile?.role === "teacher" && RESTRICTED_TEACHER_EMAILS.includes((profile?.email || "").toLowerCase());
   // Pre-N through Grade 2: reflections only. Grade 3 and up: can also see (not edit)
   // their own attendance and grades.
   const STUDENT_ALLOWED_TABS = isUpperStudent ? ["portfolio", "attendance", "gradebook", "assignments", "assessment", "messages"] : ["portfolio"];
@@ -6857,6 +6860,7 @@ function BrightStepsHubInner() {
     if (tab === "billing" && !BILLING_ALLOWED_ROLES.includes(profile?.role)) setTab("dashboard");
     if (isLearningAssistant && !LEARNING_ASSISTANT_ALLOWED_TABS.includes(tab)) setTab("dashboard");
     if (isAccountant && !ACCOUNTANT_ALLOWED_TABS.includes(tab)) setTab("dashboard");
+    if (isRestrictedTeacher && !RESTRICTED_TEACHER_TABS.includes(tab)) setTab("dashboard");
     if (isStudent && !STUDENT_ALLOWED_TABS.includes(tab)) setTab("portfolio");
   }, [isParent, isAdmin, isLearningAssistant, isAccountant, isStudent, tab, profile]);
 
