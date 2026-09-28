@@ -6592,8 +6592,8 @@ function SettingsModal({ data, persist, onClose }) {
   const isAdmin = profile?.role === "admin";
 
   return (
-    <Modal title={isParent ? t("settings.account") : "School settings"} onClose={onClose}>
-      {!isParent && (
+    <Modal title={isAdmin ? "School settings" : t("settings.account")} onClose={onClose}>
+      {isAdmin && (
         <>
       <h3 className="bsf-subheading">Curriculum framework</h3>
       <Field label="Framework">
