@@ -6909,6 +6909,7 @@ function BrightStepsHubInner() {
     .filter((s) => s.id !== "billing" || BILLING_ALLOWED_ROLES.includes(profile?.role))
     .filter((s) => !isLearningAssistant || LEARNING_ASSISTANT_ALLOWED_TABS.includes(s.id))
     .filter((s) => !isAccountant || ACCOUNTANT_ALLOWED_TABS.includes(s.id))
+    .filter((s) => !isRestrictedTeacher || RESTRICTED_TEACHER_TABS.includes(s.id))
     .filter((s) => !isStudent || STUDENT_ALLOWED_TABS.includes(s.id));
 
   const primaryIds = isStudent
