@@ -8,6 +8,7 @@ import { LanguageProvider, useLanguage } from "./lib/i18n";
 import { supabase } from "./lib/supabaseClient";
 import CanteenTab from "./CanteenTab";
 import IncidentsTab, { IncidentsIcon } from "./IncidentsTab";
+import LeaveTab, { LeaveIcon } from "./LeaveTab";
 let GRADES = [
   "Pre-N", "PreK", "Kindergarten",
   "Grade 1", "Grade 2", "Grade 3", "Grade 4",
