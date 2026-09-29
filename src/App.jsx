@@ -6849,7 +6849,7 @@ function BrightStepsHubInner() {
   const LEARNING_ASSISTANT_ALLOWED_TABS = ["dashboard", "attendance", "portfolio", "assessment", "classes", "calendar", "assignments", "updates", "resources"];
   // An accountant only ever needs billing, nothing about students' academic
   // records, behavior, or staff information.
-  const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "billing"];
+  const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "billing", "leave"];
   const RESTRICTED_TEACHER_EMAILS = ["thairy.ekellem@bischoolci.org"];
   const RESTRICTED_TEACHER_TABS = ["dashboard", "students", "attendance", "portfolio", "assessment", "assignments", "reports", "calendar", "incidents", "updates", "resources"];
   const isRestrictedTeacher = profile?.role === "teacher" && RESTRICTED_TEACHER_EMAILS.includes((profile?.email || "").toLowerCase());
