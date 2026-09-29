@@ -6891,6 +6891,7 @@ function BrightStepsHubInner() {
     { id: "students", label: "Students", navKey: "nav.students", icon: Users, category: "classroom" },
     { id: "classes", label: "Classes", navKey: "nav.classes", icon: UserCheck, category: "classroom" },
     { id: "staff", label: "Staff", navKey: "nav.staff", icon: Briefcase, category: "office" },
+    { id: "leave", label: "Leave requests", navKey: "nav.leave", icon: LeaveIcon, category: "office" },
     { id: "attendance", label: "Attendance", navKey: "nav.attendance", icon: CheckSquare, category: "core" },
     { id: "portfolio", label: "Portfolio", navKey: "nav.portfolio", icon: BookOpen, category: "core" },
     { id: "assessment", label: "Assessment", navKey: "nav.assessment", icon: ClipboardCheck, category: "core" },
