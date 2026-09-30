@@ -1102,7 +1102,7 @@ const saveLunchMenu = async () => {
   );
 }
 
-function FamilyViewModal({ student, data, onClose }) {
+function FamilyViewModal({ student, data, onClose, hideContacts = false }) {
   const today = todayStr();
   const settings = data.settings || DEFAULT_SETTINGS;
   const terms = settings.terms || DEFAULT_SETTINGS.terms;
@@ -1150,6 +1150,13 @@ function FamilyViewModal({ student, data, onClose }) {
         </p>
       </div>
 
+      {hideContacts ? (
+        student.allergies ? (
+          <section className="bsf-card">
+            <p className="bsf-alert-note">Allergies: {student.allergies}</p>
+          </section>
+        ) : null
+      ) : (
       <section className="bsf-card">
         <h2>Guardians</h2>
         {(student.guardian1Name || student.guardianName) ? (
@@ -1175,6 +1182,7 @@ function FamilyViewModal({ student, data, onClose }) {
           </p>
         )}
       </section>
+      )}
 
       <section className="bsf-card">
         <h2>Reports</h2>
@@ -1909,6 +1917,8 @@ function StudentsTab({ data, persist, profile }) {
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name));
   const familyViewStudent = visibleStudents.find((s) => s.id === familyViewId);
+  const [messagingId, setMessagingId] = useState(null);
+  const messagingStudent = visibleStudents.find((s) => s.id === messagingId);
 
   const openAdd = () => {
     setEditingId(null);
@@ -1918,7 +1928,9 @@ function StudentsTab({ data, persist, profile }) {
   };
 
   const openEdit = (student) => {
-    if (!canEditStudents) return;
+    // Teachers can't edit student records; tapping a student opens the
+    // parent-teacher message thread instead.
+    if (!canEditStudents) { setMessagingId(student.id); return; }
     setEditingId(student.id);
     const base = student.firstName ? student : { ...student, firstName: student.name || "", middleName: "", lastName: "" };
     const withNationalities = base.nationalities ? base : { ...base, nationalities: base.nationality ? [base.nationality] : [] };
@@ -1965,12 +1977,12 @@ function StudentsTab({ data, persist, profile }) {
   }, [filtered]);
 
   const renderStudentCard = (s) => (
-    <div key={s.id} className={`bsf-card bsf-student ${canEditStudents ? "bsf-clickable" : ""}`} onClick={() => openEdit(s)}>
+    <div key={s.id} className="bsf-card bsf-student bsf-clickable" onClick={() => openEdit(s)}>
       <StudentThumb photo={s.photo} />
       <div className="bsf-student-info">
         <strong>{s.name}</strong>
         <p className="bsf-muted">{(s.nationalities && s.nationalities.length) ? s.nationalities.join(" - ") : (s.nationality || "")}{s.studentIdNumber ? `${(s.nationalities?.length || s.nationality) ? " · " : ""}ID ${s.studentIdNumber}` : ""}</p>
-        {s.guardian1Name && <p className="bsf-muted">{s.guardian1Name}{s.guardian1Phone ? ` · ${s.guardian1Phone}` : ""}</p>}
+        {!isTeacherRole && s.guardian1Name && <p className="bsf-muted">{s.guardian1Name}{s.guardian1Phone ? ` · ${s.guardian1Phone}` : ""}</p>}
         {s.allergies && <span className="bsf-tag bsf-tag-alert">Allergy: {s.allergies}</span>}
       </div>
       <div className="bsf-student-actions">
@@ -2154,8 +2166,14 @@ function StudentsTab({ data, persist, profile }) {
         </Modal>
       )}
 
+      {messagingStudent && (
+        <Modal title={messagingStudent.name} onClose={() => setMessagingId(null)}>
+          <StudentMessages student={messagingStudent} data={data} persist={persist} />
+        </Modal>
+      )}
+
       {familyViewStudent && (
-        <FamilyViewModal student={familyViewStudent} data={data} onClose={() => setFamilyViewId(null)} />
+        <FamilyViewModal student={familyViewStudent} data={data} onClose={() => setFamilyViewId(null)} hideContacts={isTeacherRole} />
       )}
 
       {showBulkAdd && canEditStudents && (
@@ -4860,6 +4878,12 @@ function ReportsTab({ data, persist, profile }) {
   const [kind, setKind] = useState("student");
   const settings = data.settings || DEFAULT_SETTINGS;
   const templates = settings.reportCardTemplates && settings.reportCardTemplates.length ? settings.reportCardTemplates : ["Standard Progress Report"];
+  // Grades this person actually teaches. A teacher who is only the learning
+  // assistant in some grades (profiles.assistant_grades) does not see grades
+  // or reports for those grades. Admins are not affected.
+  const isTeacherScoped = profile?.role === "teacher";
+  const teachingGrades = (profile?.grades_assigned || []).filter((g) => !(profile?.assistant_grades || []).includes(g));
+  const canSeeGrade = (g) => !isTeacherScoped || teachingGrades.includes(g);
 
   const isParent = profile?.role === "parent";
   const linkedIds = profile?.student_ids || [];
@@ -4872,6 +4896,7 @@ function ReportsTab({ data, persist, profile }) {
 
   const reports = [...(data.reports || [])]
     .filter((r) => !isParent || ((r.kind === "student" || r.kind === "transcript") && linkedIds.includes(r.studentId)))
+    .filter((r) => canSeeGrade(r.grade))
     .sort((a, b) => b.createdDate.localeCompare(a.createdDate));
   const viewingReport = reports.find((r) => r.id === viewingId);
 
@@ -5065,6 +5090,10 @@ function ReportsTab({ data, persist, profile }) {
   };
 
   const handleGenerate = () => {
+    if (isTeacherScoped && kind !== "student" && kind !== "transcript" && !form.grade) {
+      setFormError("Please choose one of your grades.");
+      return;
+    }
     if (kind === "student") generateStudentReport();
     else if (kind === "attendance") generateAttendanceReport();
     else if (kind === "assessment") generateAssessmentReport();
@@ -5123,7 +5152,7 @@ function ReportsTab({ data, persist, profile }) {
             <Field label="Student">
               <select value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value })}>
                 <option value="">Choose a student</option>
-                {data.students.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
+                {data.students.filter((s) => canSeeGrade(s.grade)).map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
               </select>
             </Field>
           )}
@@ -5138,8 +5167,8 @@ function ReportsTab({ data, persist, profile }) {
           {(kind === "attendance" || kind === "assessment" || kind === "behavior" || kind === "standards") && (
             <Field label="Grade">
               <select value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })}>
-                <option value="">All grades</option>
-                {GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
+                <option value="">{isTeacherScoped ? "Choose a grade" : "All grades"}</option>
+                {GRADES.filter(canSeeGrade).map((g) => <option key={g} value={g}>{g}</option>)}
               </select>
             </Field>
           )}
@@ -5360,6 +5389,13 @@ function GradebookTab({ data, persist, profile, onNavigate }) {
   const isStudent = profile?.role === "student";
   const myStudentId = isStudent ? (profile.student_ids || [])[0] : null;
 
+  // Grades this person actually teaches. A teacher who is only the learning
+  // assistant in some grades (profiles.assistant_grades) does not see grades
+  // or reports for those grades. Admins are not affected.
+  const isTeacherScoped = profile?.role === "teacher";
+  const teachingGrades = (profile?.grades_assigned || []).filter((g) => !(profile?.assistant_grades || []).includes(g));
+  const canSeeGrade = (g) => !isTeacherScoped || teachingGrades.includes(g);
+
   // Pre-N through Kindergarten: portfolio only, no gradebook.
   // Grade 1 and Grade 2: developmental levels only.
   // Grade 3 and up: percentage or letter grades only.
@@ -5370,6 +5406,7 @@ function GradebookTab({ data, persist, profile, onNavigate }) {
 
   const entries = [...(data.gradeEntries || [])]
     .filter((e) => !isStudent || e.studentId === myStudentId)
+    .filter((e) => canSeeGrade(e.grade))
     .sort((a, b) => b.date.localeCompare(a.date));
   const filtered = gradeFilter ? entries.filter((e) => e.grade === gradeFilter) : entries;
 
@@ -5449,7 +5486,7 @@ function GradebookTab({ data, persist, profile, onNavigate }) {
           <h2>Filter by grade level</h2>
           <div className="bsf-chiprow">
             <button className={`bsf-chip ${gradeFilter === null ? "active" : ""}`} onClick={() => setGradeFilter(null)}>All</button>
-            {GRADES.map((g) => (
+            {GRADES.filter(canSeeGrade).map((g) => (
               <button key={g} className={`bsf-chip ${gradeFilter === g ? "active" : ""}`} onClick={() => setGradeFilter(g)}>{g}</button>
             ))}
           </div>
@@ -5482,7 +5519,7 @@ function GradebookTab({ data, persist, profile, onNavigate }) {
           <Field label="Student">
             <select value={form.studentId} onChange={(e) => chooseStudent(e.target.value)}>
               <option value="">Choose a student</option>
-              {data.students.filter((s) => GRADES.indexOf(s.grade) >= GRADES.indexOf("Grade 1")).map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
+              {data.students.filter((s) => GRADES.indexOf(s.grade) >= GRADES.indexOf("Grade 1") && canSeeGrade(s.grade)).map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
             </select>
             <p className="bsf-muted" style={{ marginTop: 4 }}>
               Pre-N through Kindergarten aren't shown here, since those grades are tracked through Portfolio, not the gradebook.
