@@ -653,22 +653,69 @@ const saveLunchMenu = async () => {
 
   return (
     <div className="bsf-screen">
-      <div className="bsf-hero">
-        <p className="bsf-eyebrow">{t("dashboard.eyebrow")}</p>
-        <h1>{isParent ? `Welcome back${profile?.full_name ? `, ${profile.full_name.split(" ")[0]}` : ""}` : "BrightSteps at a glance"}</h1>
-        {!isParent && (
-          <p className="bsf-hero-sub">{total} student{total === 1 ? "" : "s"} across {Object.keys(counts).length} grade level{Object.keys(counts).length === 1 ? "" : "s"}</p>
-        )}
-        {recentStudents.length > 0 && (
-          <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 12 }}>
-            <AvatarStack students={recentStudents} />
-          </div>
-        )}
-        {settings.branding.mission && <p className="bsf-mission">{settings.branding.mission}</p>}
-        {(settings.academicYear.startDate || settings.academicYear.endDate) && (
-          <p className="bsf-muted">Academic year: {settings.academicYear.startDate || "?"} to {settings.academicYear.endDate || "?"}</p>
-        )}
-      </div>
+            {(() => {
+        const now = new Date();
+        const hour = now.getHours();
+        const greetEn = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+        const greetFr = hour < 18 ? "Bonjour" : "Bonsoir";
+        const firstName = (profile?.full_name || "").split(" ")[0];
+        const nameBit = firstName ? `, ${firstName}` : "";
+        const dateEn = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+        const dateFr = now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+        const startY = (settings.academicYear.startDate || "").slice(0, 4);
+        const endY = (settings.academicYear.endDate || "").slice(0, 4);
+        const yearLabel = startY && endY ? `${startY}–${endY}` : "";
+        const nextEvent = nextEvents[0];
+        const todayLunch = todayLunchName ? activeLunchDays[todayLunchName]?.dish : "";
+        const gradeCount = Object.keys(counts).length;
+        return (
+          <>
+            <div className="bsf-welcome">
+              <div className="bsf-welcome-glow" />
+              <div className="bsf-welcome-row">
+                <div>
+                  <p className="bsf-welcome-date">{isParent ? `${dateEn} · ${dateFr}` : dateEn}</p>
+                  <h1 className="bsf-welcome-title">{greetEn}{nameBit}</h1>
+                  {isParent && <p className="bsf-welcome-fr">{greetFr}{nameBit}</p>}
+                  {!isParent && settings.branding.mission && <p className="bsf-welcome-mission">{settings.branding.mission}</p>}
+                </div>
+                {yearLabel && <span className="bsf-welcome-pill">{yearLabel}</span>}
+              </div>
+            </div>
+            {!isParent && (
+              <div className="bsf-tiles">
+                <div className="bsf-tile">
+                  <p className="bsf-tile-label"><Users size={14} /> Students</p>
+                  <p className="bsf-tile-number">{total}</p>
+                  <p className="bsf-tile-sub">across {gradeCount} grade{gradeCount === 1 ? "" : "s"}</p>
+                </div>
+                <div className="bsf-tile">
+                  <p className="bsf-tile-label"><CalendarIcon size={14} /> Next event</p>
+                  <p className="bsf-tile-value">{nextEvent ? nextEvent.title : "Nothing scheduled"}</p>
+                  {nextEvent && <p className="bsf-tile-sub">{nextEvent.date}</p>}
+                </div>
+                <div className="bsf-tile">
+                  <p className="bsf-tile-label"><Utensils size={14} /> Today's lunch</p>
+                  <p className="bsf-tile-value">{todayLunch || "No menu today"}</p>
+                </div>
+              </div>
+            )}
+            {isParent && myStudents.length > 0 && (
+              <div className="bsf-tiles">
+                {myStudents.map((s) => (
+                  <div key={s.id} className="bsf-tile bsf-child-tile">
+                    <div className="bsf-child-photo"><StudentThumb photo={s.photo} /></div>
+                    <div>
+                      <p className="bsf-tile-value">{s.firstName || s.name.split(" ")[0]}</p>
+                      <p className="bsf-tile-sub">{s.grade}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        );
+      })()}
 
          {isParent && (() => {
         const parentDocs = (data.resources || []).filter((d) => d.visibleToParents);
