@@ -548,6 +548,15 @@ useEffect(() => {
     setAnnouncements(data || []);
   });
 }, []);
+  const [gradeStaff, setGradeStaff] = useState({});
+useEffect(() => {
+  supabase.from("grade_staff").select("*").then(({ data, error }) => {
+    if (error) { console.error("grade staff load failed", error); return; }
+    const map = {};
+    (data || []).forEach((r) => { map[r.grade] = r; });
+    setGradeStaff(map);
+  });
+}, []);
   const [lunchForm, setLunchForm] = useState(lunchMenu);
 
   const openLunchEdit = () => {
