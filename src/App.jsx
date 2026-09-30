@@ -820,7 +820,7 @@ const saveLunchMenu = async () => {
                 </div>
                 {gradeStaff[s.grade]?.learning_assistant && (
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "4px 0" }}>
-                    <span className="bsf-muted">Learning assistant<br /><span style={{ fontSize: 12 }}>Assistant(e) pédagogique</span></span>
+                                        <span className="bsf-muted">{isFr ? "Assistant(e) pédagogique" : "Learning assistant"}</span>
                     <strong style={{ textAlign: "right" }}>{gradeStaff[s.grade].learning_assistant}</strong>
                   </div>
                 )}
