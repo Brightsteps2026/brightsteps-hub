@@ -812,6 +812,18 @@ const saveLunchMenu = async () => {
                   </p>
                 </div>
               </div>
+                            <div style={{ borderTop: "0.5px solid var(--line)", paddingTop: 10, marginBottom: 6, fontSize: 13 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "4px 0" }}>
+                  <span className="bsf-muted">Homeroom teacher<br /><span style={{ fontSize: 12 }}>Enseignant(e) principal(e)</span></span>
+                  <strong style={{ textAlign: "right" }}>{gradeStaff[s.grade]?.homeroom_teacher || "To be confirmed / À confirmer"}</strong>
+                </div>
+                {gradeStaff[s.grade]?.learning_assistant && (
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "4px 0" }}>
+                    <span className="bsf-muted">Learning assistant<br /><span style={{ fontSize: 12 }}>Assistant(e) pédagogique</span></span>
+                    <strong style={{ textAlign: "right" }}>{gradeStaff[s.grade].learning_assistant}</strong>
+                  </div>
+                )}
+              </div>
               {s.allergies && <p className="bsf-alert-note">Allergies: {s.allergies}</p>}
             </section>
 
