@@ -549,6 +549,7 @@ useEffect(() => {
   });
 }, []);
   const [gradeStaff, setGradeStaff] = useState({});
+    const isFr = language === "fr";
 useEffect(() => {
   supabase.from("grade_staff").select("*").then(({ data, error }) => {
     if (error) { console.error("grade staff load failed", error); return; }
