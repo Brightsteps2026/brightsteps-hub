@@ -321,11 +321,96 @@ function getUnreadMessageCount(data, profile) {
   return count;
 }
 
+// Three-way merge used when saving. Everyone shares one saved copy of the
+// school data, so before saving we fetch the latest copy and keep other
+// people's changes (new messages, attendance, notes) instead of overwriting
+// them with our older copy. "base" is what this screen last loaded, "mine" is
+// what we want to save, "theirs" is what is saved right now.
+const isPlainObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+const isIdList = (v) => Array.isArray(v) && v.every((x) => isPlainObj(x) && x.id !== undefined && x.id !== null);
+function mergeSchoolValue(base, mine, theirs) {
+  if (mine === base) return theirs === undefined ? mine : theirs;
+  if (theirs === undefined || base === undefined) return mine;
+  if (isPlainObj(mine) && isPlainObj(theirs) && isPlainObj(base)) {
+    const out = {};
+    const keys = new Set([...Object.keys(mine), ...Object.keys(theirs)]);
+    keys.forEach((k) => {
+      const inMine = Object.prototype.hasOwnProperty.call(mine, k);
+      const inBase = Object.prototype.hasOwnProperty.call(base, k);
+      if (!inMine) {
+        if (!inBase) out[k] = theirs[k]; // someone else added it
+        return; // we removed it
+      }
+      const v = mergeSchoolValue(base[k], mine[k], theirs[k]);
+      if (v !== undefined) out[k] = v;
+    });
+    return out;
+  }
+  if (isIdList(mine) && isIdList(theirs) && isIdList(base)) {
+    const baseById = new Map(base.map((x) => [x.id, x]));
+    const theirsById = new Map(theirs.map((x) => [x.id, x]));
+    const mineIds = new Set(mine.map((x) => x.id));
+    const out = [];
+    mine.forEach((x) => {
+      const v = mergeSchoolValue(baseById.get(x.id), x, theirsById.get(x.id));
+      if (v !== undefined) out.push(v);
+    });
+    theirs.forEach((x) => {
+      if (!mineIds.has(x.id) && !baseById.has(x.id)) out.push(x); // added by someone else
+    });
+    return out;
+  }
+  return mine;
+}
+
 function useSchoolData() {
   const [data, setData] = useState(emptyData);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  // What this screen last loaded or saved, used to work out what we changed.
+  const baseRef = useRef(null);
+  const savingRef = useRef(false);
+
+  const fetchLatest = async () => {
+    const res = await window.storage.get(STORAGE_KEY, true);
+    if (!res || !res.value) return null;
+    const parsed = { ...emptyData, ...JSON.parse(res.value) };
+    if (!parsed.settings) parsed.settings = DEFAULT_SETTINGS;
+    return parsed;
+  };
+
+  // Pick up other people's changes (new messages etc.) when the Hub is
+  // reopened or brought back to the front, and every minute while visible.
+  useEffect(() => {
+    if (!loaded || loadError) return;
+    const refresh = async () => {
+      if (document.hidden || savingRef.current) return;
+      try {
+        const latest = await fetchLatest();
+        if (!latest || savingRef.current) return;
+        if (!latest.settings.branding) latest.settings.branding = DEFAULT_SETTINGS.branding;
+        if (!latest.settings.branding.logoUrl) {
+          latest.settings = { ...latest.settings, branding: { ...latest.settings.branding, logoUrl: BRIGHTSTEPS_LOGO_DATA_URI } };
+        }
+        syncGlobalsFromSettings(latest.settings);
+        baseRef.current = latest;
+        setData(latest);
+      } catch (e) {
+        console.error("Refresh failed", e);
+      }
+    };
+    const id = setInterval(refresh, 60 * 1000);
+    const onVisible = () => { if (!document.hidden) refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", refresh);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", refresh);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, loadError]);
 
   useEffect(() => {
     (async () => {
@@ -368,6 +453,7 @@ function useSchoolData() {
             return { ...s, studentIdNumber: newIdNumber };
           });
 
+          baseRef.current = parsed;
           setData(parsed);
           if (studentsChanged || renamedGrade) {
             window.storage.set(STORAGE_KEY, JSON.stringify(parsed), true).catch((e) => {
@@ -396,11 +482,27 @@ function useSchoolData() {
     syncGlobalsFromSettings(next.settings);
     setData(next);
     setSaving(true);
+    savingRef.current = true;
     try {
-      await window.storage.set(STORAGE_KEY, JSON.stringify(next), true);
+      // Merge with the latest saved copy so we don't wipe out changes other
+      // people made since this screen was loaded.
+      let toSave = next;
+      try {
+        const latest = await fetchLatest();
+        if (latest && baseRef.current) toSave = mergeSchoolValue(baseRef.current, next, latest);
+      } catch (e) {
+        console.error("Could not fetch latest before saving; saving as is", e);
+      }
+      await window.storage.set(STORAGE_KEY, JSON.stringify(toSave), true);
+      baseRef.current = toSave;
+      if (toSave !== next) {
+        syncGlobalsFromSettings(toSave.settings);
+        setData(toSave);
+      }
     } catch (e) {
       console.error("Save failed", e);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
