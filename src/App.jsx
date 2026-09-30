@@ -606,7 +606,10 @@ function AvatarStack({ students }) {
   );
 }
 
-function Dashboard({ data, profile, persist }) {
+// Lets a tap on a child on the Dashboard open that child's profile directly.
+let pendingChildProfileId = null;
+
+function Dashboard({ data, profile, persist, onNavigate }) {
   const { t, language } = useLanguage();
   const settings = data.settings || DEFAULT_SETTINGS;
   const isParent = profile?.role === "parent";
@@ -759,6 +762,11 @@ const saveLunchMenu = async () => {
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 2);
 
+  const openChildProfile = (studentId) => {
+    pendingChildProfileId = studentId;
+    if (onNavigate) onNavigate("students");
+  };
+
   const recentStudents = isParent
     ? myStudents
     : [...dashStudents].sort((a, b) => (b.studentIdNumber || "").localeCompare(a.studentIdNumber || "")).slice(0, 6);
@@ -814,7 +822,7 @@ const saveLunchMenu = async () => {
             {isParent && myStudents.length > 0 && (
               <div className="bsf-tiles">
                 {myStudents.map((s) => (
-                  <div key={s.id} className="bsf-tile bsf-child-tile">
+                  <div key={s.id} className="bsf-tile bsf-child-tile bsf-clickable" role="button" tabIndex={0} style={{ cursor: "pointer" }} onClick={() => openChildProfile(s.id)} onKeyDown={(e) => { if (e.key === "Enter") openChildProfile(s.id); }}>
                     <div className="bsf-child-photo"><StudentThumb photo={s.photo} /></div>
                     <div>
                       <p className="bsf-tile-value">{s.firstName || s.name.split(" ")[0]}</p>
@@ -905,14 +913,15 @@ const saveLunchMenu = async () => {
         return (
           <div key={s.id}>
             <section className="bsf-card">
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+              <div role="button" tabIndex={0} onClick={() => openChildProfile(s.id)} onKeyDown={(e) => { if (e.key === "Enter") openChildProfile(s.id); }} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10, cursor: "pointer" }}>
                 <StudentThumb photo={s.photo} />
-                <div>
+                <div style={{ flex: 1 }}>
                   <strong style={{ fontFamily: "'Fraunces', serif", fontSize: 17 }}>{s.name}</strong>
                   <p className="bsf-muted" style={{ margin: 0 }}>
                     {s.grade}{(s.nationalities && s.nationalities.length) ? ` · ${s.nationalities.join(" - ")}` : (s.nationality ? ` · ${s.nationality}` : "")}
                   </p>
                 </div>
+                <span className="bsf-muted" style={{ fontSize: 13, whiteSpace: "nowrap" }}>{isFr ? "Voir le profil ›" : "View profile ›"}</span>
               </div>
                             <div style={{ borderTop: "0.5px solid var(--line)", paddingTop: 10, marginBottom: 6, fontSize: 13 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "4px 0" }}>
@@ -1655,7 +1664,11 @@ function AbsenceNotices({ profile }) {
 function ParentStudentView({ data, persist, profile }) {
   const linkedIds = profile?.student_ids || [];
   const myStudents = data.students.filter((s) => linkedIds.includes(s.id));
-  const [activeChildId, setActiveChildId] = useState(null);
+  const [activeChildId, setActiveChildId] = useState(() => {
+    const id = pendingChildProfileId;
+    pendingChildProfileId = null;
+    return id;
+  });
   const today = todayStr();
 
   const activeStudent = myStudents.find((s) => s.id === activeChildId) || myStudents[0];
@@ -7870,7 +7883,7 @@ function BrightStepsHubInner() {
         </div>
       </div>
 
-      {tab === "dashboard" && <Dashboard data={data} profile={profile} persist={persist} />}
+      {tab === "dashboard" && <Dashboard data={data} profile={profile} persist={persist} onNavigate={goTo} />}
       {tab === "students" && !isLearningAssistant && (isParent ? <ParentStudentView data={data} persist={persist} profile={profile} /> : <StudentsTab data={data} persist={persist} profile={profile} />)}
       {tab === "classes" && !isParent && <ClassesTab data={data} persist={persist} profile={profile} />}
       {tab === "staff" && !isParent && !isLearningAssistant && <StaffTab data={data} persist={persist} />}
