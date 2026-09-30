@@ -685,7 +685,7 @@ const saveLunchMenu = async () => {
               <div className="bsf-welcome-row">
                 <div>
                                     <p className="bsf-welcome-date">{isFr ? dateFr : dateEn}</p>
-                  <h1 className="bsf-welcome-title">{greetEn}{nameBit}</h1>
+                                    <h1 className="bsf-welcome-title">{isFr ? greetFr : greetEn}{nameBit}</h1>
                   {isParent && <p className="bsf-welcome-fr">{greetFr}{nameBit}</p>}
                   {!isParent && settings.branding.mission && <p className="bsf-welcome-mission">{settings.branding.mission}</p>}
                 </div>
