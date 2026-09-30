@@ -717,7 +717,7 @@ const saveLunchMenu = async () => {
                     <div className="bsf-child-photo"><StudentThumb photo={s.photo} /></div>
                     <div>
                       <p className="bsf-tile-value">{s.firstName || s.name.split(" ")[0]}</p>
-                                            <p className="bsf-tile-sub">{s.grade} · {gradeStaff[s.grade]?.homeroom_teacher || "Teacher to be confirmed / À confirmer"}</p>
+                                            <p className="bsf-tile-sub">{s.grade} · {gradeStaff[s.grade]?.homeroom_teacher || (isFr ? "À confirmer" : "To be confirmed")}</p>
                     </div>
                   </div>
                 ))}
