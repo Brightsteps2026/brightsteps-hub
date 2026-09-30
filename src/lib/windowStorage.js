@@ -15,7 +15,19 @@ async function rowKeyFor(key, shared) {
   return `${uid}:${key}`;
 }
 
+// The main school data goes through two database functions instead of the
+// table directly. The database decides what each person may see (teachers
+// get no parent contacts or medical notes, parents get only their own
+// children) and puts hidden information back when they save.
+const SCHOOL_DATA_KEY = "brightsteps-hub-data";
+
 async function get(key, shared = false) {
+  if (shared && key === SCHOOL_DATA_KEY) {
+    const { data, error } = await supabase.rpc("get_hub_data");
+    if (error) throw error;
+    if (data === null || data === undefined) return null;
+    return { key, value: data, shared };
+  }
   const rowKey = await rowKeyFor(key, shared);
   const { data, error } = await supabase
     .from("app_storage")
@@ -30,6 +42,14 @@ async function get(key, shared = false) {
 }
 
 async function set(key, value, shared = false) {
+  if (shared && key === SCHOOL_DATA_KEY) {
+    const { error } = await supabase.rpc("save_hub_data", { new_value: value });
+    if (error) {
+      console.error("Storage set failed", error);
+      return null;
+    }
+    return { key, value, shared };
+  }
   const rowKey = await rowKeyFor(key, shared);
   const { error } = await supabase
     .from("app_storage")
