@@ -7062,7 +7062,7 @@ function BrightStepsHubInner() {
         .bsf-topbar-actions { display: flex; align-items: center; gap: 6px; }
         .bsf-savestate { font-size: 11px; color: var(--gold-dark); display: flex; align-items: center; gap: 5px; margin-right: 2px; }
         .bsf-savestate::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #2F7A5C; flex-shrink: 0; }
-        @media (max-width: 520px) { .bsf-savestate { font-size: 0; gap: 0; } }
+        @media (max-width: 520px) { .bsf-savestate { display: none; } }
         .bsf-topbar .bsf-settingsbtn { width: 34px; height: 34px; border-radius: 50%; background: var(--white); border: 0.5px solid var(--line); color: var(--teal); display: flex; align-items: center; justify-content: center; padding: 0; font-size: 11px; font-weight: 600; }
         .bsf-topbar .bsf-settingsbtn:hover { background: var(--sand-deep); }
         .bsf-screen { padding: 16px 16px 90px; flex: 1; overflow-y: auto; }
