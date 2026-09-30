@@ -7045,26 +7045,27 @@ function BrightStepsHubInner() {
           }
         }
 
-        .bsf-topbar {
-          padding: 18px 20px 12px;
-          background: linear-gradient(135deg, var(--teal) 0%, var(--teal-light) 130%);
-          color: var(--white);
+                .bsf-topbar {
+          padding: 16px 16px 6px;
+          background: var(--sand);
+          color: var(--ink);
           display: flex;
           justify-content: space-between;
           align-items: center;
-          box-shadow: 0 4px 16px rgba(36, 16, 18, 0.18);
+          gap: 10px;
           position: relative;
           z-index: 2;
         }
-        .bsf-brand { display: flex; align-items: center; gap: 10px; }
-        .bsf-topbar-logo { width: 32px; height: 32px; border-radius: 8px; object-fit: cover; background: var(--white); }
-        .bsf-wordmark { font-family: 'Fraunces', serif; font-weight: 700; font-size: 20px; letter-spacing: 0.2px; }
-        .bsf-slogan { font-size: 11px; color: #F0D9DD; margin-top: 2px; }
-        .bsf-topbar-actions { display: flex; align-items: center; gap: 10px; }
-        .bsf-savestate { font-size: 11px; color: #F0D9DD; opacity: 0.85; }
-        .bsf-topbar .bsf-settingsbtn { color: var(--white); }
-        .bsf-settingsbtn:hover { background: rgba(255,255,255,0.15); }
-
+        .bsf-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .bsf-topbar-logo { width: 36px; height: 36px; border-radius: 10px; object-fit: cover; background: var(--white); border: 0.5px solid var(--line); }
+        .bsf-wordmark { font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px; color: var(--teal); white-space: nowrap; }
+        .bsf-slogan { font-size: 11px; color: var(--gold-dark); margin-top: 1px; }
+        .bsf-topbar-actions { display: flex; align-items: center; gap: 6px; }
+        .bsf-savestate { font-size: 11px; color: var(--gold-dark); display: flex; align-items: center; gap: 5px; margin-right: 2px; }
+        .bsf-savestate::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #2F7A5C; flex-shrink: 0; }
+        @media (max-width: 520px) { .bsf-savestate { font-size: 0; gap: 0; } }
+        .bsf-topbar .bsf-settingsbtn { width: 34px; height: 34px; border-radius: 50%; background: var(--white); border: 0.5px solid var(--line); color: var(--teal); display: flex; align-items: center; justify-content: center; padding: 0; font-size: 11px; font-weight: 600; }
+        .bsf-topbar .bsf-settingsbtn:hover { background: var(--sand-deep); }
         .bsf-screen { padding: 16px 16px 90px; flex: 1; overflow-y: auto; }
 
         .bsf-welcome { position: relative; overflow: hidden; background: var(--teal); color: var(--white); border-radius: 18px; padding: 20px 22px; margin-bottom: 12px; box-shadow: var(--shadow-md); }
