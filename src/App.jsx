@@ -7045,6 +7045,22 @@ function BrightStepsHubInner() {
 
         .bsf-screen { padding: 16px 16px 90px; flex: 1; overflow-y: auto; }
 
+        .bsf-welcome { position: relative; overflow: hidden; background: var(--teal); color: var(--white); border-radius: 18px; padding: 20px 22px; margin-bottom: 12px; box-shadow: var(--shadow-md); }
+        .bsf-welcome-glow { position: absolute; right: -40px; top: -40px; width: 160px; height: 160px; border-radius: 50%; background: rgba(201, 162, 39, 0.18); }
+        .bsf-welcome-row { position: relative; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+        .bsf-welcome-date { margin: 0; font-size: 13px; color: #F0D9DD; text-transform: capitalize; }
+        .bsf-welcome-title { margin: 4px 0 0 !important; font-size: 26px; font-weight: 500; line-height: 1.2; color: var(--white); }
+        .bsf-welcome-fr { margin: 2px 0 0; font-size: 14px; color: #F0D9DD; }
+        .bsf-welcome-mission { margin: 6px 0 0; font-size: 13px; font-style: italic; color: #F0D9DD; }
+        .bsf-welcome-pill { background: rgba(255,255,255,0.14); border: 0.5px solid rgba(255,255,255,0.3); border-radius: 999px; padding: 4px 12px; font-size: 12px; white-space: nowrap; }
+        .bsf-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+        .bsf-tile { background: var(--white); border: 0.5px solid var(--line); border-radius: 14px; padding: 14px; box-shadow: var(--shadow-sm); }
+        .bsf-tile-label { margin: 0; font-size: 12px; color: var(--gold-dark); display: flex; align-items: center; gap: 5px; }
+        .bsf-tile-number { margin: 4px 0 0; font-family: 'Fraunces', serif; font-size: 26px; font-weight: 500; }
+        .bsf-tile-value { margin: 4px 0 0; font-size: 15px; font-weight: 500; }
+        .bsf-tile-sub { margin: 2px 0 0; font-size: 12px; color: var(--teal-light); }
+        .bsf-child-tile { display: flex; align-items: center; gap: 12px; }
+        .bsf-child-photo { width: 44px; height: 44px; border-radius: 50%; overflow: hidden; flex-shrink: 0; }
         .bsf-hero {
           padding: 20px 18px;
           margin-bottom: 14px;
