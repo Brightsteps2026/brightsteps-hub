@@ -840,7 +840,8 @@ const saveLunchMenu = async () => {
       {isParent && myStudents.length > 0 && <ReportAbsenceCard students={myStudents} />}
 
          {isParent && (() => {
-        const parentDocs = (data.resources || []).filter((d) => d.visibleToParents);
+        // Once this parent has signed a document, it leaves the Dashboard (it stays in Resources).
+        const parentDocs = (data.resources || []).filter((d) => d.visibleToParents && !(d.requiresSignature && (d.signatures || []).some((s) => s.parentId === profile?.id)));
         if (parentDocs.length === 0) return null;
         return (
           <section className="bsf-card">
