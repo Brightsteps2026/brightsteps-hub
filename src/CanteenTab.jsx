@@ -25,6 +25,13 @@ const T = {
   saved: { en: "Order received. Please pay at the school office to confirm it.", fr: "Commande reçue. Merci de régler au secrétariat pour la confirmer." },
   deadline: { en: "Day passes close at 18:00 the day before.", fr: "Les commandes à la journée ferment à 18h00 la veille." },
   loading: { en: "Loading…", fr: "Chargement…" },
+  whichChildren: { en: "Which children?", fr: "Quels enfants ?" },
+  alreadyCovered: { en: "Already covered", fr: "Déjà couvert" },
+  pickChild: { en: "Tick at least one child.", fr: "Cochez au moins un enfant." },
+  forChildren: { en: "for", fr: "pour" },
+  children: { en: "children", fr: "enfants" },
+  savedFor: { en: "Order received for", fr: "Commande reçue pour" },
+  payToConfirm: { en: "Please pay at the school office to confirm it.", fr: "Merci de régler au secrétariat pour la confirmer." },
   noChildren: { en: "No child is linked to your account yet. Please contact the school office.", fr: "Aucun enfant n'est encore lié à votre compte. Merci de contacter le secrétariat." }
 };
 
@@ -169,7 +176,7 @@ export default function CanteenTab({ profile }) {
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const [childId, setChildId] = useState(null);
+  const [picked, setPicked] = useState(null);
   const [passType, setPassType] = useState("day");
   const [choice, setChoice] = useState("");
 
@@ -199,10 +206,6 @@ export default function CanteenTab({ profile }) {
     setChoice(opts.length ? opts[0].value : "");
   }, [passType, locale]);
 
-  useEffect(() => {
-    if (!childId && students.length) setChildId(students[0].id);
-  }, [students, childId]);
-
   function overlapFor(studentId, start, end) {
     return passes.find(
       (x) => x.student_id === studentId && x.start_date <= end && x.end_date >= start
@@ -228,6 +231,24 @@ export default function CanteenTab({ profile }) {
     load();
   }
 
+  // Parents: one order for several children at once.
+  async function createPasses(studentIds, type, startISO) {
+    const { start, end } = rangeFor(type, startISO);
+    const todo = studentIds.filter((id) => !overlapFor(id, start, end));
+    if (studentIds.length === 0) { setStatus(tr("pickChild")); return; }
+    if (todo.length === 0) { setStatus(tr("covered")); return; }
+    setSaving(true);
+    setStatus("");
+    const { error: err } = await supabase.from("canteen_passes").insert(
+      todo.map((id) => ({ student_id: id, pass_type: type, start_date: start, end_date: end, amount: PRICES[type], paid: false }))
+    );
+    setSaving(false);
+    if (err) { setStatus(err.message); return; }
+    const names = students.filter((x) => todo.includes(x.id)).map((x) => x.full_name).join(", ");
+    setStatus(`${tr("savedFor")} ${names}. ${tr("payToConfirm")}`);
+    load();
+  }
+
   async function setPaid(id, value) {
     const { error: err } = await supabase.from("canteen_passes").update({ paid: value }).eq("id", id);
     if (err) { setStatus(err.message); return; }
@@ -247,8 +268,14 @@ export default function CanteenTab({ profile }) {
     if (students.length === 0) return <div style={card}>{tr("noChildren")}</div>;
 
     const options = upcomingOptions(passType, locale);
-    const child = students.find((s) => s.id === childId);
-    const myPasses = passes.filter((p) => p.student_id === childId);
+    const chosen = picked || students.map((s) => s.id);
+    const range = choice ? rangeFor(passType, choice) : null;
+    const coveredIds = range ? students.filter((s) => overlapFor(s.id, range.start, range.end)).map((s) => s.id) : [];
+    const toOrder = chosen.filter((id) => !coveredIds.includes(id));
+    const total = PRICES[passType] * toOrder.length;
+    const togglePick = (id) => setPicked(chosen.includes(id) ? chosen.filter((x) => x !== id) : [...chosen, id]);
+    const nameOf = (id) => (students.find((s) => s.id === id) || {}).full_name || "";
+    const myPasses = passes;
 
     return (
       <div style={{ padding: "16px 16px 90px" }}>
@@ -260,17 +287,26 @@ export default function CanteenTab({ profile }) {
           <p style={{ margin: 0, fontSize: 12, color: "#6E7B7D" }}>{tr("payAtOffice")}</p>
         </div>
 
-        {students.length > 1 && (
-          <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 14 }}>
-            {students.map((s) => (
-              <button key={s.id} onClick={() => setChildId(s.id)} style={childId === s.id ? chipOn : chip}>
-                {s.full_name}
-              </button>
-            ))}
-          </div>
-        )}
-
         <div style={card}>
+          {students.length > 1 && (
+            <>
+              <p style={{ fontSize: 13, color: "#6E7B7D", margin: "0 0 8px" }}>{tr("whichChildren")}</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
+                {students.map((s) => {
+                  const covered = coveredIds.includes(s.id);
+                  const on = !covered && chosen.includes(s.id);
+                  return (
+                    <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 10, fontSize: 14, cursor: covered ? "default" : "pointer", border: `1px solid ${on ? "#801524" : "#EAD7DA"}`, background: on ? "#F5E4E6" : "#fff", color: covered ? "#8A9698" : "inherit" }}>
+                      <input type="checkbox" checked={on} disabled={covered} onChange={() => togglePick(s.id)} />
+                      <span>{s.full_name}</span>
+                      <span style={{ marginLeft: "auto", fontSize: 12, color: "#6E7B7D" }}>{covered ? tr("alreadyCovered") : s.grade}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
           <div style={{ display: "flex", gap: 7, marginBottom: 14, flexWrap: "wrap" }}>
             {["day", "week", "month"].map((t) => (
               <button key={t} onClick={() => setPassType(t)} style={passType === t ? chipOn : chip}>
@@ -301,8 +337,10 @@ export default function CanteenTab({ profile }) {
                 </p>
               )}
 
-              <button style={primaryBtn} disabled={saving || !choice} onClick={() => createPass(childId, passType, choice, false)}>
-                {saving ? tr("ordering") : `${tr("order")} · ${money(PRICES[passType])} FCFA`}
+              <button style={primaryBtn} disabled={saving || !choice} onClick={() => createPasses(chosen, passType, choice)}>
+                {saving
+                  ? tr("ordering")
+                  : `${tr("order")}${toOrder.length > 1 ? ` ${tr("forChildren")} ${toOrder.length} ${tr("children")}` : ""} · ${money(total)} FCFA`}
               </button>
             </>
           )}
@@ -313,12 +351,13 @@ export default function CanteenTab({ profile }) {
 
         <div style={card}>
           <p style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 600 }}>
-            {tr("myOrders")}{child ? ` · ${child.full_name}` : ""}
+            {tr("myOrders")}
           </p>
           {myPasses.length === 0 && <p style={{ fontSize: 14, color: "#6E7B7D", margin: 0 }}>{tr("noOrders")}</p>}
           {myPasses.map((p) => (
             <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid #EAD7DA", fontSize: 14 }}>
               <span>
+                {students.length > 1 && <strong>{nameOf(p.student_id)} · </strong>}
                 {tr(p.pass_type)} · {p.start_date}
                 {p.end_date !== p.start_date ? ` → ${p.end_date}` : ""}
               </span>
