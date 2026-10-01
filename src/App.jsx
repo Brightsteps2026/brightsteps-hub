@@ -9,6 +9,7 @@ import { supabase } from "./lib/supabaseClient";
 import CanteenTab from "./CanteenTab";
 import IncidentsTab, { IncidentsIcon } from "./IncidentsTab";
 import LeaveTab, { LeaveIcon } from "./LeaveTab";
+import { ReportAbsenceCard, useReportedAbsences } from "./AbsenceReport";
 let GRADES = [
   "Pre-N", "PreK", "Kindergarten",
   "Grade 1", "Grade 2", "Grade 3", "Grade 4",
@@ -295,7 +296,7 @@ function attendanceCountsForRange(attendanceMap, studentId, startDate, endDate) 
     if (startDate && date < startDate) return;
     if (endDate && date > endDate) return;
     const status = day[studentId];
-    if (status) counts[status] += 1;
+    if (status) counts[status === "excused" ? "absent" : status] += 1;
   });
   return counts;
 }
@@ -1607,7 +1608,7 @@ function StudentMessages({ student, data, persist }) {
 function useUnreadNoticeCount(profile) {
   const [count, setCount] = useState(0);
   useEffect(() => {
-    if (!profile?.id || profile.role !== "parent") { setCount(0); return; }
+    if (!profile?.id) { setCount(0); return; }
     let cancelled = false;
     const load = async () => {
       const { count: n, error } = await supabase
@@ -1739,6 +1740,7 @@ function ParentStudentView({ data, persist, profile }) {
       </div>
 
             <AbsenceNotices profile={profile} />
+      <ReportAbsenceCard students={myStudents} />
       {myStudents.length > 1 && (
         <div className="bsf-card" style={{ display: "flex", gap: 10, overflowX: "auto", padding: 12 }}>
           {myStudents.map((s) => (
@@ -3423,8 +3425,8 @@ function UpdatesTab({ data, persist }) {
 }
 
 const STATUS_CYCLE = ["present", "absent", "late"];
-const STATUS_LABEL = { present: "Present", absent: "Absent", late: "Late" };
-const STATUS_COLOR = { present: "#2F7A5C", absent: "#B5473B", late: "#B8842F" };
+const STATUS_LABEL = { present: "Present", absent: "Absent", late: "Late", excused: "Excused" };
+const STATUS_COLOR = { present: "#2F7A5C", absent: "#B5473B", late: "#B8842F", excused: "#6B5BA6" };
 
 function AttendanceTab({ data, persist, profile }) {
   const [date, setDate] = useState(todayStr());
@@ -3442,6 +3444,7 @@ function AttendanceTab({ data, persist, profile }) {
   const [activeGrade, setActiveGrade] = useState((isSelfOnly || isStaffScoped) ? (myGrades[0] || null) : GRADES[0]);
 
   const dayRecord = data.attendance[date] || {};
+  const reportedReasons = useReportedAbsences(date);
   const gradeStudents = isSelfOnly
     ? data.students.filter((s) => linkedIds.includes(s.id) && s.grade === activeGrade)
     : data.students.filter((s) => s.grade === activeGrade);
@@ -3469,7 +3472,7 @@ function AttendanceTab({ data, persist, profile }) {
     const counts = { present: 0, absent: 0, late: 0, unmarked: 0 };
     gradeStudents.forEach((s) => {
       const st = dayRecord[s.id];
-      if (st) counts[st] += 1; else counts.unmarked += 1;
+      if (st) counts[st === "excused" ? "absent" : st] += 1; else counts.unmarked += 1;
     });
     return counts;
   }, [dayRecord, gradeStudents]);
@@ -3530,6 +3533,7 @@ function AttendanceTab({ data, persist, profile }) {
         </section>
       )}
 
+      {!isSelfOnly && <AbsenceNotices profile={profile} />}
       <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
         <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 16 }}>{activeGrade}</h2>
         {!isSelfOnly && <button className="bsf-btn" onClick={markAllPresent} disabled={gradeStudents.length === 0}>Mark all present</button>}
@@ -3569,7 +3573,7 @@ function AttendanceTab({ data, persist, profile }) {
                   color: status ? STATUS_COLOR[status] : "#8A9698"
                 }}
               >
-                {status ? STATUS_LABEL[status] : "Tap to mark"}
+                {status ? STATUS_LABEL[status] + (status === "excused" && reportedReasons[s.id] ? " · " + reportedReasons[s.id] : "") : "Tap to mark"}
               </span>
             </button>
           );
@@ -5035,7 +5039,7 @@ function ReportsTab({ data, persist, profile }) {
     Object.entries(data.attendance || {}).forEach(([date, day]) => {
       if (date >= start && date <= end) {
         const status = day[student.id];
-        if (status) attendanceSummary[status] += 1;
+        if (status) attendanceSummary[status === "excused" ? "absent" : status] += 1;
       }
     });
 
@@ -5063,7 +5067,7 @@ function ReportsTab({ data, persist, profile }) {
       Object.entries(data.attendance || {}).forEach(([date, day]) => {
         if (date >= start && date <= end) {
           const status = day[s.id];
-          if (status) counts[status] += 1;
+          if (status) counts[status === "excused" ? "absent" : status] += 1;
         }
       });
       return { studentId: s.id, studentName: s.name, ...counts };
@@ -7854,7 +7858,7 @@ function BrightStepsHubInner() {
             </button>
           )}
           {(!isStudent || isUpperStudent) && (
-            <button className="bsf-iconbtn bsf-settingsbtn" onClick={() => setTab(isStudent ? "messages" : "students")} aria-label="Messages" title="Messages" style={{ position: "relative" }}>
+            <button className="bsf-iconbtn bsf-settingsbtn" onClick={() => setTab(isStudent ? "messages" : (profile?.role !== "parent" && unreadNoticeCount > 0 ? "attendance" : "students"))} aria-label="Messages" title="Messages" style={{ position: "relative" }}>
               <Bell size={18} />
               {unreadCount > 0 && (
                 <span
