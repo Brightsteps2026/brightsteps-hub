@@ -837,6 +837,8 @@ const saveLunchMenu = async () => {
         );
       })()}
 
+      {isParent && myStudents.length > 0 && <ReportAbsenceCard students={myStudents} />}
+
          {isParent && (() => {
         const parentDocs = (data.resources || []).filter((d) => d.visibleToParents);
         if (parentDocs.length === 0) return null;
@@ -1740,7 +1742,6 @@ function ParentStudentView({ data, persist, profile }) {
       </div>
 
             <AbsenceNotices profile={profile} />
-      <ReportAbsenceCard students={myStudents} />
       {myStudents.length > 1 && (
         <div className="bsf-card" style={{ display: "flex", gap: 10, overflowX: "auto", padding: 12 }}>
           {myStudents.map((s) => (
