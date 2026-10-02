@@ -7104,7 +7104,7 @@ function BrightStepsHubInner() {
   const BILLING_ALLOWED_ROLES = ["admin", "accountant", "viewer"];
   // A learning assistant supports specific grades day to day; they don't need
   // enrollment, staffing, or school-wide admin tools, just the classroom-facing ones.
-  const LEARNING_ASSISTANT_ALLOWED_TABS = ["leave", "dashboard", "attendance", "portfolio", "assessment", "classes", "calendar", "assignments", "updates", "resources"];
+  const LEARNING_ASSISTANT_ALLOWED_TABS = ["leave", "gradebook", "dashboard", "attendance", "portfolio", "assessment", "classes", "calendar", "assignments", "updates", "resources"];
   // An accountant only ever needs billing, nothing about students' academic
   // records, behavior, or staff information.
   const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "billing", "leave"];
