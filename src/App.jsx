@@ -7939,7 +7939,8 @@ function BrightStepsHubInner() {
         </div>
       )}
       {tab === "assessment" && <AssessmentTab data={data} persist={persist} profile={profile} />}
-      {tab === "gradebook" && ((!isParent && !isLearningAssistant && !isStudent) || (isStudent && isUpperStudent)) && <GradebookTab data={data} persist={persist} profile={profile} onNavigate={goTo} />}
+      {tab === "gradebook" && !isParent && !isStudent && <SchoolGradebook profile={profile} />}
+      {tab === "gradebook" && isStudent && isUpperStudent && <GradebookTab data={data} persist={persist} profile={profile} onNavigate={goTo} />}
       {tab === "planning" && !isParent && !isLearningAssistant && <PlanningTab data={data} persist={persist} />}
       {tab === "calendar" && <CalendarTab data={data} persist={persist} profile={profile} />}
       {tab === "canteen" && <CanteenTab profile={profile} />}
