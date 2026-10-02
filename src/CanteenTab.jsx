@@ -32,6 +32,12 @@ const T = {
   children: { en: "children", fr: "enfants" },
   savedFor: { en: "Order received for", fr: "Commande reçue pour" },
   payToConfirm: { en: "Please pay at the school office to confirm it.", fr: "Merci de régler au secrétariat pour la confirmer." },
+  lunchThisMonth: { en: "Lunch this month", fr: "Cantine ce mois-ci" },
+  lunchPaidFor: { en: "Lunch paid for all of", fr: "Cantine payée pour tout le mois de" },
+  lunchAwaitingFor: { en: "Ordered for all of", fr: "Commandée pour tout le mois de" },
+  lunchAwaitingPay: { en: "please pay at the school office", fr: "merci de régler au secrétariat" },
+  lunchDaysBooked: { en: "lunch days booked in", fr: "jours de cantine réservés en" },
+  lunchNone: { en: "No lunch booked for", fr: "Aucune cantine réservée pour" },
   noChildren: { en: "No child is linked to your account yet. Please contact the school office.", fr: "Aucun enfant n'est encore lié à votre compte. Merci de contacter le secrétariat." }
 };
 
@@ -279,6 +285,8 @@ export default function CanteenTab({ profile }) {
 
     return (
       <div style={{ padding: "16px 16px 90px" }}>
+        <ParentLunchStatus students={students} passes={passes} tr={tr} locale={locale} />
+
         <div style={card}>
           <p style={{ margin: 0, fontSize: 13, color: "#6E7B7D" }}>{tr("balance")}</p>
           <p style={{ margin: "2px 0 6px", fontSize: 24, fontWeight: 600 }}>
@@ -358,8 +366,9 @@ export default function CanteenTab({ profile }) {
             <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid #EAD7DA", fontSize: 14 }}>
               <span>
                 {students.length > 1 && <strong>{nameOf(p.student_id)} · </strong>}
-                {tr(p.pass_type)} · {p.start_date}
-                {p.end_date !== p.start_date ? ` → ${p.end_date}` : ""}
+                {p.pass_type === "month"
+                  ? `${tr("month")} · ${parseISO(p.start_date).toLocaleDateString(locale, { month: "long", year: "numeric" })}`
+                  : `${tr(p.pass_type)} · ${p.start_date}${p.end_date !== p.start_date ? ` → ${p.end_date}` : ""}`}
               </span>
               <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", padding: "4px 10px", borderRadius: 100, background: p.paid ? "#E6F2EC" : "#FCE8E8", color: p.paid ? "#2F7A5C" : "#B23A3A" }}>
                 {p.paid ? tr("paid") : tr("awaiting")}
@@ -431,6 +440,8 @@ export default function CanteenTab({ profile }) {
           })}
         </div>
       )}
+
+      {canEdit && <PassesList passes={passes} students={students} />}
 
       {canEdit && (
         <div style={card}>
@@ -506,6 +517,120 @@ export default function CanteenTab({ profile }) {
             </>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+             
+
+// Staff: every pass that falls in the chosen month, paid or not.
+function PassesList({ passes, students }) {
+  const [monthStart, setMonthStart] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  const [kind, setKind] = useState("all");
+
+  const first = toISO(monthStart);
+  const last = toISO(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0));
+  const nameOf = (id) => students.find((s) => s.id === id)?.full_name || "—";
+  const gradeOf = (id) => students.find((s) => s.id === id)?.grade || "";
+
+  const list = passes
+    .filter((p) => p.start_date <= last && p.end_date >= first)
+    .filter((p) => kind === "all" || p.pass_type === kind)
+    .sort((a, b) => nameOf(a.student_id).localeCompare(nameOf(b.student_id)) || a.start_date.localeCompare(b.start_date));
+
+  const label = monthStart.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const move = (n) => setMonthStart(new Date(monthStart.getFullYear(), monthStart.getMonth() + n, 1));
+  const kindLabel = { day: "Day", week: "Week", month: "Month" };
+
+  return (
+    <div style={card}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Passes · {label} ({list.length})</p>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={() => move(-1)} style={chip} aria-label="Previous month">‹</button>
+          <button onClick={() => move(1)} style={chip} aria-label="Next month">›</button>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 7, marginBottom: 10, flexWrap: "wrap" }}>
+        {["all", "day", "week", "month"].map((k) => (
+          <button key={k} onClick={() => setKind(k)} style={kind === k ? chipOn : chip}>
+            {k === "all" ? "All" : kindLabel[k]}
+          </button>
+        ))}
+      </div>
+
+      {list.length === 0 && <p style={{ margin: 0, fontSize: 14, color: "#6E7B7D" }}>No passes for this month.</p>}
+      {list.map((p) => (
+        <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid #EAD7DA", fontSize: 14 }}>
+          <span>
+            <strong>{nameOf(p.student_id)}</strong>
+            <span style={{ color: "#6E7B7D" }}> · {gradeOf(p.student_id)} · {kindLabel[p.pass_type] || p.pass_type} · {p.start_date} → {p.end_date} · {money(p.amount)}</span>
+          </span>
+          <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 8, whiteSpace: "nowrap", background: p.paid ? "#E3F1EA" : "#FBE9E9", color: p.paid ? "#2F7A5C" : "#B23A3A" }}>
+            {p.paid ? "Paid" : "Unpaid"}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Parents: a clear line per child saying whether lunch is covered this month.
+function ParentLunchStatus({ students, passes, tr, locale }) {
+  const now = new Date();
+  const first = toISO(new Date(now.getFullYear(), now.getMonth(), 1));
+  const last = toISO(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+  const monthName = now.toLocaleDateString(locale, { month: "long" });
+
+  function schoolDays(p) {
+    let n = 0;
+    const d = parseISO(p.start_date < first ? first : p.start_date);
+    const end = p.end_date > last ? last : p.end_date;
+    while (toISO(d) <= end) {
+      const dow = d.getDay();
+      if (dow !== 0 && dow !== 6) n++;
+      d.setDate(d.getDate() + 1);
+    }
+    return n;
+  }
+
+  return (
+    <div style={card}>
+      <p style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 600 }}>{tr("lunchThisMonth")}</p>
+      {students.map((s) => {
+        const mine = passes.filter((p) => p.student_id === s.id && p.start_date <= last && p.end_date >= first);
+        const monthPass = mine.find((p) => p.pass_type === "month");
+        let text, ok;
+        if (monthPass && monthPass.paid) {
+          ok = true; text = `${tr("lunchPaidFor")} ${monthName}`;
+        } else if (monthPass) {
+          ok = false; text = `${tr("lunchAwaitingFor")} ${monthName} · ${tr("lunchAwaitingPay")}`;
+        } else if (mine.length > 0) {
+          const days = mine.reduce((sum, p) => sum + schoolDays(p), 0);
+          ok = mine.every((p) => p.paid);
+          text = `${days} ${tr("lunchDaysBooked")} ${monthName}` + (ok ? "" : ` · ${tr("lunchAwaitingPay")}`);
+        } else {
+          ok = null; text = `${tr("lunchNone")} ${monthName}`;
+        }
+        const colour = ok === true ? "#2F7A5C" : ok === false ? "#B23A3A" : "#6E7B7D";
+        const bg = ok === true ? "#E6F2EC" : ok === false ? "#FCE8E8" : "#F4EFEF";
+        return (
+          <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "9px 0", borderTop: "1px solid #EAD7DA", fontSize: 14 }}>
+            <strong>{s.full_name}</strong>
+            <span style={{ fontSize: 13, padding: "4px 10px", borderRadius: 100, background: bg, color: colour, textAlign: "right" }}>
+              {ok === true ? "✓ " : ""}{text}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
       )}
     </div>
   );
