@@ -1065,6 +1065,12 @@ const saveLunchMenu = async () => {
                 <div>
                   <strong>{showFrench ? a.titleFr : a.titleEn}</strong>
                   <p>{showFrench ? a.bodyFr : a.bodyEn}</p>
+                  {(() => {
+                    const postFiles = language === "fr" && (a.filesFr || []).length > 0 ? a.filesFr : (a.files || []).length > 0 ? a.files : a.filesFr || [];
+                    return postFiles.length > 0 && (
+                      <AttachmentField folder="resources" files={postFiles} onChange={() => {}} readOnly />
+                    );
+                  })()}
                 </div>
               </div>
             );
@@ -3245,7 +3251,7 @@ function UpdatesTab({ data, persist }) {
   const myChildGrades = isParent ? [...new Set(data.students.filter((s) => linkedIds.includes(s.id)).map((s) => s.grade))] : [];
 
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ titleEn: "", bodyEn: "", titleFr: "", bodyFr: "", grades: [] });
+  const [form, setForm] = useState({ titleEn: "", bodyEn: "", titleFr: "", bodyFr: "", grades: [], files: [], filesFr: [] });
   const [formError, setFormError] = useState("");
   const [translatingId, setTranslatingId] = useState(null);
   const [translateForm, setTranslateForm] = useState({ titleFr: "", bodyFr: "" });
@@ -3270,10 +3276,15 @@ function UpdatesTab({ data, persist }) {
     }
     const post = { id: uid(), ...form, date: new Date().toISOString().slice(0, 10) };
     persist({ ...data, announcements: [...data.announcements, post] });
-    setForm({ titleEn: "", bodyEn: "", titleFr: "", bodyFr: "", grades: [] });
+    setForm({ titleEn: "", bodyEn: "", titleFr: "", bodyFr: "", grades: [], files: [], filesFr: [] });
     setFormError("");
     setShowAdd(false);
   };
+
+  const setPostFiles = (id, key, files) => persist({
+    ...data,
+    announcements: data.announcements.map((a) => (a.id === id ? { ...a, [key]: files } : a))
+  });
 
   const removePost = (id) => persist({ ...data, announcements: data.announcements.filter((a) => a.id !== id) });
 
@@ -3309,7 +3320,7 @@ function UpdatesTab({ data, persist }) {
 
       <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
         <span />
-        {!isParent && <button className="bsf-btn" onClick={() => { setFormError(""); setForm({ titleEn: "", bodyEn: "", titleFr: "", bodyFr: "", grades: isTeacherRole ? [] : [] }); setShowAdd(true); }}><Plus size={16} /> Post</button>}
+        {!isParent && <button className="bsf-btn" onClick={() => { setFormError(""); setForm({ titleEn: "", bodyEn: "", titleFr: "", bodyFr: "", grades: [], files: [], filesFr: [] }); setShowAdd(true); }}><Plus size={16} /> Post</button>}
       </div>
 
       <section className="bsf-list">
@@ -3323,6 +3334,12 @@ function UpdatesTab({ data, persist }) {
                   <span className="bsf-muted">{a.date}</span>
                   <strong>{showFrench ? a.titleFr : a.titleEn}</strong>
                   <p>{showFrench ? a.bodyFr : a.bodyEn}</p>
+                  {(() => {
+                    const postFiles = language === "fr" && (a.filesFr || []).length > 0 ? a.filesFr : (a.files || []).length > 0 ? a.files : a.filesFr || [];
+                    return postFiles.length > 0 && (
+                      <AttachmentField folder="resources" files={postFiles} onChange={() => {}} readOnly />
+                    );
+                  })()}
                 </div>
               </div>
             );
@@ -3336,6 +3353,14 @@ function UpdatesTab({ data, persist }) {
                 </div>
                 <strong>{a.titleEn}</strong>
                 <p>{a.bodyEn}</p>
+                <div style={{ marginTop: 6 }}>
+                  <p className="bsf-muted" style={{ marginBottom: 2 }}>File (English)</p>
+                  <AttachmentField folder="resources" files={a.files || []} onChange={(files) => setPostFiles(a.id, "files", files)} />
+                </div>
+                <div style={{ marginTop: 6 }}>
+                  <p className="bsf-muted" style={{ marginBottom: 2 }}>File (Français)</p>
+                  <AttachmentField folder="resources" files={a.filesFr || []} onChange={(filesFr) => setPostFiles(a.id, "filesFr", filesFr)} />
+                </div>
                 {a.titleFr && (
                   <div className="bsf-fr-block">
                     <strong>{a.titleFr}</strong>
@@ -3399,6 +3424,12 @@ function UpdatesTab({ data, persist }) {
           </Field>
           <Field label="Message (English)">
             <textarea rows={3} value={form.bodyEn} onChange={(e) => setForm({ ...form, bodyEn: e.target.value })} />
+          </Field>
+          <Field label="File, e.g. newsletter (English, optional)">
+            <AttachmentField folder="resources" files={form.files} onChange={(files) => setForm({ ...form, files })} />
+          </Field>
+          <Field label="File (Français, optional)">
+            <AttachmentField folder="resources" files={form.filesFr} onChange={(filesFr) => setForm({ ...form, filesFr })} />
           </Field>
           <p className="bsf-muted" style={{ marginBottom: 12 }}>
             You can add the French translation afterward, once it's ready, from the post itself.
