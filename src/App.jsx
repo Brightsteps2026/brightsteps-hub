@@ -9,6 +9,7 @@ import { supabase } from "./lib/supabaseClient";
 import CanteenTab from "./CanteenTab";
 import IncidentsTab, { IncidentsIcon } from "./IncidentsTab";
 import LeaveTab, { LeaveIcon } from "./LeaveTab";
+import SchoolGradebook from "./SchoolGradebook";
 import { ReportAbsenceCard, useReportedAbsences } from "./AbsenceReport";
 let GRADES = [
   "Pre-N", "PreK", "Kindergarten",
