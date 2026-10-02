@@ -630,8 +630,3 @@ function ParentLunchStatus({ students, passes, tr, locale }) {
     </div>
   );
 }
-
-         })}
-    </div>
-  );
-}
