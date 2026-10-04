@@ -89,8 +89,21 @@ const ADMISSION_STAGE_COLOR = {
 const ADMISSION_SOURCES = ["Real Estate Partner", "WhatsApp Referral", "Flyer", "Walk-in", "Website", "Other"];
 
 const BEHAVIOR_TYPES = ["Positive", "Concern"];
-const BEHAVIOR_CATEGORIES_POSITIVE = ["Kindness", "Leadership", "Responsibility", "Effort", "Collaboration", "Other"];
-const BEHAVIOR_CATEGORIES_CONCERN = ["Disruption", "Conflict with a peer", "Not following instructions", "Safety concern", "Property damage", "Other"];
+// School values used to label behaviour notes (both positive notes and concerns).
+const SCHOOL_VALUES = ["Respect", "Responsibility", "Safety", "Honesty", "Kindness", "Other"];
+const BEHAVIOR_CATEGORIES_POSITIVE = SCHOOL_VALUES;
+const BEHAVIOR_CATEGORIES_CONCERN = SCHOOL_VALUES;
+
+// Grades whose students' behaviour notes this person may see and add.
+// Admin: every grade. Teacher: their grades, minus grades where they are only the assistant.
+// Everyone else (learning assistants, parents, students, accountant): none.
+function behaviorGradesFor(profile) {
+  if (!profile) return [];
+  if (profile.role === "admin") return GRADES;
+  if (profile.role !== "teacher") return [];
+  const assisting = Array.isArray(profile.assistant_grades) ? profile.assistant_grades : [];
+  return (Array.isArray(profile.grades_assigned) ? profile.grades_assigned : []).filter((g) => !assisting.includes(g));
+}
 
 const LETTER_GRADES = ["A+", "A", "B+", "B", "C+", "C", "D"];
 const LETTER_GRADE_MEANING = {
@@ -1640,13 +1653,16 @@ function AbsenceNotices({ profile }) {
   const [notices, setNotices] = useState([]);
   useEffect(() => {
     if (!profile?.id) return;
-    supabase
+    const load = () => supabase
       .from("notifications")
       .select("id, title, title_fr, body, body_fr, created_at")
       .eq("user_id", profile.id)
       .is("read_at", null)
       .order("created_at", { ascending: false })
       .then(({ data: rows, error }) => { if (!error) setNotices(rows || []); });
+    load();
+    window.addEventListener("bs-notices-changed", load);
+    return () => window.removeEventListener("bs-notices-changed", load);
   }, [profile?.id]);
 
   const markRead = async (id) => {
@@ -1672,6 +1688,144 @@ function AbsenceNotices({ profile }) {
     </div>
   );
 }
+// The bell in the top bar: opens a small panel with unread notices and a link to unread messages.
+function NotificationBell({ profile, unreadMessageCount, unreadNoticeCount, onOpenMessages, onOpenNotice }) {
+  const { language } = useLanguage();
+  const fr = language === "fr";
+  const [open, setOpen] = useState(false);
+  const [notices, setNotices] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const total = unreadMessageCount + unreadNoticeCount;
+
+  const load = async () => {
+    if (!profile?.id) return;
+    setLoading(true);
+    const { data: rows, error } = await supabase
+      .from("notifications")
+      .select("id, title, title_fr, body, body_fr, created_at")
+      .eq("user_id", profile.id)
+      .is("read_at", null)
+      .order("created_at", { ascending: false })
+      .limit(30);
+    if (!error) setNotices(rows || []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    load();
+    const onChange = () => load();
+    window.addEventListener("bs-notices-changed", onChange);
+    return () => window.removeEventListener("bs-notices-changed", onChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, profile?.id]);
+
+  const markRead = async (ids) => {
+    if (ids.length === 0) return;
+    setNotices((list) => list.filter((n) => !ids.includes(n.id)));
+    const { error } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).in("id", ids);
+    if (error) console.error("Could not mark notices as read", error);
+    window.dispatchEvent(new Event("bs-notices-changed"));
+  };
+
+  const when = (ts) => {
+    const d = new Date(ts);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString(fr ? "fr-FR" : "en-GB", { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleDateString(fr ? "fr-FR" : "en-GB", { day: "numeric", month: "short" });
+  };
+
+  const smallBtn = { fontSize: 12, padding: "4px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "#fff", cursor: "pointer", fontFamily: "inherit", color: "var(--ink)" };
+
+  return (
+    <span style={{ position: "relative", display: "inline-flex" }}>
+      <button
+        className="bsf-iconbtn bsf-settingsbtn"
+        onClick={() => setOpen((o) => !o)}
+        aria-label={fr ? "Notifications" : "Notifications"}
+        aria-expanded={open}
+        title="Notifications"
+        style={{ position: "relative" }}
+      >
+        <Bell size={18} />
+        {total > 0 && (
+          <span
+            style={{
+              position: "absolute", top: -2, right: -2, background: "#801524", color: "#fff",
+              borderRadius: "50%", fontSize: 10, lineHeight: "16px", minWidth: 16, height: 16,
+              textAlign: "center", padding: "0 3px", fontWeight: 600
+            }}
+          >
+            {total > 9 ? "9+" : total}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90 }} />
+          <div
+            role="dialog"
+            aria-label="Notifications"
+            style={{
+              position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 91,
+              width: "min(360px, calc(100vw - 24px))", maxHeight: "70vh", overflowY: "auto",
+              background: "#fff", border: "1px solid var(--line)", borderRadius: 14,
+              boxShadow: "0 8px 24px rgba(36,16,18,0.14)", padding: "12px 14px", textAlign: "left"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <strong style={{ fontSize: 15, color: "var(--ink)" }}>Notifications</strong>
+              {notices.length > 0 && (
+                <button onClick={() => markRead(notices.map((n) => n.id))} style={{ background: "none", border: "none", color: "#801524", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                  {fr ? "Tout marquer comme lu" : "Mark all as read"}
+                </button>
+              )}
+            </div>
+
+            {onOpenMessages && unreadMessageCount > 0 && (
+              <button
+                onClick={() => { setOpen(false); onOpenMessages(); }}
+                style={{ display: "flex", width: "100%", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, border: "none", background: "#F5E4E6", color: "#801524", cursor: "pointer", fontFamily: "inherit", fontSize: 14, marginBottom: 6, textAlign: "left" }}
+              >
+                <Send size={16} />
+                <span style={{ flex: 1 }}>
+                  {fr
+                    ? `${unreadMessageCount} message${unreadMessageCount > 1 ? "s" : ""} non lu${unreadMessageCount > 1 ? "s" : ""}`
+                    : `${unreadMessageCount} unread message${unreadMessageCount > 1 ? "s" : ""}`}
+                </span>
+                <span style={{ fontSize: 13 }}>{fr ? "Ouvrir" : "Open"} →</span>
+              </button>
+            )}
+
+            {loading && notices.length === 0 && <p className="bsf-muted" style={{ margin: "8px 0" }}>{fr ? "Chargement…" : "Loading…"}</p>}
+
+            {!loading && notices.length === 0 && !(onOpenMessages && unreadMessageCount > 0) && (
+              <p className="bsf-muted" style={{ margin: "8px 0" }}>{fr ? "Rien de nouveau." : "You're all caught up."}</p>
+            )}
+
+            {notices.map((n) => (
+              <div key={n.id} style={{ borderTop: "1px solid var(--line)", padding: "10px 0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <strong style={{ fontSize: 14, color: "var(--ink)" }}>{fr && n.title_fr ? n.title_fr : n.title}</strong>
+                  <span className="bsf-muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>{when(n.created_at)}</span>
+                </div>
+                <p style={{ margin: "3px 0 8px", fontSize: 13, lineHeight: 1.5, color: "var(--ink)" }}>{fr && n.body_fr ? n.body_fr : n.body}</p>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button style={smallBtn} onClick={() => markRead([n.id])}>{fr ? "Marquer comme lu" : "Mark as read"}</button>
+                  {onOpenNotice && (
+                    <button style={smallBtn} onClick={() => { setOpen(false); onOpenNotice(); }}>{onOpenNotice.label}</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </span>
+  );
+}
+
 function ParentStudentView({ data, persist, profile }) {
   const linkedIds = profile?.student_ids || [];
   const myStudents = data.students.filter((s) => linkedIds.includes(s.id));
@@ -2045,6 +2199,9 @@ function StudentsTab({ data, persist, profile }) {
   const familyViewStudent = visibleStudents.find((s) => s.id === familyViewId);
   const [messagingId, setMessagingId] = useState(null);
   const messagingStudent = visibleStudents.find((s) => s.id === messagingId);
+  const myBehaviorGrades = behaviorGradesFor(profile);
+  const [behaviorId, setBehaviorId] = useState(null);
+  const behaviorStudent = visibleStudents.find((s) => s.id === behaviorId && myBehaviorGrades.includes(s.grade));
 
   const openAdd = () => {
     setEditingId(null);
@@ -2113,6 +2270,9 @@ function StudentsTab({ data, persist, profile }) {
       </div>
       <div className="bsf-student-actions">
         <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); setFamilyViewId(s.id); }} aria-label="Family view"><UserCheck size={16} /></button>
+        {myBehaviorGrades.includes(s.grade) && (
+          <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); setBehaviorId(s.id); }} aria-label="Behaviour" title="Behaviour"><Flag size={16} /></button>
+        )}
         {canEditStudents && <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeStudent(s.id); }} aria-label="Remove"><Trash2 size={16} /></button>}
       </div>
     </div>
@@ -2295,6 +2455,12 @@ function StudentsTab({ data, persist, profile }) {
       {messagingStudent && (
         <Modal title={messagingStudent.name} onClose={() => setMessagingId(null)}>
           <StudentMessages student={messagingStudent} data={data} persist={persist} />
+        </Modal>
+      )}
+
+      {behaviorStudent && (
+        <Modal title={`${behaviorStudent.name} · Behaviour`} onClose={() => setBehaviorId(null)}>
+          <StudentBehavior student={behaviorStudent} data={data} persist={persist} profile={profile} />
         </Modal>
       )}
 
@@ -3848,7 +4014,7 @@ function AssessmentTab({ data, persist, profile }) {
   };
 
   const addAssessment = () => {
-    const student = data.students.find((s) => s.id === form.studentId);
+    const student = myStudents.find((s) => s.id === form.studentId);
     if (!student) {
       setFormError("Please choose a student before saving.");
       return;
@@ -5382,7 +5548,9 @@ function ReportsTab({ data, persist, profile }) {
 
 const emptyBehaviorForm = { studentId: "", type: BEHAVIOR_TYPES[0], category: BEHAVIOR_CATEGORIES_POSITIVE[0], description: "", actionTaken: "", reportedBy: "" };
 
-function BehaviorTab({ data, persist }) {
+function BehaviorTab({ data, persist, profile }) {
+  const myBehaviorGrades = behaviorGradesFor(profile);
+  const myStudents = data.students.filter((s) => myBehaviorGrades.includes(s.grade));
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [gradeFilter, setGradeFilter] = useState(null);
@@ -5413,7 +5581,7 @@ function BehaviorTab({ data, persist }) {
   };
 
   const saveIncident = () => {
-    const student = data.students.find((s) => s.id === form.studentId);
+    const student = myStudents.find((s) => s.id === form.studentId);
     if (!student) {
       setFormError("Please choose a student before saving.");
       return;
@@ -5426,7 +5594,7 @@ function BehaviorTab({ data, persist }) {
     if (editingId) {
       persist({ ...data, behaviorIncidents: (data.behaviorIncidents || []).map((i) => (i.id === editingId ? { ...i, ...record } : i)) });
     } else {
-      persist({ ...data, behaviorIncidents: [...(data.behaviorIncidents || []), { id: uid(), date: todayStr(), ...record }] });
+      persist({ ...data, behaviorIncidents: [...(data.behaviorIncidents || []), { id: uid(), date: todayStr(), reportedById: profile?.id || "", ...record, reportedBy: record.reportedBy || profile?.full_name || "" }] });
       setGradeFilter(null);
     }
     setForm(emptyBehaviorForm);
@@ -5495,7 +5663,7 @@ function BehaviorTab({ data, persist }) {
           <Field label="Student">
             <select value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value })}>
               <option value="">Choose a student</option>
-              {data.students.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
+              {myStudents.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>)}
             </select>
           </Field>
           <Field label="Type">
@@ -5524,6 +5692,148 @@ function BehaviorTab({ data, persist }) {
           <button className="bsf-btn bsf-btn-block" onClick={saveIncident}>{editingId ? "Save changes" : "Save note"}</button>
           {formError && <p className="bsf-formerror">{formError}</p>}
         </Modal>
+      )}
+    </div>
+  );
+}
+
+// Behaviour notes for one student, shown from the student's card on the Students screen.
+// Staff only: admin and the student's teachers. Parents and learning assistants never see this.
+function StudentBehavior({ student, data, persist, profile }) {
+  const [form, setForm] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [formError, setFormError] = useState("");
+  const isAdmin = profile?.role === "admin";
+  const myName = profile?.full_name || profile?.email || "";
+
+  const notes = (data.behaviorIncidents || [])
+    .filter((i) => i.studentId === student.id)
+    .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+  const today = todayStr();
+  const terms = (data.settings && data.settings.terms) || [];
+  const currentTerm = terms.find((t) => t.startDate && t.endDate && t.startDate <= today && today <= t.endDate);
+  const inTerm = currentTerm ? notes.filter((i) => i.date >= currentTerm.startDate && i.date <= currentTerm.endDate) : notes;
+  const positives = inTerm.filter((i) => i.type === "Positive").length;
+  const concerns = inTerm.filter((i) => i.type === "Concern").length;
+
+  const canChange = (i) => isAdmin || (i.reportedById && i.reportedById === profile?.id);
+
+  const openAdd = () => {
+    setEditingId(null);
+    setForm({ type: "Concern", category: SCHOOL_VALUES[0], description: "", actionTaken: "" });
+    setFormError("");
+  };
+
+  const openEdit = (i) => {
+    if (!canChange(i)) return;
+    setEditingId(i.id);
+    setForm({ type: i.type, category: i.category, description: i.description || "", actionTaken: i.actionTaken || "" });
+    setFormError("");
+  };
+
+  const save = () => {
+    if (!form.description.trim()) {
+      setFormError("Describe what happened before saving.");
+      return;
+    }
+    const record = { ...form, description: form.description.trim(), actionTaken: form.actionTaken.trim(), studentId: student.id, studentName: student.name, grade: student.grade };
+    const list = data.behaviorIncidents || [];
+    if (editingId) {
+      persist({ ...data, behaviorIncidents: list.map((i) => (i.id === editingId ? { ...i, ...record } : i)) });
+    } else {
+      persist({ ...data, behaviorIncidents: [...list, { id: uid(), date: todayStr(), reportedBy: myName, reportedById: profile?.id || "", ...record }] });
+    }
+    setForm(null);
+    setEditingId(null);
+  };
+
+  const remove = () => {
+    if (!window.confirm("Delete this behaviour note? This cannot be undone.")) return;
+    persist({ ...data, behaviorIncidents: (data.behaviorIncidents || []).filter((i) => i.id !== editingId) });
+    setForm(null);
+    setEditingId(null);
+  };
+
+  return (
+    <div>
+      <p className="bsf-muted" style={{ margin: "0 0 12px" }}>Staff only. Parents and learning assistants can't see these notes.</p>
+
+      {!form && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, marginBottom: 12 }}>
+            <div className="bsf-card" style={{ margin: 0 }}>
+              <p className="bsf-muted" style={{ margin: 0 }}>Positive{currentTerm ? ` · ${currentTerm.name}` : ""}</p>
+              <strong style={{ fontSize: 22 }}>{positives}</strong>
+            </div>
+            <div className="bsf-card" style={{ margin: 0 }}>
+              <p className="bsf-muted" style={{ margin: 0 }}>Concerns{currentTerm ? ` · ${currentTerm.name}` : ""}</p>
+              <strong style={{ fontSize: 22 }}>{concerns}</strong>
+            </div>
+          </div>
+          <button className="bsf-btn bsf-btn-block" onClick={openAdd}><Plus size={16} /> Add note</button>
+
+          <div style={{ marginTop: 12 }}>
+            {notes.length === 0 && <p className="bsf-empty">No behaviour notes for {student.name} yet.</p>}
+            {notes.map((i) => (
+              <div
+                key={i.id}
+                className={`bsf-row ${canChange(i) ? "bsf-clickable" : ""}`}
+                onClick={() => openEdit(i)}
+                style={{ display: "block", borderTop: "1px solid var(--line)", padding: "10px 0" }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                  <span
+                    className="bsf-status-pill"
+                    style={{ background: i.type === "Positive" ? "#E7F0EA" : "#FBEAE8", color: i.type === "Positive" ? "#2F7A5C" : "#B5473B" }}
+                  >
+                    {i.type} · {i.category}
+                  </span>
+                  <span className="bsf-muted">{i.date}</span>
+                </div>
+                <p style={{ margin: "6px 0 2px" }}>{i.description}</p>
+                <p className="bsf-muted" style={{ margin: 0 }}>
+                  {i.actionTaken ? `Action: ${i.actionTaken}` : ""}
+                  {i.actionTaken && i.reportedBy ? " · " : ""}
+                  {i.reportedBy || ""}
+                </p>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {form && (
+        <div>
+          <h3 style={{ margin: "0 0 8px" }}>{editingId ? "Edit behaviour note" : "New behaviour note"}</h3>
+          <Field label="Type">
+            <div className="bsf-chiprow">
+              {["Concern", "Positive"].map((t) => (
+                <button key={t} type="button" className={`bsf-chip ${form.type === t ? "active" : ""}`} onClick={() => setForm({ ...form, type: t })}>{t}</button>
+              ))}
+            </div>
+          </Field>
+          <Field label="Which school value">
+            <div className="bsf-chiprow">
+              {SCHOOL_VALUES.map((c) => (
+                <button key={c} type="button" className={`bsf-chip ${form.category === c ? "active" : ""}`} onClick={() => setForm({ ...form, category: c })}>{c}</button>
+              ))}
+            </div>
+          </Field>
+          <Field label="What happened">
+            <textarea rows={3} value={form.description} onChange={(e) => { setForm({ ...form, description: e.target.value }); setFormError(""); }} placeholder="Describe what you saw. Don't name other children." />
+          </Field>
+          <Field label="Action taken (optional)">
+            <textarea rows={2} value={form.actionTaken} onChange={(e) => setForm({ ...form, actionTaken: e.target.value })} placeholder="Talked with the student" />
+          </Field>
+          <p className="bsf-muted">An injury or a safeguarding worry? Use Incidents, or tell Patrick privately.</p>
+          <button className="bsf-btn bsf-btn-block" onClick={save}>{editingId ? "Save changes" : "Save note"}</button>
+          {formError && <p className="bsf-formerror">{formError}</p>}
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button className="bsf-btn-ghost" onClick={() => { setForm(null); setEditingId(null); }}>Cancel</button>
+            {editingId && <button className="bsf-btn-ghost" style={{ marginLeft: "auto", color: "#A32D2D" }} onClick={remove}>Delete</button>}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -5586,7 +5896,7 @@ function GradebookTab({ data, persist, profile, onNavigate }) {
   };
 
   const saveEntry = () => {
-    const student = data.students.find((s) => s.id === form.studentId);
+    const student = myStudents.find((s) => s.id === form.studentId);
     if (!student) {
       setFormError("Please choose a student before saving.");
       return;
@@ -7192,6 +7502,13 @@ function BrightStepsHubInner() {
     setShowMenu(false);
   };
 
+  // Where "go to" on a bell notice leads: staff to Attendance, parents to their child's page.
+  const noticeTarget = isStudent
+    ? null
+    : Object.assign(() => goTo(isParent ? "students" : "attendance"), {
+        label: isParent ? (language === "fr" ? "Voir mon enfant" : "See my child") : "Go to attendance"
+      });
+
   return (
     <div className="bsf-app" style={{ "--teal": branding.primaryColor, "--gold": branding.primaryColor }}>
       <style>{`
@@ -7892,20 +8209,13 @@ function BrightStepsHubInner() {
             </button>
           )}
           {(!isStudent || isUpperStudent) && (
-            <button className="bsf-iconbtn bsf-settingsbtn" onClick={() => setTab(isStudent ? "messages" : (profile?.role !== "parent" && unreadNoticeCount > 0 ? "attendance" : "students"))} aria-label="Messages" title="Messages" style={{ position: "relative" }}>
-              <Bell size={18} />
-              {unreadCount > 0 && (
-                <span
-                  style={{
-                    position: "absolute", top: -2, right: -2, background: "#801524", color: "#fff",
-                    borderRadius: "50%", fontSize: 10, lineHeight: "16px", minWidth: 16, height: 16,
-                    textAlign: "center", padding: "0 3px", fontWeight: 600
-                  }}
-                >
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </span>
-              )}
-            </button>
+            <NotificationBell
+              profile={profile}
+              unreadMessageCount={isLearningAssistant || isAccountant ? 0 : unreadMessageCount}
+              unreadNoticeCount={unreadNoticeCount}
+              onOpenMessages={isLearningAssistant || isAccountant ? null : () => goTo(isStudent ? "messages" : "students")}
+              onOpenNotice={noticeTarget}
+            />
           )}
           {!isStudent && (
             <button className="bsf-iconbtn bsf-settingsbtn" onClick={() => setShowMenu(true)} aria-label={t("top.menu")}>
@@ -7949,7 +8259,7 @@ function BrightStepsHubInner() {
       {tab === "admissions" && !isParent && !isLearningAssistant && <AdmissionsTab data={data} persist={persist} />}
       {tab === "assignments" && <AssignmentsTab data={data} persist={persist} profile={profile} />}
       {tab === "reports" && !isLearningAssistant && <ReportsTab data={data} persist={persist} profile={profile} />}
-      {tab === "behavior" && !isParent && !isLearningAssistant && <BehaviorTab data={data} persist={persist} />}
+      {tab === "behavior" && !isParent && !isLearningAssistant && <BehaviorTab data={data} persist={persist} profile={profile} />}
       {tab === "resources" && <ResourcesTab data={data} persist={persist} profile={profile} />}
       {tab === "accreditation" && (isAdmin || isViewer) && <AccreditationTab data={data} persist={persist} />}
       {tab === "billing" && BILLING_ALLOWED_ROLES.includes(profile?.role) && <BillingTab data={data} persist={persist} />}
