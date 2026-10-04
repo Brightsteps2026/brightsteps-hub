@@ -315,16 +315,22 @@ function attendanceCountsForRange(attendanceMap, studentId, startDate, endDate) 
   return counts;
 }
 
-function getUnreadMessageCount(data, profile) {
-  if (!profile?.id) return 0;
+// Unread message threads, one entry per student: [{ id, name, count }].
+// Staff see family messages; families see staff messages. Teachers only count
+// the students in their own grades (the ones they can open on Students).
+function getUnreadThreads(data, profile) {
+  if (!profile?.id) return [];
   const isParent = profile.role === "parent";
   const isStudent = profile.role === "student";
   const isSelfScoped = isParent || isStudent;
   const linkedIds = profile.student_ids || [];
-  let count = 0;
+  const teacherGrades = profile.role === "teacher" ? (profile.grades_assigned || []) : null;
+  const threads = [];
   (data.students || []).forEach((s) => {
     if (isSelfScoped && !linkedIds.includes(s.id)) return;
+    if (teacherGrades && !teacherGrades.includes(s.grade)) return;
     const lastRead = (s.lastRead && s.lastRead[profile.id]) || "1970-01-01T00:00:00.000Z";
+    let count = 0;
     (s.messages || []).forEach((m) => {
       const messageIsFromFamily = m.role === "parent" || m.role === "student";
       const relevant = isSelfScoped ? !messageIsFromFamily : messageIsFromFamily;
@@ -332,9 +338,18 @@ function getUnreadMessageCount(data, profile) {
       const ts = m.createdAt || (m.date ? `${m.date}T00:00:00.000Z` : null);
       if (ts && ts > lastRead) count += 1;
     });
+    if (count > 0) threads.push({ id: s.id, name: s.name, count });
   });
-  return count;
+  return threads.sort((a, b) => b.count - a.count || (a.name || "").localeCompare(b.name || ""));
 }
+
+function getUnreadMessageCount(data, profile) {
+  return getUnreadThreads(data, profile).reduce((n, t) => n + t.count, 0);
+}
+
+// Set by the bell when someone taps a message thread; the Students screen (staff)
+// or the child page (parents) opens that student's messages.
+let pendingMessageStudentId = null;
 
 // Three-way merge used when saving. Everyone shares one saved copy of the
 // school data, so before saving we fetch the latest copy and keep other
@@ -1689,7 +1704,8 @@ function AbsenceNotices({ profile }) {
   );
 }
 // The bell in the top bar: opens a small panel with unread notices and a link to unread messages.
-function NotificationBell({ profile, unreadMessageCount, unreadNoticeCount, onOpenMessages, onOpenNotice }) {
+function NotificationBell({ profile, unreadThreads, unreadNoticeCount, onOpenThread, onOpenNotice }) {
+  const unreadMessageCount = (unreadThreads || []).reduce((n, t) => n + t.count, 0);
   const { language } = useLanguage();
   const fr = language === "fr";
   const [open, setOpen] = useState(false);
@@ -1783,24 +1799,27 @@ function NotificationBell({ profile, unreadMessageCount, unreadNoticeCount, onOp
               )}
             </div>
 
-            {onOpenMessages && unreadMessageCount > 0 && (
+            {onOpenThread && (unreadThreads || []).map((t) => (
               <button
-                onClick={() => { setOpen(false); onOpenMessages(); }}
+                key={t.id}
+                onClick={() => { setOpen(false); onOpenThread(t.id); }}
                 style={{ display: "flex", width: "100%", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, border: "none", background: "#F5E4E6", color: "#801524", cursor: "pointer", fontFamily: "inherit", fontSize: 14, marginBottom: 6, textAlign: "left" }}
               >
                 <Send size={16} />
                 <span style={{ flex: 1 }}>
+                  <strong>{t.name}</strong>
+                  {" · "}
                   {fr
-                    ? `${unreadMessageCount} message${unreadMessageCount > 1 ? "s" : ""} non lu${unreadMessageCount > 1 ? "s" : ""}`
-                    : `${unreadMessageCount} unread message${unreadMessageCount > 1 ? "s" : ""}`}
+                    ? `${t.count} message${t.count > 1 ? "s" : ""} non lu${t.count > 1 ? "s" : ""}`
+                    : `${t.count} unread message${t.count > 1 ? "s" : ""}`}
                 </span>
                 <span style={{ fontSize: 13 }}>{fr ? "Ouvrir" : "Open"} →</span>
               </button>
-            )}
+            ))}
 
             {loading && notices.length === 0 && <p className="bsf-muted" style={{ margin: "8px 0" }}>{fr ? "Chargement…" : "Loading…"}</p>}
 
-            {!loading && notices.length === 0 && !(onOpenMessages && unreadMessageCount > 0) && (
+            {!loading && notices.length === 0 && !(onOpenThread && unreadMessageCount > 0) && (
               <p className="bsf-muted" style={{ margin: "8px 0" }}>{fr ? "Rien de nouveau." : "You're all caught up."}</p>
             )}
 
@@ -1834,6 +1853,26 @@ function ParentStudentView({ data, persist, profile }) {
     pendingChildProfileId = null;
     return id;
   });
+  // Opened from a message in the bell: show that child and scroll to the messages.
+  const [scrollToMessages, setScrollToMessages] = useState(() => {
+    const wanted = pendingMessageStudentId;
+    pendingMessageStudentId = null;
+    return !!wanted;
+  });
+  useEffect(() => {
+    const open = (e) => { pendingMessageStudentId = null; pendingChildProfileId = null; setActiveChildId(e.detail); setScrollToMessages(true); };
+    window.addEventListener("bs-open-thread", open);
+    return () => window.removeEventListener("bs-open-thread", open);
+  }, []);
+  useEffect(() => {
+    if (!scrollToMessages) return;
+    const t = setTimeout(() => {
+      const el = document.getElementById("bs-child-messages");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      setScrollToMessages(false);
+    }, 150);
+    return () => clearTimeout(t);
+  }, [scrollToMessages, activeChildId]);
   const today = todayStr();
 
   const activeStudent = myStudents.find((s) => s.id === activeChildId) || myStudents[0];
@@ -2057,7 +2096,7 @@ function ParentStudentView({ data, persist, profile }) {
             ))}
           </section>
 
-          <section className="bsf-card">
+          <section className="bsf-card" id="bs-child-messages">
             <StudentMessages student={activeStudent} data={data} persist={persist} />
           </section>
         </>
@@ -2197,7 +2236,16 @@ function StudentsTab({ data, persist, profile }) {
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name));
   const familyViewStudent = visibleStudents.find((s) => s.id === familyViewId);
-  const [messagingId, setMessagingId] = useState(null);
+  const [messagingId, setMessagingId] = useState(() => {
+    const id = pendingMessageStudentId;
+    pendingMessageStudentId = null;
+    return id;
+  });
+  useEffect(() => {
+    const open = (e) => { pendingMessageStudentId = null; setMessagingId(e.detail); };
+    window.addEventListener("bs-open-thread", open);
+    return () => window.removeEventListener("bs-open-thread", open);
+  }, []);
   const messagingStudent = visibleStudents.find((s) => s.id === messagingId);
   const myBehaviorGrades = behaviorGradesFor(profile);
   const [behaviorId, setBehaviorId] = useState(null);
@@ -7424,7 +7472,8 @@ function BrightStepsHubInner() {
   // Pre-N through Grade 2: reflections only. Grade 3 and up: can also see (not edit)
   // their own attendance and grades.
   const STUDENT_ALLOWED_TABS = isUpperStudent ? ["portfolio", "attendance", "gradebook", "assignments", "assessment", "messages"] : ["portfolio"];
-  const unreadMessageCount = useMemo(() => getUnreadMessageCount(data, profile), [data.students, profile]);
+  const unreadThreads = useMemo(() => getUnreadThreads(data, profile), [data.students, profile]);
+  const unreadMessageCount = unreadThreads.reduce((n, t) => n + t.count, 0);
   const unreadNoticeCount = useUnreadNoticeCount(profile);
   const unreadCount = unreadMessageCount + unreadNoticeCount;
 
@@ -8211,9 +8260,15 @@ function BrightStepsHubInner() {
           {(!isStudent || isUpperStudent) && (
             <NotificationBell
               profile={profile}
-              unreadMessageCount={isLearningAssistant || isAccountant ? 0 : unreadMessageCount}
+              unreadThreads={isLearningAssistant || isAccountant ? [] : unreadThreads}
               unreadNoticeCount={unreadNoticeCount}
-              onOpenMessages={isLearningAssistant || isAccountant ? null : () => goTo(isStudent ? "messages" : "students")}
+              onOpenThread={isLearningAssistant || isAccountant ? null : (studentId) => {
+                if (isStudent) { goTo("messages"); return; }
+                pendingMessageStudentId = studentId;
+                if (isParent) pendingChildProfileId = studentId;
+                goTo("students");
+                window.dispatchEvent(new CustomEvent("bs-open-thread", { detail: studentId }));
+              }}
               onOpenNotice={noticeTarget}
             />
           )}
