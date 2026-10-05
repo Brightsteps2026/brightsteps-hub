@@ -9,6 +9,7 @@ import { supabase } from "./lib/supabaseClient";
 import CanteenTab from "./CanteenTab";
 import IncidentsTab, { IncidentsIcon } from "./IncidentsTab";
 import LeaveTab, { LeaveIcon } from "./LeaveTab";
+import StaffCheckinTab, { CheckinIcon, CheckinBanner } from "./StaffCheckinTab";
 import SchoolGradebook from "./SchoolGradebook";
 import { ReportAbsenceCard, useReportedAbsences } from "./AbsenceReport";
 let GRADES = [
@@ -7456,18 +7457,18 @@ function BrightStepsHubInner() {
       };
   const myLinkedStudent = isStudent ? data.students.find((s) => (profile.student_ids || [])[0] === s.id) : null;
   const isUpperStudent = !!myLinkedStudent && GRADES.indexOf(myLinkedStudent.grade) >= GRADES.indexOf("Grade 3");
-  const PARENT_HIDDEN_TABS = ["leave", "classes", "staff", "admissions", "behavior", "accreditation", "ai", "planning", "gradebook"];
+  const PARENT_HIDDEN_TABS = ["checkin", "leave", "classes", "staff", "admissions", "behavior", "accreditation", "ai", "planning", "gradebook"];
   const ADMIN_ONLY_TABS = ["accreditation","staff","admissions"];
   // Only admin and the accountant role can see billing, everyone else is blocked outright.
   const BILLING_ALLOWED_ROLES = ["admin", "accountant", "viewer"];
   // A learning assistant supports specific grades day to day; they don't need
   // enrollment, staffing, or school-wide admin tools, just the classroom-facing ones.
-  const LEARNING_ASSISTANT_ALLOWED_TABS = ["leave", "gradebook", "dashboard", "attendance", "portfolio", "assessment", "classes", "calendar", "assignments", "updates", "resources"];
+  const LEARNING_ASSISTANT_ALLOWED_TABS = ["checkin", "leave", "gradebook", "dashboard", "attendance", "portfolio", "assessment", "classes", "calendar", "assignments", "updates", "resources"];
   // An accountant only ever needs billing, nothing about students' academic
   // records, behavior, or staff information.
-  const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "billing", "leave", "gradebook"];
+  const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "billing", "checkin", "leave", "gradebook"];
   const RESTRICTED_TEACHER_EMAILS = ["thairy.ekellem@bischoolci.org"];
-  const RESTRICTED_TEACHER_TABS = ["leave", "dashboard", "students", "attendance", "portfolio", "assessment", "assignments", "reports", "calendar", "incidents", "updates", "resources"];
+  const RESTRICTED_TEACHER_TABS = ["checkin", "leave", "dashboard", "students", "attendance", "portfolio", "assessment", "assignments", "reports", "calendar", "incidents", "updates", "resources"];
   const isRestrictedTeacher = profile?.role === "teacher" && RESTRICTED_TEACHER_EMAILS.includes((profile?.email || "").toLowerCase());
   // Pre-N through Grade 2: reflections only. Grade 3 and up: can also see (not edit)
   // their own attendance and grades.
@@ -7508,6 +7509,7 @@ function BrightStepsHubInner() {
     { id: "students", label: "Students", navKey: "nav.students", icon: Users, category: "classroom" },
     { id: "classes", label: "Classes", navKey: "nav.classes", icon: UserCheck, category: "classroom" },
     { id: "staff", label: "Staff", navKey: "nav.staff", icon: Briefcase, category: "office" },
+    { id: "checkin", label: "Staff check-in", navKey: "nav.checkin", icon: CheckinIcon, category: "office" },
     { id: "leave", label: "Leave requests", navKey: "nav.leave", icon: LeaveIcon, category: "office" },
     { id: "attendance", label: "Attendance", navKey: "nav.attendance", icon: CheckSquare, category: "core" },
     { id: "portfolio", label: "Portfolio", navKey: "nav.portfolio", icon: BookOpen, category: "core" },
@@ -8286,6 +8288,7 @@ function BrightStepsHubInner() {
         </div>
       </div>
 
+      {tab === "dashboard" && !isParent && !isStudent && <CheckinBanner profile={profile} onOpen={() => goTo("checkin")} />}
       {tab === "dashboard" && <Dashboard data={data} profile={profile} persist={persist} onNavigate={goTo} />}
       {tab === "students" && !isLearningAssistant && (isParent ? <ParentStudentView data={data} persist={persist} profile={profile} /> : <StudentsTab data={data} persist={persist} profile={profile} />)}
       {tab === "classes" && !isParent && <ClassesTab data={data} persist={persist} profile={profile} />}
@@ -8311,6 +8314,7 @@ function BrightStepsHubInner() {
       {tab === "canteen" && <CanteenTab profile={profile} />}
       {tab === "incidents" && <IncidentsTab profile={profile} />}
       {tab === "leave" && <LeaveTab profile={profile} />}
+      {tab === "checkin" && !isParent && !isStudent && <StaffCheckinTab profile={profile} />}
       {tab === "admissions" && !isParent && !isLearningAssistant && <AdmissionsTab data={data} persist={persist} />}
       {tab === "assignments" && <AssignmentsTab data={data} persist={persist} profile={profile} />}
       {tab === "reports" && !isLearningAssistant && <ReportsTab data={data} persist={persist} profile={profile} />}
