@@ -7482,6 +7482,7 @@ function BrightStepsHubInner() {
     if (isParent && PARENT_HIDDEN_TABS.includes(tab)) setTab("dashboard");
     if (!isAdmin && !isViewer && ADMIN_ONLY_TABS.includes(tab)) setTab("dashboard");
     if (tab === "billing" && !BILLING_ALLOWED_ROLES.includes(profile?.role)) setTab("dashboard");
+    if (tab === "canteen" && ["teacher", "learning_assistant"].includes(profile?.role)) setTab("dashboard");
     if (isLearningAssistant && !LEARNING_ASSISTANT_ALLOWED_TABS.includes(tab)) setTab("dashboard");
     if (isAccountant && !ACCOUNTANT_ALLOWED_TABS.includes(tab)) setTab("dashboard");
     if (isRestrictedTeacher && !RESTRICTED_TEACHER_TABS.includes(tab)) setTab("dashboard");
@@ -7533,6 +7534,7 @@ function BrightStepsHubInner() {
     .filter((s) => !isParent || !PARENT_HIDDEN_TABS.includes(s.id))
     .filter((s) => isAdmin || isViewer || !ADMIN_ONLY_TABS.includes(s.id))
     .filter((s) => s.id !== "billing" || BILLING_ALLOWED_ROLES.includes(profile?.role))
+    .filter((s) => s.id !== "canteen" || !["teacher", "learning_assistant"].includes(profile?.role))
     .filter((s) => !isLearningAssistant || LEARNING_ASSISTANT_ALLOWED_TABS.includes(s.id))
     .filter((s) => !isAccountant || ACCOUNTANT_ALLOWED_TABS.includes(s.id))
     .filter((s) => !isRestrictedTeacher || RESTRICTED_TEACHER_TABS.includes(s.id))
@@ -8311,7 +8313,7 @@ function BrightStepsHubInner() {
       {tab === "gradebook" && isStudent && isUpperStudent && <GradebookTab data={data} persist={persist} profile={profile} onNavigate={goTo} />}
       {tab === "planning" && !isParent && !isLearningAssistant && <PlanningTab data={data} persist={persist} />}
       {tab === "calendar" && <CalendarTab data={data} persist={persist} profile={profile} />}
-      {tab === "canteen" && <CanteenTab profile={profile} />}
+      {tab === "canteen" && !["teacher", "learning_assistant"].includes(profile?.role) && <CanteenTab profile={profile} />}
       {tab === "incidents" && <IncidentsTab profile={profile} />}
       {tab === "leave" && <LeaveTab profile={profile} />}
       {tab === "checkin" && !isParent && !isStudent && <StaffCheckinTab profile={profile} />}

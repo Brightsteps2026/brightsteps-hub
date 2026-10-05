@@ -173,7 +173,8 @@ export default function CanteenTab({ profile }) {
   const role = profile?.role;
   const isParent = role === "parent";
   const canEdit = role === "admin" || role === "accountant";
-  const isStaff = canEdit || role === "teacher";
+  // Kitchen counts and passes: admin (and accountant) only. Teachers do not see the canteen screen.
+  const isStaff = canEdit;
 
   const [students, setStudents] = useState([]);
   const [passes, setPasses] = useState([]);
