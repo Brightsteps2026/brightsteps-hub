@@ -2262,6 +2262,8 @@ function StudentsTab({ data, persist, profile }) {
   const openEdit = (student) => {
     // Teachers can't edit student records; tapping a student opens the
     // parent-teacher message thread instead.
+    // Learning assistants don't message parents: they get the read-only family view.
+    if (isLearningAssistant) { setFamilyViewId(student.id); return; }
     if (!canEditStudents) { setMessagingId(student.id); return; }
     setEditingId(student.id);
     const base = student.firstName ? student : { ...student, firstName: student.name || "", middleName: "", lastName: "" };
@@ -7463,12 +7465,12 @@ function BrightStepsHubInner() {
   const BILLING_ALLOWED_ROLES = ["admin", "accountant", "viewer"];
   // A learning assistant supports specific grades day to day; they don't need
   // enrollment, staffing, or school-wide admin tools, just the classroom-facing ones.
-  const LEARNING_ASSISTANT_ALLOWED_TABS = ["checkin", "leave", "gradebook", "dashboard", "attendance", "portfolio", "assessment", "classes", "calendar", "assignments", "updates", "resources"];
+  const LEARNING_ASSISTANT_ALLOWED_TABS = ["checkin", "leave", "gradebook", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "classes", "calendar", "assignments", "updates", "resources"];
   // An accountant only ever needs billing, nothing about students' academic
   // records, behavior, or staff information.
   const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "billing", "checkin", "leave", "gradebook"];
   const RESTRICTED_TEACHER_EMAILS = ["thairy.ekellem@bischoolci.org"];
-  const RESTRICTED_TEACHER_TABS = ["checkin", "leave", "dashboard", "students", "attendance", "portfolio", "assessment", "assignments", "reports", "calendar", "incidents", "updates", "resources"];
+  const RESTRICTED_TEACHER_TABS = ["checkin", "leave", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "assignments", "reports", "calendar", "incidents", "updates", "resources"];
   const isRestrictedTeacher = profile?.role === "teacher" && RESTRICTED_TEACHER_EMAILS.includes((profile?.email || "").toLowerCase());
   // Pre-N through Grade 2: reflections only. Grade 3 and up: can also see (not edit)
   // their own attendance and grades.
@@ -7482,7 +7484,6 @@ function BrightStepsHubInner() {
     if (isParent && PARENT_HIDDEN_TABS.includes(tab)) setTab("dashboard");
     if (!isAdmin && !isViewer && ADMIN_ONLY_TABS.includes(tab)) setTab("dashboard");
     if (tab === "billing" && !BILLING_ALLOWED_ROLES.includes(profile?.role)) setTab("dashboard");
-    if (tab === "canteen" && ["teacher", "learning_assistant"].includes(profile?.role)) setTab("dashboard");
     if (isLearningAssistant && !LEARNING_ASSISTANT_ALLOWED_TABS.includes(tab)) setTab("dashboard");
     if (isAccountant && !ACCOUNTANT_ALLOWED_TABS.includes(tab)) setTab("dashboard");
     if (isRestrictedTeacher && !RESTRICTED_TEACHER_TABS.includes(tab)) setTab("dashboard");
@@ -7534,7 +7535,6 @@ function BrightStepsHubInner() {
     .filter((s) => !isParent || !PARENT_HIDDEN_TABS.includes(s.id))
     .filter((s) => isAdmin || isViewer || !ADMIN_ONLY_TABS.includes(s.id))
     .filter((s) => s.id !== "billing" || BILLING_ALLOWED_ROLES.includes(profile?.role))
-    .filter((s) => s.id !== "canteen" || !["teacher", "learning_assistant"].includes(profile?.role))
     .filter((s) => !isLearningAssistant || LEARNING_ASSISTANT_ALLOWED_TABS.includes(s.id))
     .filter((s) => !isAccountant || ACCOUNTANT_ALLOWED_TABS.includes(s.id))
     .filter((s) => !isRestrictedTeacher || RESTRICTED_TEACHER_TABS.includes(s.id))
@@ -8292,7 +8292,7 @@ function BrightStepsHubInner() {
 
       {tab === "dashboard" && !isParent && !isStudent && <CheckinBanner profile={profile} onOpen={() => goTo("checkin")} />}
       {tab === "dashboard" && <Dashboard data={data} profile={profile} persist={persist} onNavigate={goTo} />}
-      {tab === "students" && !isLearningAssistant && (isParent ? <ParentStudentView data={data} persist={persist} profile={profile} /> : <StudentsTab data={data} persist={persist} profile={profile} />)}
+      {tab === "students" && (isParent ? <ParentStudentView data={data} persist={persist} profile={profile} /> : <StudentsTab data={data} persist={persist} profile={profile} />)}
       {tab === "classes" && !isParent && <ClassesTab data={data} persist={persist} profile={profile} />}
       {tab === "staff" && !isParent && !isLearningAssistant && <StaffTab data={data} persist={persist} />}
       {tab === "attendance" && <AttendanceTab data={data} persist={persist} profile={profile} />}
@@ -8313,7 +8313,7 @@ function BrightStepsHubInner() {
       {tab === "gradebook" && isStudent && isUpperStudent && <GradebookTab data={data} persist={persist} profile={profile} onNavigate={goTo} />}
       {tab === "planning" && !isParent && !isLearningAssistant && <PlanningTab data={data} persist={persist} />}
       {tab === "calendar" && <CalendarTab data={data} persist={persist} profile={profile} />}
-      {tab === "canteen" && !["teacher", "learning_assistant"].includes(profile?.role) && <CanteenTab profile={profile} />}
+      {tab === "canteen" && <CanteenTab profile={profile} />}
       {tab === "incidents" && <IncidentsTab profile={profile} />}
       {tab === "leave" && <LeaveTab profile={profile} />}
       {tab === "checkin" && !isParent && !isStudent && <StaffCheckinTab profile={profile} />}

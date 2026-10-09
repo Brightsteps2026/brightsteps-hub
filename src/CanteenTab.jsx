@@ -3,6 +3,10 @@ import { supabase } from "./lib/supabaseClient";
 import { useLanguage } from "./lib/i18n";
 
 const PRICES = { day: 2700, week: 13000, month: 50000 };
+// Parents can order by the day or the month only (week passes removed Oct 2026).
+const PARENT_PASS_TYPES = ["day", "month"];
+const STAFF_MEAL_PRICE = 2500;
+const STAFF_ROLES = ["admin", "teacher", "learning_assistant", "accountant"];
 
 const T = {
   balance: { en: "Canteen balance", fr: "Solde cantine" },
@@ -173,8 +177,10 @@ export default function CanteenTab({ profile }) {
   const role = profile?.role;
   const isParent = role === "parent";
   const canEdit = role === "admin" || role === "accountant";
-  // Kitchen counts and passes: admin (and accountant) only. Teachers do not see the canteen screen.
+  // Kitchen counts and passes: admin (and accountant) only. Teachers and learning
+  // assistants only see their own staff meals.
   const isStaff = canEdit;
+  const isStaffMember = STAFF_ROLES.includes(role);
 
   const [students, setStudents] = useState([]);
   const [passes, setPasses] = useState([]);
@@ -206,9 +212,13 @@ export default function CanteenTab({ profile }) {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  // Teachers and learning assistants never load the children's passes.
+  const onlyOwnMeals = !isParent && !isStaff && isStaffMember;
+
+  useEffect(() => { if (!onlyOwnMeals) load(); }, []);
 
   useEffect(() => {
+    if (isParent && !PARENT_PASS_TYPES.includes(passType)) { setPassType("day"); return; }
     const opts = upcomingOptions(passType, locale);
     setChoice(opts.length ? opts[0].value : "");
   }, [passType, locale]);
@@ -268,6 +278,7 @@ export default function CanteenTab({ profile }) {
     load();
   }
 
+  if (onlyOwnMeals) return <div style={{ padding: "16px 16px 90px" }}><MyStaffMeals /></div>;
   if (loading) return <div style={card}>{tr("loading")}</div>;
   if (error) return <div style={card}>Could not load: {error}</div>;
 
@@ -317,7 +328,7 @@ export default function CanteenTab({ profile }) {
           )}
 
           <div style={{ display: "flex", gap: 7, marginBottom: 14, flexWrap: "wrap" }}>
-            {["day", "week", "month"].map((t) => (
+            {PARENT_PASS_TYPES.map((t) => (
               <button key={t} onClick={() => setPassType(t)} style={passType === t ? chipOn : chip}>
                 {tr(t)} · {money(PRICES[t])}
               </button>
@@ -339,12 +350,6 @@ export default function CanteenTab({ profile }) {
                   </button>
                 ))}
               </div>
-
-              {passType === "day" && (
-                <p style={{ fontSize: 12, color: "#8A6A2E", background: "#F5E4E6", borderRadius: 8, padding: "8px 10px", margin: "0 0 14px" }}>
-                  {tr("weekNudge")}
-                </p>
-              )}
 
               <button style={primaryBtn} disabled={saving || !choice} onClick={() => createPasses(chosen, passType, choice)}>
                 {saving
@@ -441,6 +446,10 @@ export default function CanteenTab({ profile }) {
           })}
         </div>
       )}
+
+      <StaffMealsOffice />
+
+      <MyStaffMeals />
 
       {canEdit && <PassesList passes={passes} students={students} />}
 
@@ -628,6 +637,198 @@ function ParentLunchStatus({ students, passes, tr, locale }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Staff meals (2 500 FCFA a day). Kept in their own table, staff_meal_orders,
+// so parents never see them. Staff screens are English only.
+
+function staffMealDays() {
+  const out = [];
+  const today = new Date();
+  for (let i = 1; i < 21 && out.length < 10; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const dow = d.getDay();
+    if (dow === 0 || dow === 6) continue;
+    const iso = toISO(d);
+    if (!isOpen("day", iso)) continue;
+    out.push({ value: iso, label: d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }) });
+  }
+  return out;
+}
+
+// Any staff member: order and follow their own meals.
+function MyStaffMeals() {
+  const [orders, setOrders] = useState([]);
+  const [picked, setPicked] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState("");
+  const [me, setMe] = useState(null);
+
+  async function load() {
+    setLoading(true);
+    const { data: u } = await supabase.auth.getUser();
+    const uid = u?.user?.id || null;
+    setMe(uid);
+    if (!uid) { setLoading(false); return; }
+    const today = toISO(new Date());
+    const { data, error } = await supabase
+      .from("staff_meal_orders")
+      .select("id, meal_date, amount, paid")
+      .eq("staff_id", uid)
+      .gte("meal_date", today)
+      .order("meal_date");
+    if (error) setStatus(error.message);
+    setOrders(data || []);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  const booked = orders.map((o) => o.meal_date);
+  const days = staffMealDays().filter((d) => !booked.includes(d.value));
+  const toggle = (iso) => setPicked(picked.includes(iso) ? picked.filter((x) => x !== iso) : [...picked, iso]);
+
+  async function order() {
+    if (picked.length === 0) { setStatus("Tick at least one day."); return; }
+    setSaving(true);
+    setStatus("");
+    const { error } = await supabase
+      .from("staff_meal_orders")
+      .insert(picked.map((d) => ({ staff_id: me, meal_date: d, amount: STAFF_MEAL_PRICE, paid: false })));
+    setSaving(false);
+    if (error) { setStatus(error.message); return; }
+    setStatus(`Ordered ${picked.length} meal${picked.length === 1 ? "" : "s"}. Please pay at the school office to confirm.`);
+    setPicked([]);
+    load();
+  }
+
+  async function cancel(id) {
+    const { error } = await supabase.from("staff_meal_orders").delete().eq("id", id);
+    if (error) { setStatus(error.message); return; }
+    load();
+  }
+
+  if (loading) return <div style={card}>Loading…</div>;
+
+  return (
+    <>
+      <div style={card}>
+        <p style={{ margin: "0 0 2px", fontSize: 15, fontWeight: 600 }}>My staff meals</p>
+        <p style={{ margin: "0 0 12px", fontSize: 13, color: "#6E7B7D" }}>{money(STAFF_MEAL_PRICE)} FCFA per meal · order by 18:00 the day before</p>
+
+        {days.length === 0 ? (
+          <p style={{ fontSize: 14, color: "#6E7B7D", margin: 0 }}>No days open to order right now.</p>
+        ) : (
+          <>
+            <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 14 }}>
+              {days.map((d) => (
+                <button key={d.value} onClick={() => toggle(d.value)} style={picked.includes(d.value) ? chipOn : chip}>
+                  {d.label}
+                </button>
+              ))}
+            </div>
+            <button style={primaryBtn} disabled={saving || picked.length === 0} onClick={order}>
+              {saving ? "Sending…" : `Order ${picked.length || ""} meal${picked.length === 1 ? "" : "s"} · ${money(STAFF_MEAL_PRICE * picked.length)} FCFA`}
+            </button>
+          </>
+        )}
+        {status && <p style={{ fontSize: 13, marginTop: 10, marginBottom: 0 }}>{status}</p>}
+      </div>
+
+      {orders.length > 0 && (
+        <div style={card}>
+          <p style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 600 }}>My upcoming meals</p>
+          {orders.map((o) => (
+            <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid #EAD7DA", fontSize: 14 }}>
+              <span>{parseISO(o.meal_date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · {money(o.amount)}</span>
+              <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", padding: "4px 10px", borderRadius: 100, background: o.paid ? "#E6F2EC" : "#FCE8E8", color: o.paid ? "#2F7A5C" : "#B23A3A" }}>
+                  {o.paid ? "Paid" : "Awaiting payment"}
+                </span>
+                {!o.paid && isOpen("day", o.meal_date) && (
+                  <button onClick={() => cancel(o.id)} style={{ ...chip, borderColor: "#F09595", color: "#A32D2D", padding: "4px 10px" }}>Cancel</button>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+// Admin / accountant: tomorrow's staff count and payments to confirm.
+function StaffMealsOffice() {
+  const [orders, setOrders] = useState([]);
+  const [names, setNames] = useState({});
+  const [error, setError] = useState("");
+
+  async function load() {
+    const today = toISO(new Date());
+    const { data, error: err } = await supabase
+      .from("staff_meal_orders")
+      .select("id, staff_id, meal_date, amount, paid")
+      .or(`meal_date.gte.${today},paid.eq.false`)
+      .order("meal_date");
+    if (err) { setError(err.message); return; }
+    setOrders(data || []);
+    const ids = Array.from(new Set((data || []).map((o) => o.staff_id)));
+    if (ids.length) {
+      const { data: people } = await supabase.from("profiles").select("id, full_name, email").in("id", ids);
+      const map = {};
+      (people || []).forEach((p) => { map[p.id] = p.full_name || p.email; });
+      setNames(map);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function confirm(id) {
+    const { error: err } = await supabase.from("staff_meal_orders").update({ paid: true }).eq("id", id);
+    if (err) { setError(err.message); return; }
+    load();
+  }
+
+  const t = new Date();
+  t.setDate(t.getDate() + 1);
+  const tomorrow = toISO(t);
+  const eating = orders.filter((o) => o.meal_date === tomorrow);
+  const awaiting = orders.filter((o) => !o.paid);
+  const nameOf = (id) => names[id] || "Staff member";
+
+  return (
+    <div style={card}>
+      <p style={{ margin: "0 0 2px", fontSize: 15, fontWeight: 600 }}>Staff meals tomorrow</p>
+      <p style={{ margin: "0 0 8px", fontSize: 13, color: "#6E7B7D" }}>{tomorrow}</p>
+      {error ? (
+        <p style={{ margin: 0, fontSize: 13, color: "#B23A3A" }}>Could not load staff meals: {error}</p>
+      ) : (
+        <>
+          <p style={{ margin: "0 0 8px", fontSize: 30, fontWeight: 600 }}>{eating.length}</p>
+          {eating.length > 0 && (
+            <p style={{ margin: "0 0 8px", fontSize: 14 }}>{eating.map((o) => nameOf(o.staff_id)).join(", ")}</p>
+          )}
+          {awaiting.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <p style={{ margin: "0 0 6px", fontSize: 13, color: "#6E7B7D" }}>Awaiting payment ({awaiting.length})</p>
+              {awaiting.map((o) => (
+                <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid #EAD7DA", fontSize: 14 }}>
+                  <span>
+                    <strong>{nameOf(o.staff_id)}</strong>
+                    <span style={{ color: "#6E7B7D" }}> · {o.meal_date} · {money(o.amount)}</span>
+                  </span>
+                  <button onClick={() => confirm(o.id)} style={{ ...chip, borderColor: "#2F7A5C", color: "#2F7A5C" }}>Confirm payment</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
