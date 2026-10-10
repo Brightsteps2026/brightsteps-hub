@@ -1,10 +1,10 @@
 import { Component, useState, useEffect, useMemo, useRef, Fragment } from "react";
-import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, Plus, X, Trash2, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Flag, Percent, Briefcase, FolderOpen, Award, Sparkles, Send, LogOut, Bell, Utensils, Wallet } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, Plus, X, Trash2, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Flag, Percent, Briefcase, FolderOpen, Award, Send, LogOut, Bell, Utensils, Wallet } from "lucide-react";
 import AttachmentField from "./AttachmentField";
 import StudentPhotoField from "./StudentPhotoField";
 import { getAttachmentUrl } from "./lib/attachments";
 import { useAuth } from "./LoginGate";
-import { LanguageProvider, useLanguage } from "./lib/i18n";
+import { LanguageProvider, useLanguage, hasTranslation, pluralKey } from "./lib/i18n";
 import { supabase } from "./lib/supabaseClient";
 import CanteenTab from "./CanteenTab";
 import IncidentsTab, { IncidentsIcon } from "./IncidentsTab";
@@ -25,12 +25,12 @@ let GRADES = [...CORE_GRADES];
 const TAGS = ["Inquiry", "Literacy", "Numeracy", "Social Emotional", "Creative Arts", "Physical"];
 
 const THEMES = [
-  "Who We Are",
-  "How We Express Ourselves",
-  "How the World Works",
-  "How We Organize Ourselves",
-  "Sharing the Planet",
-  "Where We Are in Place and Time"
+  "Identity and relationships",
+  "Time, place and change",
+  "Expression and creativity",
+  "How the world works",
+  "Systems and communities",
+  "Our planet and its future"
 ];
 
 const PLAN_TEMPLATE = {
@@ -49,7 +49,7 @@ const getLevelColor = (level) => {
 const BRIGHTSTEPS_LOGO_DATA_URI = "data:image/png;base64,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";
 
 const DEFAULT_SETTINGS = {
-  curriculumFramework: "Inquiry Based Learning",
+  curriculumFramework: "Inquiry-based learning",
   grades: [...GRADES],
   assessmentLevels: [...ASSESS_LEVELS],
   branding: { primaryColor: "#801524", logoUrl: BRIGHTSTEPS_LOGO_DATA_URI, mission: "", slogan: "" },
@@ -102,7 +102,7 @@ function formatEventWhen(e, language = "en") {
 
 // One upcoming event: a small date chip, then the title and the dates.
 function EventRow({ event: e }) {
-  const { language } = useLanguage();
+  const { t, language } = useLanguage();
   const locale = language === "fr" ? "fr-FR" : "en-GB";
   const color = EVENT_TYPE_COLOR[e.type] || "#801524";
   const start = new Date(`${e.date}T12:00:00`);
@@ -114,7 +114,7 @@ function EventRow({ event: e }) {
       </div>
       <div className="bsf-eventrow-text">
         <strong>{e.title}</strong>
-        <p>{formatEventWhen(e, language)}<span className="bsf-eventrow-type" style={{ color }}> · {e.type}</span></p>
+        <p>{formatEventWhen(e, language)}<span className="bsf-eventrow-type" style={{ color }}> · {tLabel(t, "eventType.", e.type)}</span></p>
       </div>
     </div>
   );
@@ -195,13 +195,13 @@ const ACCRED_STATUSES = ["Not Started", "In Progress", "Met"];
 const ACCRED_STATUS_COLOR = { "Not Started": "#8A9698", "In Progress": "#B8842F", "Met": "#2F7A5C" };
 
 const DEFAULT_MILESTONES = [
-  "Study the IB Standards and Practices",
-  "Purchase and study the PYP starter pack",
+  "Study the accreditation standards and practices",
+  "Purchase and study the programme starter resources",
   "Identify the programme coordinator",
-  "Coordinator completes Category 1 Leading the Learning workshop",
-  "Submit Application for candidacy",
+  "Coordinator completes leadership training",
+  "Submit application",
   "Complete at least one academic year of trial implementation",
-  "Submit Application for authorization",
+  "Submit application for authorisation",
   "Verification visit"
 ];
 
@@ -280,9 +280,46 @@ function useTodayWeekday() {
   return name;
 }
 
+// Always "50 000 FCFA": a space between thousands, no decimals, in both languages.
 function formatCurrency(amount) {
-  const n = Number(amount) || 0;
-  return `${n.toLocaleString("en-US")} FCFA`;
+  const n = Math.round(Number(amount) || 0);
+  const digits = String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return `${n < 0 ? "-" : ""}${digits} FCFA`;
+}
+
+// "2026-10-10" -> "10 October 2026" / "10 octobre 2026". Read as a local date
+// (never new Date("YYYY-MM-DD"), which is UTC and can show the day before).
+// Anything that is not a plain date is shown as it was saved.
+function formatDateLong(dateStr, language) {
+  if (!dateStr) return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr));
+  if (!m) return dateStr;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+    .toLocaleDateString(language === "fr" ? "fr-FR" : "en-GB", { day: "numeric", month: "long", year: "numeric" });
+}
+
+// Same format for a full timestamp (e.g. created_at from the database).
+function formatTimestampDate(ts, language) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(language === "fr" ? "fr-FR" : "en-GB", { day: "numeric", month: "long", year: "numeric" });
+}
+
+// French display names for the grades, for parent screens only. Stored values never change.
+const GRADE_LABEL_FR = { "Pre-N": "Pré-maternelle", "PreK": "Petite section", "Kindergarten": "Grande section" };
+function gradeLabel(g, language) {
+  if (language !== "fr" || !g) return g;
+  if (GRADE_LABEL_FR[g]) return GRADE_LABEL_FR[g];
+  const m = /^Grade (\d+)$/.exec(g);
+  return m ? `Niveau ${m[1]}` : g;
+}
+
+// Translates a stored English value (a fee status, event type, category...) for
+// display only. Unknown values (custom ones typed by staff) are shown as saved.
+function tLabel(t, prefix, value) {
+  if (value === undefined || value === null || value === "") return value;
+  return hasTranslation(`${prefix}${value}`) ? t(`${prefix}${value}`) : value;
 }
 
 // Compares what's actually owed (the fee schedule, set once per category)
@@ -889,15 +926,15 @@ const saveLunchMenu = async () => {
 
   const saveSignature = () => {
     if (!signatureName.trim()) {
-      setSignatureError("Please type your full name.");
+      setSignatureError(t("sign.errName"));
       return;
     }
     if (!signatureDataUrl) {
-      setSignatureError("Please sign in the box above.");
+      setSignatureError(t("sign.errSignature"));
       return;
     }
     if (!signatureConfirmed) {
-      setSignatureError("Please confirm you've read the document before signing.");
+      setSignatureError(t("sign.errConfirm"));
       return;
     }
     const signature = {
@@ -1013,7 +1050,7 @@ const saveLunchMenu = async () => {
                     <div className="bsf-child-photo"><StudentThumb photo={s.photo} /></div>
                     <div>
                       <p className="bsf-tile-value">{s.firstName || s.name.split(" ")[0]}</p>
-                                            <p className="bsf-tile-sub">{s.grade} · {gradeStaff[s.grade]?.homeroom_teacher || (isFr ? "À confirmer" : "To be confirmed")}</p>
+                                            <p className="bsf-tile-sub">{gradeLabel(s.grade, language)} · {gradeStaff[s.grade]?.homeroom_teacher || t("dash.toBeConfirmed")}</p>
                     </div>
                   </div>
                 ))}
@@ -1031,31 +1068,26 @@ const saveLunchMenu = async () => {
         if (parentDocs.length === 0) return null;
         return (
           <section className="bsf-card">
-            <h2>School Documents</h2>
+            <h2>{t("dash.schoolDocuments")}</h2>
             <div className="bsf-list">
               {parentDocs.map((d) => {
                 const mySignature = (d.signatures || []).find((s) => s.parentId === profile?.id);
+                // Only the file in the parent's language; English when there is no French one.
+                const docFiles = language === "fr" && (d.filesFr || []).length > 0 ? d.filesFr : (d.files || []).length > 0 ? d.files : d.filesFr || [];
                 return (
                 <div key={d.id} style={{ marginBottom: 14 }}>
                   <strong>{d.title}</strong>
                   {d.description && <p className="bsf-muted">{d.description}</p>}
-                  {(d.files || []).length > 0 && (
+                  {docFiles.length > 0 && (
                     <div style={{ marginTop: 6 }}>
-                      <p className="bsf-muted" style={{ marginBottom: 2 }}>English</p>
-                      <AttachmentField folder="resources" files={d.files} onChange={() => {}} readOnly />
-                    </div>
-                  )}
-                  {(d.filesFr || []).length > 0 && (
-                    <div style={{ marginTop: 6 }}>
-                      <p className="bsf-muted" style={{ marginBottom: 2 }}>Français</p>
-                      <AttachmentField folder="resources" files={d.filesFr} onChange={() => {}} readOnly />
+                      <AttachmentField folder="resources" files={docFiles} onChange={() => {}} readOnly />
                     </div>
                   )}
                   {d.requiresSignature && (
                     mySignature ? (
-                      <p className="bsf-minitag" style={{ marginTop: 8, display: "inline-block" }}>Signed on {mySignature.date}</p>
+                      <p className="bsf-minitag" style={{ marginTop: 8, display: "inline-block" }}>{t("dash.signedOn", { date: formatDateLong(mySignature.date, language) })}</p>
                     ) : (
-                      <button className="bsf-btn" style={{ marginTop: 8 }} onClick={() => openSign(d.id)}>Read and sign</button>
+                      <button className="bsf-btn" style={{ marginTop: 8 }} onClick={() => openSign(d.id)}>{t("dash.readAndSign")}</button>
                     )
                   )}
                 </div>
@@ -1070,21 +1102,21 @@ const saveLunchMenu = async () => {
         const doc = (data.resources || []).find((d) => d.id === signingDocId);
         if (!doc) return null;
         return (
-          <Modal title={`Sign: ${doc.title}`} onClose={() => setSigningDocId(null)}>
+          <Modal title={t("sign.title", { title: doc.title })} onClose={() => setSigningDocId(null)}>
             <p className="bsf-muted" style={{ marginBottom: 12 }}>
-              By signing below, you confirm you have read and understood this document.
+              {t("sign.intro")}
             </p>
-            <Field label="Your full name">
+            <Field label={t("sign.fullName")}>
               <input value={signatureName} onChange={(e) => setSignatureName(e.target.value)} />
             </Field>
-            <Field label="Signature">
+            <Field label={t("sign.signature")}>
               <SignaturePad onChange={setSignatureDataUrl} />
             </Field>
             <label className="bsf-checkboxrow" style={{ marginBottom: 14 }}>
               <input type="checkbox" checked={signatureConfirmed} onChange={(e) => setSignatureConfirmed(e.target.checked)} />
-              <span>I confirm I have read and understood {doc.title}.</span>
+              <span>{t("sign.confirm", { title: doc.title })}</span>
             </label>
-            <button className="bsf-btn bsf-btn-block" onClick={saveSignature}>Submit signature</button>
+            <button className="bsf-btn bsf-btn-block" onClick={saveSignature}>{t("sign.submit")}</button>
             {signatureError && <p className="bsf-formerror">{signatureError}</p>}
           </Modal>
         );
@@ -1092,7 +1124,7 @@ const saveLunchMenu = async () => {
 
       {isParent && myStudents.length === 0 && (
         <section className="bsf-card">
-          <p className="bsf-empty">No child linked to your account yet. Please contact the school administrator.</p>
+          <p className="bsf-empty">{t("dash.noChildLinked")}</p>
         </section>
       )}
 
@@ -1108,40 +1140,40 @@ const saveLunchMenu = async () => {
                 <div style={{ flex: 1 }}>
                   <strong style={{ fontFamily: "'Fraunces', serif", fontSize: 17 }}>{s.name}</strong>
                   <p className="bsf-muted" style={{ margin: 0 }}>
-                    {s.grade}{(s.nationalities && s.nationalities.length) ? ` · ${s.nationalities.join(" - ")}` : (s.nationality ? ` · ${s.nationality}` : "")}
+                    {gradeLabel(s.grade, language)}{(s.nationalities && s.nationalities.length) ? ` · ${s.nationalities.join(" - ")}` : (s.nationality ? ` · ${s.nationality}` : "")}
                   </p>
                 </div>
                 <span className="bsf-muted" style={{ fontSize: 13, whiteSpace: "nowrap" }}>{isFr ? "Voir le profil ›" : "View profile ›"}</span>
               </div>
                             <div style={{ borderTop: "0.5px solid var(--line)", paddingTop: 10, marginBottom: 6, fontSize: 13 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "4px 0" }}>
-                                    <span className="bsf-muted">{isFr ? "Enseignant(e) principal(e)" : "Homeroom teacher"}</span>
-                  <strong style={{ textAlign: "right" }}>{gradeStaff[s.grade]?.homeroom_teacher || "To be confirmed / À confirmer"}</strong>
+                                    <span className="bsf-muted">{t("dash.homeroomTeacher")}</span>
+                  <strong style={{ textAlign: "right" }}>{gradeStaff[s.grade]?.homeroom_teacher || t("dash.toBeConfirmed")}</strong>
                 </div>
                 {gradeStaff[s.grade]?.learning_assistant && (
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "4px 0" }}>
-                                        <span className="bsf-muted">{isFr ? "Assistant(e) pédagogique" : "Learning assistant"}</span>
+                                        <span className="bsf-muted">{t("dash.learningAssistant")}</span>
                     <strong style={{ textAlign: "right" }}>{gradeStaff[s.grade].learning_assistant}</strong>
                   </div>
                 )}
               </div>
-              {s.allergies && <p className="bsf-alert-note">Allergies: {s.allergies}</p>}
+              {s.allergies && <p className="bsf-alert-note">{t("dash.allergies")} {s.allergies}</p>}
             </section>
 
             <section className="bsf-card bsf-invoicecard">
               <div className="bsf-invoicehead">
                 <div>
-                  <p className="bsf-eyebrow" style={{ margin: 0 }}>Tuition & Fees</p>
+                  <p className="bsf-eyebrow" style={{ margin: 0 }}>{t("fees.title")}</p>
                   <p className="bsf-muted" style={{ margin: "2px 0 0" }}>{s.firstName || s.name.split(" ")[0]} · {settings.academicYear.startDate ? settings.academicYear.startDate.slice(0, 4) : ""}{settings.academicYear.endDate ? `–${settings.academicYear.endDate.slice(2, 4)}` : ""}</p>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <p className="bsf-invoicetotal" style={{ color: balance > 0 ? "#B23A3A" : "#2F7A5C" }}>{formatCurrency(Math.abs(balance))}</p>
-                  <p className="bsf-muted" style={{ margin: 0 }}>{balance > 0 ? "Total balance due" : balance < 0 ? "Credit on file" : "Fully settled"}</p>
+                  <p className="bsf-muted" style={{ margin: 0 }}>{balance > 0 ? t("fees.totalDue") : balance < 0 ? t("fees.credit") : t("fees.settled")}</p>
                 </div>
               </div>
 
               {feeItems.length === 0 ? (
-                <p className="bsf-empty">No fee schedule set yet, contact the school office for details.</p>
+                <p className="bsf-empty">{t("fees.noSchedule")}</p>
               ) : (
                 <div className="bsf-invoicelines">
                   {feeItems.map((item) => {
@@ -1152,23 +1184,23 @@ const saveLunchMenu = async () => {
                         <div className="bsf-invoiceline-top">
                           <div className="bsf-invoiceline-label">
                             <span className="bsf-invoiceline-icon" style={{ background: `${statusColor}1A`, color: statusColor }}><CatIcon size={15} /></span>
-                            <strong>{item.category === "Registration" ? "Registration Fee" : item.category}</strong>
+                            <strong>{item.category === "Registration" ? t("fees.registrationFee") : tLabel(t, "fees.cat.", item.category)}</strong>
                           </div>
-                          <span className="bsf-status-pill" style={{ background: `${statusColor}1A`, color: statusColor }}>{item.status}</span>
+                          <span className="bsf-status-pill" style={{ background: `${statusColor}1A`, color: statusColor }}>{tLabel(t, "fees.status.", item.status)}</span>
                         </div>
                         <div className="bsf-invoicebar">
                           <span style={{ width: `${item.pct}%`, background: statusColor }} />
                         </div>
                         {item.waived ? (
-                          <p className="bsf-muted" style={{ margin: "4px 0 0" }}>Real price {formatCurrency(item.listPrice)} · fully waived</p>
+                          <p className="bsf-muted" style={{ margin: "4px 0 0" }}>{t("fees.realPriceWaived", { price: formatCurrency(item.listPrice) })}</p>
                         ) : item.discountAmount > 0 ? (
                           <p className="bsf-muted" style={{ margin: "4px 0 0" }}>
-                            Real price {formatCurrency(item.listPrice)} · {formatCurrency(item.discountAmount)} discount{item.discountReason ? ` (${item.discountReason})` : ""}
+                            {t("fees.realPriceDiscount", { price: formatCurrency(item.listPrice), discount: formatCurrency(item.discountAmount) })}{item.discountReason ? ` (${item.discountReason})` : ""}
                           </p>
                         ) : null}
                         <div className="bsf-invoiceline-bottom">
-                          <span className="bsf-muted">{formatCurrency(item.paid)} paid of {formatCurrency(item.charged)} owed</span>
-                          {item.due > 0 && <span style={{ color: statusColor, fontWeight: 600 }}>{formatCurrency(item.due)} due</span>}
+                          <span className="bsf-muted">{t("fees.paidOf", { paid: formatCurrency(item.paid), owed: formatCurrency(item.charged) })}</span>
+                          {item.due > 0 && <span style={{ color: statusColor, fontWeight: 600 }}>{t("fees.due", { amount: formatCurrency(item.due) })}</span>}
                         </div>
                       </div>
                     );
@@ -1182,7 +1214,7 @@ const saveLunchMenu = async () => {
               if (history.length === 0) return null;
               return (
                 <section className="bsf-card">
-                  <h2>Transaction history</h2>
+                  <h2>{t("fees.history")}</h2>
                   <div className="bsf-list">
                     {history.map((b) => {
                       const isPayment = b.type !== "charge";
@@ -1194,9 +1226,9 @@ const saveLunchMenu = async () => {
                           <div style={{ flex: 1 }}>
                             <div className="bsf-row-head">
                               <strong style={{ color: isPayment ? "#2F7A5C" : "#B23A3A" }}>{formatCurrency(b.amount)}</strong>
-                              <span className="bsf-muted">{b.date}</span>
+                              <span className="bsf-muted">{formatDateLong(b.date, language)}</span>
                             </div>
-                            <p className="bsf-muted" style={{ margin: 0 }}>{b.category || "Tuition"}{b.description ? ` · ${b.description}` : ""}</p>
+                            <p className="bsf-muted" style={{ margin: 0 }}>{tLabel(t, "fees.cat.", b.category || "Tuition")}{b.description ? ` · ${b.description}` : ""}</p>
                           </div>
                         </div>
                       );
@@ -1207,8 +1239,8 @@ const saveLunchMenu = async () => {
             })()}
 
             <section className="bsf-card">
-              <h2>Attendance for {s.firstName || s.name.split(" ")[0]}</h2>
-              <p className="bsf-muted">{attend.present} present · {attend.absent} absent · {attend.late} late this year</p>
+              <h2>{t("dash.attendanceFor", { name: s.firstName || s.name.split(" ")[0] })}</h2>
+              <p className="bsf-muted">{t("dash.attendanceYear", attend)}</p>
             </section>
           </div>
         );
@@ -1223,14 +1255,14 @@ const saveLunchMenu = async () => {
 
       <div className="bsf-dashboard-grid">
         <section className="bsf-card">
-          <h2>Next up</h2>
-          {nextEvents.length === 0 && <p className="bsf-empty">Nothing scheduled yet.{!isParent && " Add one from the Calendar tab."}</p>}
+          <h2>{isParent ? t("dash.nextUp") : "Next up"}</h2>
+          {nextEvents.length === 0 && <p className="bsf-empty">{isParent ? t("dash.nothingScheduled") : "Nothing scheduled yet. Add one from the Calendar tab."}</p>}
           {nextEvents.map((e) => (<EventRow key={e.id} event={e} />))}
         </section>
 
         <section className="bsf-card">
-          <h2>Family updates</h2>
-          {recentAnnouncements.length === 0 && <p className="bsf-empty">Nothing posted yet.{!isParent && " Share one from Family Updates."}</p>}
+          <h2>{isParent ? t("dash.familyUpdates") : "Family updates"}</h2>
+          {recentAnnouncements.length === 0 && <p className="bsf-empty">{isParent ? t("dash.nothingPosted") : "Nothing posted yet. Share one from Family Updates."}</p>}
           {recentAnnouncements.map((a) => {
             const showFrench = isParent && language === "fr" && a.titleFr;
             return (
@@ -1252,7 +1284,7 @@ const saveLunchMenu = async () => {
       </div> 
           <section className="bsf-card">
         <div className="bsf-row-head">
-        <h2>School announcements</h2>
+        <h2>{isParent ? t("dash.announcements") : "School announcements"}</h2>
           {isAdmin && !showAnnForm && (
   <button className="bsf-textbtn" onClick={() => setShowAnnForm(true)}>New announcement</button>
 )}
@@ -1284,10 +1316,12 @@ const saveLunchMenu = async () => {
   </div>
 )}
         </div>
-        {visibleAnnouncements.length === 0 && <p className="bsf-empty">No announcements yet.</p>}
+        {visibleAnnouncements.length === 0 && <p className="bsf-empty">{isParent ? t("dash.noAnnouncements") : "No announcements yet."}</p>}
         {visibleAnnouncements.slice(0, 3).map((a) => (
         <div key={a.id} style={{ borderTop: "1px solid #eee", padding: "12px 0" }}>
-        <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>{a.audience === "school" ? "Whole school" : a.audience === "lower" ? "Lower school" : a.audience === "upper" ? "Upper school" : a.audience} · {new Date(a.created_at).toLocaleDateString()}</p>
+        <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>{isParent
+          ? `${a.audience === "school" || !a.audience ? t("common.wholeSchool") : a.audience === "lower" ? t("dash.audienceLower") : a.audience === "upper" ? t("dash.audienceUpper") : gradeLabel(a.audience, language)} · ${formatTimestampDate(a.created_at, language)}`
+          : `${a.audience === "school" ? "Whole school" : a.audience === "lower" ? "Lower school" : a.audience === "upper" ? "Upper school" : a.audience} · ${formatTimestampDate(a.created_at, "en")}`}</p>
         <p style={{ fontSize: 14, fontWeight: 500, margin: "0 0 2px" }}>{language === "fr" && a.title_fr ? a.title_fr : a.title}</p>
         <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{language === "fr" && a.body_fr ? a.body_fr : a.body}</p>
         {isAdmin && (
@@ -1298,7 +1332,7 @@ const saveLunchMenu = async () => {
         </section>
           <section className="bsf-card">
 <div className="bsf-row-head">
-  <h2>Lunch Menu</h2>
+  <h2>{isParent ? t("dash.lunchMenu") : "Lunch Menu"}</h2>
           {isAdmin && !editingLunch && (
             <button className="bsf-textbtn" onClick={openLunchEdit}>Edit menu</button>
           )}
@@ -1308,7 +1342,7 @@ const saveLunchMenu = async () => {
           <div key={day} style={{ display: "grid", gridTemplateColumns: "56px 1fr", gap: 8, padding: "8px 10px", borderRadius: 8, background: day === todayLunchName ? "#eaf1fb" : "transparent" }}>
             <p style={{ fontWeight: 500, fontSize: 13, margin: 0, color: day === todayLunchName ? "#185fa5" : "#666" }}>
               {LUNCH_DAY_LABELS[language]?.[day] || day}
-              {day === todayLunchName && <><br /><span style={{ fontWeight: 400, fontSize: 11 }}>Today</span></>}
+              {day === todayLunchName && <><br /><span style={{ fontWeight: 400, fontSize: 11 }}>{t("common.today")}</span></>}
             </p>
             <p style={{ fontSize: 13, margin: 0 }}>
               {activeLunchDays[day]?.dish || "—"}
@@ -1369,8 +1403,8 @@ const saveLunchMenu = async () => {
       )}
 
       <section className="bsf-card">
-        <h2>{isParent ? "Latest portfolio entries for your child" : "Latest portfolio entries"}</h2>
-        {recentPortfolio.length === 0 && <p className="bsf-empty">No entries yet.{!isParent && " Add one from the Portfolio tab."}</p>}
+        <h2>{isParent ? t("dash.latestPortfolioChild") : "Latest portfolio entries"}</h2>
+        {recentPortfolio.length === 0 && <p className="bsf-empty">{isParent ? t("dash.noEntries") : "No entries yet. Add one from the Portfolio tab."}</p>}
         {recentPortfolio.map((p) => {
           const student = data.students.find((s) => s.id === p.studentId);
           return (
@@ -1379,7 +1413,7 @@ const saveLunchMenu = async () => {
               <div style={{ flex: 1 }}>
                 <div className="bsf-row-head">
                   <strong>{p.studentName}</strong>
-                  <span className="bsf-tag">{p.tag}</span>
+                  <span className="bsf-tag">{tLabel(t, "tag.", p.tag)}</span>
                 </div>
                 <p>{p.note}</p>
               </div>
@@ -1613,6 +1647,7 @@ const emptyStudentForm = {
 const fullName = (p) => [p.firstName, p.middleName, p.lastName].filter((x) => x && x.trim()).join(" ");
 
 function SignaturePad({ onChange }) {
+  const { t } = useLanguage();
   const [typed, setTyped] = useState("");
 
   const handle = (value) => {
@@ -1625,7 +1660,7 @@ function SignaturePad({ onChange }) {
       <input
         value={typed}
         onChange={(e) => handle(e.target.value)}
-        placeholder="Type your full name"
+        placeholder={t("sign.padPlaceholder")}
         style={{
           fontFamily: "'Fraunces', serif",
           fontSize: 22,
@@ -1638,7 +1673,7 @@ function SignaturePad({ onChange }) {
         }}
       />
       <p className="bsf-muted" style={{ marginTop: 6 }}>
-        Typing your name here counts as your signature.
+        {t("sign.padHelp")}
       </p>
     </div>
   );
@@ -2067,6 +2102,7 @@ function NotificationBell({ profile, unreadThreads, unreadNoticeCount, onOpenThr
 }
 
 function ParentStudentView({ data, persist, profile }) {
+  const { t, language } = useLanguage();
   const linkedIds = profile?.student_ids || [];
   const myStudents = data.students.filter((s) => linkedIds.includes(s.id));
   const [activeChildId, setActiveChildId] = useState(() => {
@@ -2149,8 +2185,8 @@ function ParentStudentView({ data, persist, profile }) {
   if (myStudents.length === 0) {
     return (
       <div className="bsf-screen">
-        <div className="bsf-screen-head"><h1>My child</h1></div>
-        <p className="bsf-empty">No student is linked to your account yet. Please contact the school administrator.</p>
+        <div className="bsf-screen-head"><h1>{t("child.title")}</h1></div>
+        <p className="bsf-empty">{t("dash.noChildLinked")}</p>
       </div>
     );
   }
@@ -2159,8 +2195,8 @@ function ParentStudentView({ data, persist, profile }) {
     <div className="bsf-screen">
       <div className="bsf-screen-head">
         <div>
-          <h1>My child</h1>
-          {profile?.full_name && <p className="bsf-muted" style={{ marginTop: 2 }}>Signed in as {profile.full_name}</p>}
+          <h1>{t("child.title")}</h1>
+          {profile?.full_name && <p className="bsf-muted" style={{ marginTop: 2 }}>{t("settings.signedInAs")} {profile.full_name}</p>}
         </div>
       </div>
 
@@ -2196,25 +2232,25 @@ function ParentStudentView({ data, persist, profile }) {
               <StudentThumb photo={activeStudent.photo} />
               <div>
                 <strong>{activeStudent.name}</strong>
-                <p className="bsf-muted">{activeStudent.grade}</p>
+                <p className="bsf-muted">{gradeLabel(activeStudent.grade, language)}</p>
               </div>
             </div>
-            {activeStudent.allergies && <p className="bsf-alert-note">Allergies: {activeStudent.allergies}</p>}
-            {activeStudent.medicalConditions && <p className="bsf-alert-note">Medical: {activeStudent.medicalConditions}</p>}
+            {activeStudent.allergies && <p className="bsf-alert-note">{t("dash.allergies")} {activeStudent.allergies}</p>}
+            {activeStudent.medicalConditions && <p className="bsf-alert-note">{t("dash.medical")} {activeStudent.medicalConditions}</p>}
           </section>
 
           <section className="bsf-card">
-            <h2>Attendance</h2>
+            <h2>{t("nav.attendance")}</h2>
             <p className="bsf-muted">
-              {attendanceSummary.present} present · {attendanceSummary.absent} absent · {attendanceSummary.late} late this year
+              {t("dash.attendanceYear", attendanceSummary)}
             </p>
             {termSummaries.length > 0 && (
               <div className="bsf-termsummary">
                 {termSummaries.map((term) => (
                   <div key={term.name} className="bsf-termsummary-row">
-                    <span className="bsf-tag">{term.name}</span>
+                    <span className="bsf-tag">{language === "fr" && /^Term \d+$/.test(term.name || "") ? term.name.replace("Term", "Trimestre") : term.name}</span>
                     <span className="bsf-muted">
-                      {term.counts.present} present · {term.counts.absent} absent · {term.counts.late} late
+                      {t("dash.attendanceCounts", term.counts)}
                     </span>
                   </div>
                 ))}
@@ -2223,20 +2259,20 @@ function ParentStudentView({ data, persist, profile }) {
           </section>
 
           <section className="bsf-card">
-            <h2>Upcoming for {activeStudent.grade}</h2>
-            {events.length === 0 && <p className="bsf-empty">Nothing scheduled yet.</p>}
+            <h2>{t("child.upcomingFor", { grade: gradeLabel(activeStudent.grade, language) })}</h2>
+            {events.length === 0 && <p className="bsf-empty">{t("dash.nothingScheduled")}</p>}
             {events.map((e) => (<EventRow key={e.id} event={e} />))}
           </section>
 
           <section className="bsf-card">
-            <h2>Assignments due</h2>
-            {assignmentsDue.length === 0 && <p className="bsf-empty">Nothing assigned right now.</p>}
+            <h2>{t("child.assignmentsDue")}</h2>
+            {assignmentsDue.length === 0 && <p className="bsf-empty">{t("child.nothingAssigned")}</p>}
             {assignmentsDue.map((a) => (
               <div key={a.id} className="bsf-row">
                 {a.subject && <span className="bsf-tag">{a.subject}</span>}
                 <div>
                   <strong>{a.title}</strong>
-                  {a.dueDate && <p className="bsf-muted">Due {a.dueDate}</p>}
+                  {a.dueDate && <p className="bsf-muted">{t("common.due", { date: formatDateLong(a.dueDate, language) })}</p>}
                   {a.description && <p>{a.description}</p>}
                 </div>
               </div>
@@ -2244,17 +2280,17 @@ function ParentStudentView({ data, persist, profile }) {
           </section>
 
           <section className="bsf-card">
-            <h2>Portfolio</h2>
-            {portfolioEntries.length === 0 && <p className="bsf-empty">No portfolio entries yet.</p>}
+            <h2>{t("portfolio.title")}</h2>
+            {portfolioEntries.length === 0 && <p className="bsf-empty">{t("child.noPortfolio")}</p>}
             {portfolioEntries.map((p) => (
               <div key={p.id} className="bsf-row">
-                <span className="bsf-tag">{p.tag}</span>
+                <span className="bsf-tag">{tLabel(t, "tag.", p.tag)}</span>
                 <div>
                   <div className="bsf-row-head">
                     <span className={`bsf-author-badge ${p.author === "student" ? "student" : "teacher"}`}>
-                      {p.author === "student" ? "Student reflection" : "Teacher note"}
+                      {p.author === "student" ? t("portfolio.studentReflection") : t("portfolio.teacherNote")}
                     </span>
-                    <span className="bsf-muted">{p.date}</span>
+                    <span className="bsf-muted">{formatDateLong(p.date, language)}</span>
                   </div>
                   <p>{p.note}</p>
                 </div>
@@ -2263,25 +2299,25 @@ function ParentStudentView({ data, persist, profile }) {
           </section>
 
           <section className="bsf-card">
-            <h2>Assessments</h2>
-            {assessments.length === 0 && <p className="bsf-empty">No assessments recorded yet.</p>}
+            <h2>{t("child.assessments")}</h2>
+            {assessments.length === 0 && <p className="bsf-empty">{t("child.noAssessments")}</p>}
             {assessments.map((a) => (
               <div key={a.id} className="bsf-row">
                 {a.rows && a.rows.length > 0 ? (
-                  <span className="bsf-tag">{a.rubricName || "Rubric"}</span>
+                  <span className="bsf-tag">{a.rubricName || t("common.rubric")}</span>
                 ) : (
                   <span className="bsf-status-pill" style={{ background: `${getLevelColor(a.level)}1A`, color: getLevelColor(a.level) }}>
-                    {a.level}
+                    {tLabel(t, "level.", a.level)}
                   </span>
                 )}
                 <div>
-                  <p className="bsf-muted">{a.date}{a.subject ? ` · ${a.subject}` : ""}</p>
+                  <p className="bsf-muted">{formatDateLong(a.date, language)}{a.subject ? ` · ${a.subject}` : ""}</p>
                   {a.rows && a.rows.length > 0 ? (
                     <div className="bsf-rubric-rows">
                       {a.rows.map((r, i) => (
                         <div key={i} className="bsf-rubric-row">
                           <span>{r.text}</span>
-                          <span className="bsf-status-pill" style={{ background: `${getLevelColor(r.level)}1A`, color: getLevelColor(r.level) }}>{r.level}</span>
+                          <span className="bsf-status-pill" style={{ background: `${getLevelColor(r.level)}1A`, color: getLevelColor(r.level) }}>{tLabel(t, "level.", r.level)}</span>
                         </div>
                       ))}
                     </div>
@@ -2295,14 +2331,14 @@ function ParentStudentView({ data, persist, profile }) {
           </section>
 
           <section className="bsf-card">
-            <h2>Reports</h2>
-            {reports.length === 0 && <p className="bsf-empty">No reports generated yet.</p>}
+            <h2>{t("nav.reports")}</h2>
+            {reports.length === 0 && <p className="bsf-empty">{t("child.noReports")}</p>}
             {reports.map((r) => (
               <div key={r.id} className="bsf-row">
                 <span className="bsf-tag">{r.template}</span>
                 <div>
-                  <strong>{r.periodStart || "?"} to {r.periodEnd || "?"}</strong>
-                  <p>{r.createdDate}</p>
+                  <strong>{t("common.dateRange", { start: r.periodStart ? formatDateLong(r.periodStart, language) : "?", end: r.periodEnd ? formatDateLong(r.periodEnd, language) : "?" })}</strong>
+                  <p>{formatDateLong(r.createdDate, language)}</p>
                 </div>
               </div>
             ))}
@@ -2898,7 +2934,7 @@ function ClassesTab({ data, persist, profile }) {
 }
 
 function PortfolioTab({ data, persist, profile }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const isParent = profile?.role === "parent";
   const isStudent = profile?.role === "student";
   const isStaffScoped = profile?.role === "teacher" || profile?.role === "learning_assistant";
@@ -2984,7 +3020,7 @@ function PortfolioTab({ data, persist, profile }) {
           </div>
           <div className="bsf-row-head" style={{ marginTop: 2 }}>
             <span className="bsf-tag">{t(`tag.${p.tag}`)}</span>
-            <span className="bsf-muted">{p.date}</span>
+            <span className="bsf-muted">{isParent ? formatDateLong(p.date, language) : p.date}</span>
           </div>
           <p style={{ marginTop: 8 }}>{p.note}</p>
           {(!isParent || (p.files || []).length > 0) && (
@@ -3004,7 +3040,7 @@ function PortfolioTab({ data, persist, profile }) {
             </button>
             {reactions.length > 0 && (
               <span className="bsf-muted bsf-reactionnames">
-                {reactions.slice(0, 3).map((r) => r.name.split(" ")[0]).join(", ")}{reactions.length > 3 ? ` and ${reactions.length - 3} more` : ""}
+                {reactions.slice(0, 3).map((r) => r.name.split(" ")[0]).join(", ")}{reactions.length > 3 ? t("portfolio.andMore", { n: reactions.length - 3 }) : ""}
               </span>
             )}
           </div>
@@ -3031,10 +3067,10 @@ function PortfolioTab({ data, persist, profile }) {
         ) : (
           <>
             <p className="bsf-eyebrow">{t("portfolio.title")}</p>
-            <h1>{entries.length} entr{entries.length === 1 ? "y" : "ies"}</h1>
+            <h1>{t(pluralKey("portfolio.entries", entries.length, language), { n: entries.length })}</h1>
           </>
         )}
-        {recentEntries.length > 0 && <p className="bsf-hero-sub" style={{ marginTop: 10 }}>{recentEntries.length} added in the last 7 days</p>}
+        {recentEntries.length > 0 && <p className="bsf-hero-sub" style={{ marginTop: 10 }}>{t("portfolio.addedRecent", { n: recentEntries.length })}</p>}
       </div>
 
       <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
@@ -3044,19 +3080,19 @@ function PortfolioTab({ data, persist, profile }) {
       </div>
 
       {data.students.length === 0 && !isParent && !isStudent && <p className="bsf-empty">{t("portfolio.emptyStudents")}</p>}
-      {isParent && entries.length === 0 && <p className="bsf-empty">No portfolio entries yet for your child.</p>}
+      {isParent && entries.length === 0 && <p className="bsf-empty">{t("portfolio.emptyChild")}</p>}
       {isStudent && !myStudent && <p className="bsf-empty">Your account isn't linked to a student record yet. Ask your teacher or admin.</p>}
       {isStudent && myStudent && entries.length === 0 && <p className="bsf-empty">No entries yet, tap "Add my reflection" to share your first one.</p>}
 
       {recentEntries.length > 0 && (
         <section className="bsf-list">
-          <p className="bsf-group-label">This week</p>
+          <p className="bsf-group-label">{t("portfolio.thisWeek")}</p>
           {recentEntries.map(renderEntry)}
         </section>
       )}
       {earlierEntries.length > 0 && (
         <section className="bsf-list">
-          <p className="bsf-group-label">Earlier</p>
+          <p className="bsf-group-label">{t("portfolio.earlier")}</p>
           {earlierEntries.map(renderEntry)}
         </section>
       )}
@@ -3578,7 +3614,7 @@ function PlanningTab({ data, persist }) {
               ))}
             </div>
           </Field>
-          <Field label="Transdisciplinary theme">
+          <Field label="Theme">
             <select value={form.theme} onChange={(e) => setForm({ ...form, theme: e.target.value })}>
               <option value="">No theme</option>
               {THEMES.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -3618,7 +3654,7 @@ function PlanningTab({ data, persist }) {
           <Field label="Approaches to learning skills">
             <textarea rows={2} value={form.atlSkills} onChange={(e) => setForm({ ...form, atlSkills: e.target.value })} placeholder="e.g. Research, communication, self management" />
           </Field>
-          <Field label="Learner profile focus">
+          <Field label="Learner attributes focus">
             <input value={form.learnerProfileFocus} onChange={(e) => setForm({ ...form, learnerProfileFocus: e.target.value })} placeholder="e.g. Curious, caring, reflective" />
           </Field>
           <Field label="Differentiation">
@@ -3675,7 +3711,7 @@ function PlanningTab({ data, persist }) {
 
 function UpdatesTab({ data, persist }) {
   const { profile } = useAuth();
-  const { language } = useLanguage();
+  const { t, language } = useLanguage();
   const isParent = profile?.role === "parent";
   const isTeacherRole = profile?.role === "teacher" || profile?.role === "learning_assistant";
   const myAssignedGrades = profile?.grades_assigned || [];
@@ -3745,9 +3781,9 @@ function UpdatesTab({ data, persist }) {
   return (
     <div className="bsf-screen">
       <div className="bsf-hero">
-        <p className="bsf-eyebrow">Family Updates</p>
-        <h1>{posts.length} post{posts.length === 1 ? "" : "s"}</h1>
-        {recentCount > 0 && <p className="bsf-hero-sub">{recentCount} in the last 7 days</p>}
+        <p className="bsf-eyebrow">{t("nav.updates")}</p>
+        <h1>{t(pluralKey("updates.posts", posts.length, language), { n: posts.length })}</h1>
+        {recentCount > 0 && <p className="bsf-hero-sub">{t("common.inLast7Days", { n: recentCount })}</p>}
       </div>
 
       <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
@@ -3756,14 +3792,14 @@ function UpdatesTab({ data, persist }) {
       </div>
 
       <section className="bsf-list">
-        {posts.length === 0 && <p className="bsf-empty">Nothing posted yet.</p>}
+        {posts.length === 0 && <p className="bsf-empty">{t("dash.nothingPosted")}</p>}
         {posts.map((a) => {
           if (isParent) {
             const showFrench = language === "fr" && a.titleFr;
             return (
               <div key={a.id} className="bsf-card bsf-student">
                 <div>
-                  <span className="bsf-muted">{a.date}</span>
+                  <span className="bsf-muted">{formatDateLong(a.date, language)}</span>
                   <strong>{showFrench ? a.titleFr : a.titleEn}</strong>
                   <p style={{ whiteSpace: "pre-wrap" }}>{showFrench ? a.bodyFr : a.bodyEn}</p>
                   {(() => {
@@ -3876,10 +3912,10 @@ function UpdatesTab({ data, persist }) {
           <p className="bsf-muted" style={{ marginBottom: 12 }}>
             English version: <strong>{translatingPost.titleEn}</strong>
           </p>
-          <Field label="Titre (Francais)">
+          <Field label="Titre (Français)">
             <input value={translateForm.titleFr} onChange={(e) => setTranslateForm({ ...translateForm, titleFr: e.target.value })} />
           </Field>
-          <Field label="Message (Francais)">
+          <Field label="Message (Français)">
             <textarea rows={8} value={translateForm.bodyFr} onChange={(e) => setTranslateForm({ ...translateForm, bodyFr: e.target.value })} />
           </Field>
           <button className="bsf-btn bsf-btn-block" onClick={saveTranslation}>Save translation</button>
@@ -3894,6 +3930,7 @@ const STATUS_LABEL = { present: "Present", absent: "Absent", late: "Late", excus
 const STATUS_COLOR = { present: "#2F7A5C", absent: "#B5473B", late: "#B8842F", excused: "#6B5BA6" };
 
 function AttendanceTab({ data, persist, profile }) {
+  const { t, language } = useLanguage();
   const [date, setDate] = useState(todayStr());
   const isParent = profile?.role === "parent";
   const isStudent = profile?.role === "student";
@@ -3942,24 +3979,27 @@ function AttendanceTab({ data, persist, profile }) {
     return counts;
   }, [dayRecord, gradeStudents]);
 
-  const dateLabel = new Date(date + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  const dateLabel = (() => {
+    const [y, m, d] = date.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(language === "fr" ? "fr-FR" : "en-GB", { weekday: "long", day: "numeric", month: "long" });
+  })();
   const isToday = date === todayStr();
   const markedTotal = summary.present + summary.absent + summary.late;
 
   return (
     <div className="bsf-screen">
       <div className="bsf-hero">
-        <p className="bsf-eyebrow">Attendance</p>
+        <p className="bsf-eyebrow">{t("nav.attendance")}</p>
         <h1>{dateLabel}</h1>
         {!isToday && (
           <button className="bsf-textbtn" onClick={() => setDate(todayStr())} style={{ marginTop: 2 }}>
-            Jump back to today
+            {t("attendance.jumpToday")}
           </button>
         )}
         <div className="bsf-attend-summary">
           <div className="bsf-attend-bignum">
             <strong>{summary.present}</strong>
-            <span>present today</span>
+            <span>{t("attendance.presentToday")}</span>
           </div>
           {markedTotal > 0 && (
             <div className="bsf-attend-segbar">
@@ -3974,11 +4014,11 @@ function AttendanceTab({ data, persist, profile }) {
 
       {(isSelfOnly || isStaffScoped) && myGrades.length > 1 && (
         <section className="bsf-card">
-          <h2>Grade</h2>
+          <h2>{t("reports.grade")}</h2>
           <div className="bsf-chiprow">
             {myGrades.map((g) => (
               <button key={g} className={`bsf-chip ${activeGrade === g ? "active" : ""}`} onClick={() => setActiveGrade(g)}>
-                {g}
+                {isParent ? gradeLabel(g, language) : g}
               </button>
             ))}
           </div>
@@ -4000,15 +4040,15 @@ function AttendanceTab({ data, persist, profile }) {
 
       {!isSelfOnly && <AbsenceNotices profile={profile} />}
       <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
-        <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 16 }}>{activeGrade}</h2>
+        <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 16 }}>{isParent ? gradeLabel(activeGrade, language) : activeGrade}</h2>
         {!isSelfOnly && <button className="bsf-btn" onClick={markAllPresent} disabled={gradeStudents.length === 0}>Mark all present</button>}
       </div>
       <p className="bsf-muted" style={{ margin: "6px 4px 14px" }}>
-        {summary.present} present · {summary.absent} absent · {summary.late} late{!isSelfOnly ? ` · ${summary.unmarked} unmarked` : ""}
+        {t("dash.attendanceCounts", summary)}{!isSelfOnly ? ` · ${summary.unmarked} unmarked` : ""}
       </p>
 
       <section className="bsf-list">
-        {gradeStudents.length === 0 && <p className="bsf-empty">{isSelfOnly ? "No attendance recorded yet." : "No students in this grade yet."}</p>}
+        {gradeStudents.length === 0 && <p className="bsf-empty">{isSelfOnly ? t("attendance.noRecord") : "No students in this grade yet."}</p>}
         {gradeStudents.map((s) => {
           const status = dayRecord[s.id];
           return isSelfOnly ? (
@@ -4022,7 +4062,7 @@ function AttendanceTab({ data, persist, profile }) {
                   color: status ? STATUS_COLOR[status] : "#8A9698"
                 }}
               >
-                {status ? STATUS_LABEL[status] : "Not marked yet"}
+                {status ? t(`attendance.status.${status}`) : t("attendance.notMarked")}
               </span>
             </div>
           ) : (
@@ -4223,6 +4263,7 @@ function assessmentTypesForGrade(grade) {
 }
 
 function AssessmentTab({ data, persist, profile }) {
+  const { t, language } = useLanguage();
   const [showAdd, setShowAdd] = useState(false);
   const [showRubrics, setShowRubrics] = useState(false);
   const [showStandards, setShowStandards] = useState(false);
@@ -4335,8 +4376,8 @@ function AssessmentTab({ data, persist, profile }) {
   return (
     <div className="bsf-screen">
       <div className="bsf-hero">
-        <p className="bsf-eyebrow">Assessment</p>
-        <h1>{filtered.length} record{filtered.length === 1 ? "" : "s"}</h1>
+        <p className="bsf-eyebrow">{t("nav.assessment")}</p>
+        <h1>{t(pluralKey("assessment.records", filtered.length, language), { n: filtered.length })}</h1>
         {filtered.length > 0 && (
           <div className="bsf-attend-segbar" style={{ marginTop: 14 }}>
             {ASSESS_LEVELS.filter((l) => levelCounts[l] > 0).map((l) => (
@@ -4357,32 +4398,32 @@ function AssessmentTab({ data, persist, profile }) {
         )}
       </div>
       {data.students.length === 0 && !isSelfOnly && <p className="bsf-empty">Add students first, then record assessments here.</p>}
-      {isSelfOnly && filtered.length === 0 && <p className="bsf-empty">{isStudent ? "No assessment records yet." : "No assessment records yet for your child."}</p>}
+      {isSelfOnly && filtered.length === 0 && <p className="bsf-empty">{isStudent ? "No assessment records yet." : t("assessment.emptyChild")}</p>}
 
       {data.students.length > 0 && (!isSelfOnly && !isStaffScoped || myGrades.length > 1) && (
         <section className="bsf-card">
-          <h2>Filter by grade</h2>
+          <h2>{t("common.filterByGrade")}</h2>
           <div className="bsf-chiprow">
-            <button className={`bsf-chip ${gradeFilter === null ? "active" : ""}`} onClick={() => setGradeFilter(null)}>All</button>
+            <button className={`bsf-chip ${gradeFilter === null ? "active" : ""}`} onClick={() => setGradeFilter(null)}>{t("common.all")}</button>
             {((isSelfOnly || isStaffScoped) ? myGrades : GRADES).map((g) => (
-              <button key={g} className={`bsf-chip ${gradeFilter === g ? "active" : ""}`} onClick={() => setGradeFilter(g)}>{g}</button>
+              <button key={g} className={`bsf-chip ${gradeFilter === g ? "active" : ""}`} onClick={() => setGradeFilter(g)}>{isParent ? gradeLabel(g, language) : g}</button>
             ))}
           </div>
         </section>
       )}
 
       <section className="bsf-card">
-        <h2>Filter by type</h2>
+        <h2>{t("common.filterByType")}</h2>
         <div className="bsf-chiprow">
-          <button className={`bsf-chip ${typeFilter === null ? "active" : ""}`} onClick={() => setTypeFilter(null)}>All</button>
-          {ASSESSMENT_TYPES.map((t) => (
-            <button key={t} className={`bsf-chip ${typeFilter === t ? "active" : ""}`} onClick={() => setTypeFilter(t)}>{t}</button>
+          <button className={`bsf-chip ${typeFilter === null ? "active" : ""}`} onClick={() => setTypeFilter(null)}>{t("common.all")}</button>
+          {ASSESSMENT_TYPES.map((tp) => (
+            <button key={tp} className={`bsf-chip ${typeFilter === tp ? "active" : ""}`} onClick={() => setTypeFilter(tp)}>{tLabel(t, "assessType.", tp)}</button>
           ))}
         </div>
       </section>
 
       <section className="bsf-list">
-        {filtered.length === 0 && <p className="bsf-empty">No assessments recorded yet.</p>}
+        {filtered.length === 0 && <p className="bsf-empty">{t("child.noAssessments")}</p>}
         {filtered.map((a) => {
           const student = data.students.find((s) => s.id === a.studentId);
           return (
@@ -4391,27 +4432,27 @@ function AssessmentTab({ data, persist, profile }) {
               <div style={{ flex: 1 }}>
                 <div className="bsf-row-head">
                   {a.rows && a.rows.length > 0 ? (
-                    <span className="bsf-tag">{a.rubricName || "Rubric"}</span>
+                    <span className="bsf-tag">{a.rubricName || t("common.rubric")}</span>
                   ) : (
                     <span
                       className="bsf-status-pill"
                       style={{ background: `${getLevelColor(a.level)}1A`, color: getLevelColor(a.level) }}
                     >
-                      {a.level}
+                      {tLabel(t, "level.", a.level)}
                     </span>
                   )}
-                  <span className="bsf-muted">{a.date}</span>
+                  <span className="bsf-muted">{isParent ? formatDateLong(a.date, language) : a.date}</span>
                 </div>
                 <strong>{a.studentName}</strong>
-                {a.assessmentType && <span className="bsf-minitag" style={{ marginTop: 2, display: "inline-block" }}>{a.assessmentType}</span>}
-                <p className="bsf-muted">{a.grade}{a.subject ? ` · ${a.subject}` : ""}{a.planTitle ? ` · ${a.planTitle}` : ""}</p>
+                {a.assessmentType && <span className="bsf-minitag" style={{ marginTop: 2, display: "inline-block" }}>{tLabel(t, "assessType.", a.assessmentType)}</span>}
+                <p className="bsf-muted">{isParent ? gradeLabel(a.grade, language) : a.grade}{a.subject ? ` · ${a.subject}` : ""}{a.planTitle ? ` · ${a.planTitle}` : ""}</p>
                 {a.rows && a.rows.length > 0 ? (
                   <div className="bsf-rubric-rows">
                     {a.rows.map((r, i) => (
                       <div key={i} className="bsf-rubric-row">
                         <span>{r.text}</span>
                         <span className="bsf-status-pill" style={{ background: `${getLevelColor(r.level)}1A`, color: getLevelColor(r.level) }}>
-                          {r.level}
+                          {tLabel(t, "level.", r.level)}
                         </span>
                       </div>
                     ))}
@@ -4420,7 +4461,7 @@ function AssessmentTab({ data, persist, profile }) {
                   <p>{a.criteria}</p>
                 )}
                 {a.feedback && <p className="bsf-muted">{a.feedback}</p>}
-                {a.standardLabel && <p className="bsf-muted">Standard: {a.standardLabel}</p>}
+                {a.standardLabel && <p className="bsf-muted">{t("assessment.standard")} {a.standardLabel}</p>}
               </div>
               {!isSelfOnly && <button className="bsf-iconbtn" onClick={() => removeAssessment(a.id)} aria-label="Remove"><Trash2 size={16} /></button>}
             </div>
@@ -4669,13 +4710,13 @@ function CalendarTab({ data, persist, profile }) {
       <div>
         <div className="bsf-row-head">
           <span className="bsf-status-pill" style={{ background: `${EVENT_TYPE_COLOR[e.type]}1A`, color: EVENT_TYPE_COLOR[e.type] }}>
-            {e.type}
+            {tLabel(t, "eventType.", e.type)}
           </span>
           {!isFamily && isStaffOnlyEvent(e) && <span className="bsf-status-pill bsf-staffonly-pill">Staff only</span>}
           <span className="bsf-muted">{formatEventWhen(e, language)}</span>
         </div>
         <strong>{e.title}</strong>
-        <p className="bsf-muted">{e.grades && e.grades.length > 0 ? e.grades.join(", ") : "Whole school"}</p>
+        <p className="bsf-muted">{e.grades && e.grades.length > 0 ? e.grades.map((g) => (isFamily ? gradeLabel(g, language) : g)).join(", ") : t("common.wholeSchool")}</p>
         {e.description && <p>{e.description}</p>}
       </div>
       {!isFamily && <button className="bsf-iconbtn" onClick={() => removeEvent(e.id)} aria-label="Remove"><Trash2 size={16} /></button>}
@@ -4685,9 +4726,9 @@ function CalendarTab({ data, persist, profile }) {
   return (
     <div className="bsf-screen">
       <div className="bsf-hero">
-        <p className="bsf-eyebrow">Calendar</p>
-        <h1>{upcoming.length} upcoming event{upcoming.length === 1 ? "" : "s"}</h1>
-        {upcoming[0] && <p className="bsf-hero-sub">Next: {upcoming[0].title} · {formatEventWhen(upcoming[0], language)}</p>}
+        <p className="bsf-eyebrow">{t("nav.calendar")}</p>
+        <h1>{t(pluralKey("calendar.upcomingCount", upcoming.length, language), { n: upcoming.length })}</h1>
+        {upcoming[0] && <p className="bsf-hero-sub">{t("common.nextPrefix")} {upcoming[0].title} · {formatEventWhen(upcoming[0], language)}</p>}
       </div>
 
       <div className="bsf-screen-head" style={{ marginBottom: 0, gap: 8, flexWrap: "wrap" }}>
@@ -4704,11 +4745,11 @@ function CalendarTab({ data, persist, profile }) {
       )}
 
       <section className="bsf-card">
-        <h2>Filter by type</h2>
+        <h2>{t("common.filterByType")}</h2>
         <div className="bsf-chiprow">
-          <button className={`bsf-chip ${typeFilter === null ? "active" : ""}`} onClick={() => setTypeFilter(null)}>All</button>
-          {EVENT_TYPES.map((tp) => (
-            <button key={tp} className={`bsf-chip ${typeFilter === tp ? "active" : ""}`} onClick={() => setTypeFilter(tp)}>{tp}</button>
+          <button className={`bsf-chip ${typeFilter === null ? "active" : ""}`} onClick={() => setTypeFilter(null)}>{t("common.all")}</button>
+          {EVENT_TYPES.filter((tp) => !isFamily || tp !== "Staff").map((tp) => (
+            <button key={tp} className={`bsf-chip ${typeFilter === tp ? "active" : ""}`} onClick={() => setTypeFilter(tp)}>{tLabel(t, "eventType.", tp)}</button>
           ))}
         </div>
         {!isFamily && (
@@ -4721,14 +4762,14 @@ function CalendarTab({ data, persist, profile }) {
       </section>
 
       <section className="bsf-list">
-        <h2 className="bsf-listheading">Upcoming</h2>
-        {upcoming.length === 0 && <p className="bsf-empty">Nothing scheduled yet.</p>}
+        <h2 className="bsf-listheading">{t("calendar.upcoming")}</h2>
+        {upcoming.length === 0 && <p className="bsf-empty">{t("dash.nothingScheduled")}</p>}
         {upcoming.map(renderEvent)}
       </section>
 
       {past.length > 0 && (
         <section className="bsf-list">
-          <h2 className="bsf-listheading">Past</h2>
+          <h2 className="bsf-listheading">{t("calendar.past")}</h2>
           {past.map(renderEvent)}
         </section>
       )}
@@ -5040,6 +5081,7 @@ function AdmissionsTab({ data, persist }) {
 const emptyAssignmentForm = { title: "", description: "", grades: [], subject: "", dueDate: "", link: "", files: [] };
 
 function AssignmentsTab({ data, persist, profile }) {
+  const { t, language } = useLanguage();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [gradeFilter, setGradeFilter] = useState(null);
@@ -5113,8 +5155,8 @@ function AssignmentsTab({ data, persist, profile }) {
     <div key={a.id} className={`bsf-card bsf-student ${isSelfOnly ? "" : "bsf-clickable"}`} onClick={() => { if (!isSelfOnly) openEdit(a); }}>
       <div>
         <div className="bsf-row-head">
-          <span className="bsf-tag">{(a.grades || []).length === GRADES.length ? "All grades" : (a.grades || []).join(", ")}</span>
-          {a.dueDate && <span className="bsf-muted">Due {a.dueDate}</span>}
+          <span className="bsf-tag">{(a.grades || []).length === GRADES.length ? t("common.allGrades") : (a.grades || []).map((g) => (isParent ? gradeLabel(g, language) : g)).join(", ")}</span>
+          {a.dueDate && <span className="bsf-muted">{t("common.due", { date: isParent ? formatDateLong(a.dueDate, language) : a.dueDate })}</span>}
         </div>
         {a.subject && <p className="bsf-muted">{a.subject}</p>}
         <strong>{a.title}</strong>
@@ -5160,9 +5202,9 @@ function AssignmentsTab({ data, persist, profile }) {
   return (
     <div className="bsf-screen">
       <div className="bsf-hero">
-        <p className="bsf-eyebrow">Assignments</p>
-        <h1>{upcoming.length} due{upcoming.length === 1 ? "" : ""} ahead</h1>
-        {upcoming[0] && <p className="bsf-hero-sub">Next: {upcoming[0].title}{upcoming[0].dueDate ? ` · Due ${upcoming[0].dueDate}` : ""}</p>}
+        <p className="bsf-eyebrow">{t("nav.assignments")}</p>
+        <h1>{t(pluralKey("assignments.dueCount", upcoming.length, language), { n: upcoming.length })}</h1>
+        {upcoming[0] && <p className="bsf-hero-sub">{t("common.nextPrefix")} {upcoming[0].title}{upcoming[0].dueDate ? ` · ${t("common.due", { date: isParent ? formatDateLong(upcoming[0].dueDate, language) : upcoming[0].dueDate })}` : ""}</p>}
       </div>
 
       <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
@@ -5171,24 +5213,24 @@ function AssignmentsTab({ data, persist, profile }) {
       </div>
 
       <section className="bsf-card">
-        <h2>Filter by grade</h2>
+        <h2>{t("common.filterByGrade")}</h2>
         <div className="bsf-chiprow">
-          <button className={`bsf-chip ${gradeFilter === null ? "active" : ""}`} onClick={() => setGradeFilter(null)}>All</button>
+          <button className={`bsf-chip ${gradeFilter === null ? "active" : ""}`} onClick={() => setGradeFilter(null)}>{t("common.all")}</button>
           {(isSelfOnly ? myGrades : GRADES).map((g) => (
-            <button key={g} className={`bsf-chip ${gradeFilter === g ? "active" : ""}`} onClick={() => setGradeFilter(g)}>{g}</button>
+            <button key={g} className={`bsf-chip ${gradeFilter === g ? "active" : ""}`} onClick={() => setGradeFilter(g)}>{isParent ? gradeLabel(g, language) : g}</button>
           ))}
         </div>
       </section>
 
       <section className="bsf-list">
-        <h2 className="bsf-listheading">Due</h2>
-        {upcoming.length === 0 && <p className="bsf-empty">Nothing assigned yet.</p>}
+        <h2 className="bsf-listheading">{t("assignments.dueHeading")}</h2>
+        {upcoming.length === 0 && <p className="bsf-empty">{t("assignments.empty")}</p>}
         {upcoming.map(renderAssignment)}
       </section>
 
       {past.length > 0 && (
         <section className="bsf-list">
-          <h2 className="bsf-listheading">Past due</h2>
+          <h2 className="bsf-listheading">{t("assignments.pastDue")}</h2>
           {past.map(renderAssignment)}
         </section>
       )}
@@ -5236,6 +5278,12 @@ function AssignmentsTab({ data, persist, profile }) {
 }
 
 function ReportViewModal({ report, data, onClose, onRemove }) {
+  const { t, language } = useLanguage();
+  // Parents see report cards in their language; staff (always English) keep raw values.
+  const isFamilyView = !onRemove;
+  const D = (d) => (isFamilyView ? formatDateLong(d, language) : d);
+  const G = (g) => (isFamilyView ? gradeLabel(g, language) : g);
+  const range = (start, end) => t("common.dateRange", { start: start ? D(start) : "?", end: end ? D(end) : "?" });
   const kind = report.kind || "student";
   const settings = data?.settings || DEFAULT_SETTINGS;
   const student = data?.students.find((s) => s.id === report.studentId);
@@ -5244,18 +5292,18 @@ function ReportViewModal({ report, data, onClose, onRemove }) {
   return (
     <Modal
       title={
-        kind === "student" ? `${report.studentName}'s report`
+        kind === "student" ? t("reports.studentTitle", { name: report.studentName })
         : kind === "attendance" ? "Attendance report"
         : kind === "assessment" ? "Assessment report"
         : kind === "behavior" ? "Behavior report"
-        : kind === "transcript" ? `${report.studentName}'s transcript`
+        : kind === "transcript" ? t("reports.transcriptTitle", { name: report.studentName })
         : "Standards report"
       }
       onClose={onClose}
     >
       {(kind === "student" || kind === "transcript") && (
         <button className="bsf-btn bsf-btn-block bsf-noprint" style={{ marginBottom: 16 }} onClick={() => window.print()}>
-          Print / Save as PDF
+          {t("reports.print")}
         </button>
       )}
 
@@ -5264,31 +5312,31 @@ function ReportViewModal({ report, data, onClose, onRemove }) {
           <div className="bsf-letterhead">
             {settings.branding.logoUrl && <img src={settings.branding.logoUrl} alt="" className="bsf-letterhead-logo" />}
             <h2>BrightSteps International School</h2>
-            <p className="bsf-muted">{kind === "student" ? "Progress Report" : "Academic Transcript"}</p>
+            <p className="bsf-muted">{kind === "student" ? t("reports.progressReport") : t("reports.academicTranscript")}</p>
             <table className="bsf-letterhead-table">
               <tbody>
-                <tr><td>Student Name</td><td>{report.studentName}</td></tr>
-                <tr><td>Grade</td><td>{report.grade}</td></tr>
-                <tr><td>Academic Year</td><td>{settings.academicYear.startDate ? settings.academicYear.startDate.slice(0, 4) : "?"}/{settings.academicYear.endDate ? settings.academicYear.endDate.slice(0, 4) : "?"}</td></tr>
-                <tr><td>Period</td><td>{report.periodStart || "?"} to {report.periodEnd || "?"}</td></tr>
-                {student?.nationalities?.length > 0 && <tr><td>Nationality</td><td>{student.nationalities.join(" - ")}</td></tr>}
+                <tr><td>{t("reports.studentName")}</td><td>{report.studentName}</td></tr>
+                <tr><td>{t("reports.grade")}</td><td>{G(report.grade)}</td></tr>
+                <tr><td>{t("reports.academicYear")}</td><td>{settings.academicYear.startDate ? settings.academicYear.startDate.slice(0, 4) : "?"}/{settings.academicYear.endDate ? settings.academicYear.endDate.slice(0, 4) : "?"}</td></tr>
+                <tr><td>{t("reports.period")}</td><td>{range(report.periodStart, report.periodEnd)}</td></tr>
+                {student?.nationalities?.length > 0 && <tr><td>{t("reports.nationality")}</td><td>{student.nationalities.join(" - ")}</td></tr>}
               </tbody>
             </table>
             {kind === "student" && (
               <div className="bsf-letterhead-legend">
                 {isLevelsReport ? (
                   <>
-                    <strong>Understanding Progress Levels</strong>
-                    <p>Emerging – Beginning to explore and show early understanding</p>
-                    <p>Developing – Growing and applying skills with support</p>
-                    <p>Proficient – Using skills consistently and independently</p>
-                    <p>Confident – Applying skills confidently across situations</p>
+                    <strong>{t("reports.levelsLegend")}</strong>
+                    <p>{t("reports.legend.Emerging")}</p>
+                    <p>{t("reports.legend.Developing")}</p>
+                    <p>{t("reports.legend.Proficient")}</p>
+                    <p>{t("reports.legend.Confident")}</p>
                   </>
                 ) : (
                   <>
-                    <strong>Understanding Grades</strong>
+                    <strong>{t("reports.gradesLegend")}</strong>
                     {Object.entries(LETTER_GRADE_MEANING).map(([letter, meaning]) => (
-                      <p key={letter}><strong>{letter}</strong> — {meaning} ({LEARNING_PROGRESS_BAND[letter]})</p>
+                      <p key={letter}><strong>{letter}</strong> — {tLabel(t, "grade.meaning.", letter) || meaning} ({tLabel(t, "grade.band.", LEARNING_PROGRESS_BAND[letter])})</p>
                     ))}
                   </>
                 )}
@@ -5299,17 +5347,17 @@ function ReportViewModal({ report, data, onClose, onRemove }) {
 
       {kind === "student" && (
         <>
-          <p className="bsf-muted bsf-noprint">{report.template} · Generated {report.createdDate}</p>
+          <p className="bsf-muted bsf-noprint">{report.template} · {t("reports.generated", { date: D(report.createdDate) })}</p>
 
           <hr className="bsf-divider" />
-          <h3 className="bsf-subheading">Attendance</h3>
+          <h3 className="bsf-subheading">{t("nav.attendance")}</h3>
           <p className="bsf-muted">
-            {report.attendanceSummary.present} present · {report.attendanceSummary.absent} absent · {report.attendanceSummary.late} late during this period
+            {t("reports.attendanceLine", report.attendanceSummary)}
           </p>
 
           <hr className="bsf-divider" />
-          <h3 className="bsf-subheading">Grades</h3>
-          {(!report.grades || report.grades.length === 0) && <p className="bsf-empty">No grades recorded in this period.</p>}
+          <h3 className="bsf-subheading">{t("reports.grades")}</h3>
+          {(!report.grades || report.grades.length === 0) && <p className="bsf-empty">{t("reports.noGrades")}</p>}
           {(report.grades || []).map((g, i) => (
             <div key={i} className="bsf-row">
               <span className="bsf-status-pill" style={{ background: `${LETTER_GRADE_COLOR[g.letter] || "#8A9698"}1A`, color: LETTER_GRADE_COLOR[g.letter] || "#8A9698" }}>
@@ -5323,16 +5371,16 @@ function ReportViewModal({ report, data, onClose, onRemove }) {
           ))}
 
           <hr className="bsf-divider" />
-          <h3 className="bsf-subheading">Assessments</h3>
-          {report.assessments.length === 0 && <p className="bsf-empty">No assessments recorded in this period.</p>}
+          <h3 className="bsf-subheading">{t("child.assessments")}</h3>
+          {report.assessments.length === 0 && <p className="bsf-empty">{t("reports.noAssessments")}</p>}
           {report.assessments.map((a, i) => (
             <div key={i} className="bsf-comment">
               <div className="bsf-row-head">
-                <strong>{a.subject || "General"}</strong>
+                <strong>{a.subject || t("reports.general")}</strong>
                 {a.rows && a.rows.length > 0 ? (
-                  <span className="bsf-tag">{a.rubricName || "Rubric"}</span>
+                  <span className="bsf-tag">{a.rubricName || t("common.rubric")}</span>
                 ) : (
-                  <span className="bsf-status-pill" style={{ background: `${getLevelColor(a.level)}1A`, color: getLevelColor(a.level) }}>{a.level}</span>
+                  <span className="bsf-status-pill" style={{ background: `${getLevelColor(a.level)}1A`, color: getLevelColor(a.level) }}>{tLabel(t, "level.", a.level)}</span>
                 )}
               </div>
               {a.rows && a.rows.length > 0 ? (
@@ -5340,7 +5388,7 @@ function ReportViewModal({ report, data, onClose, onRemove }) {
                   {a.rows.map((r, j) => (
                     <div key={j} className="bsf-rubric-row">
                       <span>{r.text}</span>
-                      <span className="bsf-status-pill" style={{ background: `${getLevelColor(r.level)}1A`, color: getLevelColor(r.level) }}>{r.level}</span>
+                      <span className="bsf-status-pill" style={{ background: `${getLevelColor(r.level)}1A`, color: getLevelColor(r.level) }}>{tLabel(t, "level.", r.level)}</span>
                     </div>
                   ))}
                 </div>
@@ -5352,28 +5400,28 @@ function ReportViewModal({ report, data, onClose, onRemove }) {
           ))}
 
           <hr className="bsf-divider" />
-          <h3 className="bsf-subheading">Portfolio highlights</h3>
-          {report.portfolio.length === 0 && <p className="bsf-empty">No portfolio entries in this period.</p>}
+          <h3 className="bsf-subheading">{t("reports.portfolioHighlights")}</h3>
+          {report.portfolio.length === 0 && <p className="bsf-empty">{t("reports.noPortfolio")}</p>}
           {report.portfolio.map((p, i) => (
             <div key={i} className="bsf-comment">
               <div className="bsf-row-head">
-                <span className="bsf-tag">{p.tag}</span>
-                <span className="bsf-muted">{p.date}</span>
+                <span className="bsf-tag">{tLabel(t, "tag.", p.tag)}</span>
+                <span className="bsf-muted">{D(p.date)}</span>
               </div>
               <p>{p.note}</p>
             </div>
           ))}
 
           <hr className="bsf-divider" />
-          <h3 className="bsf-subheading">Teacher comments</h3>
-          <p>{report.teacherComments || "No comments added."}</p>
+          <h3 className="bsf-subheading">{t("reports.teacherComments")}</h3>
+          <p>{report.teacherComments || t("reports.noComments")}</p>
 
           <div className="bsf-signatureblock">
             <div>
-              <p>Teacher: ________________________________</p>
+              <p>{t("reports.teacherSign")} ________________________________</p>
             </div>
             <div>
-              <p>Date: ________________________________</p>
+              <p>{t("reports.dateSign")} ________________________________</p>
             </div>
           </div>
         </>
@@ -5491,16 +5539,16 @@ function ReportViewModal({ report, data, onClose, onRemove }) {
 
       {kind === "transcript" && (
         <>
-          <p className="bsf-muted">{report.grade} · Period: {report.periodStart || "Full history"} to {report.periodEnd || "present"}</p>
-          <p className="bsf-muted">Generated {report.createdDate}</p>
+          <p className="bsf-muted">{G(report.grade)} · {t("reports.periodPrefix")} {!report.periodStart && !report.periodEnd ? t("reports.fullHistory") : !report.periodEnd ? t("reports.fromToPresent", { start: D(report.periodStart) }) : !report.periodStart ? t("reports.upTo", { end: D(report.periodEnd) }) : range(report.periodStart, report.periodEnd)}</p>
+          <p className="bsf-muted">{t("reports.generated", { date: D(report.createdDate) })}</p>
 
           <hr className="bsf-divider" />
-          <h3 className="bsf-subheading">GPA</h3>
-          <p className="bsf-muted">{report.gpa !== null ? `${report.gpa} average across ${report.entries.length} grade${report.entries.length === 1 ? "" : "s"}` : "Not enough graded entries yet."}</p>
+          <h3 className="bsf-subheading">{t("reports.gpa")}</h3>
+          <p className="bsf-muted">{report.gpa !== null ? t(pluralKey("reports.gpaLine", report.entries.length, language), { gpa: report.gpa, n: report.entries.length }) : t("reports.gpaNone")}</p>
 
           <hr className="bsf-divider" />
-          <h3 className="bsf-subheading">Grade history</h3>
-          {report.entries.length === 0 && <p className="bsf-empty">No grades recorded for this student yet.</p>}
+          <h3 className="bsf-subheading">{t("reports.gradeHistory")}</h3>
+          {report.entries.length === 0 && <p className="bsf-empty">{t("reports.noGradeHistory")}</p>}
           {report.entries.map((e, i) => (
             <div key={i} className="bsf-comment">
               <div className="bsf-row-head">
@@ -5509,7 +5557,7 @@ function ReportViewModal({ report, data, onClose, onRemove }) {
                   {e.scoreType === "Percentage" ? `${e.score}% · ${e.letter}` : e.letter}
                 </span>
               </div>
-              <p className="bsf-muted">{e.date}</p>
+              <p className="bsf-muted">{D(e.date)}</p>
               {e.comments && <p>{e.comments}</p>}
             </div>
           ))}
@@ -5541,8 +5589,8 @@ function ReportViewModal({ report, data, onClose, onRemove }) {
         </>
       )}
 
-      <button className="bsf-btn bsf-btn-block" onClick={() => window.print()}>Print / Save as PDF</button>
-      <button className="bsf-textbtn" style={{ marginTop: 10 }} onClick={() => onRemove(report.id)}>Delete this report</button>
+      <button className="bsf-btn bsf-btn-block" onClick={() => window.print()}>{t("reports.print")}</button>
+      {onRemove && <button className="bsf-textbtn" style={{ marginTop: 10 }} onClick={() => onRemove(report.id)}>Delete this report</button>}
     </Modal>
   );
 }
@@ -5608,6 +5656,7 @@ function suggestReportComment(data, studentId, studentName, start, end) {
 }
 
 function ReportsTab({ data, persist, profile }) {
+  const { t, language } = useLanguage();
   const [showForm, setShowForm] = useState(false);
   const [viewingId, setViewingId] = useState(null);
   const [kind, setKind] = useState("student");
@@ -5842,16 +5891,19 @@ function ReportsTab({ data, persist, profile }) {
     setViewingId(null);
   };
 
-  const kindLabel = (r) => REPORT_KINDS.find((k) => k.id === (r.kind || "student")).label;
+  const kindLabel = (r) => {
+    const k = r.kind || "student";
+    return isParent ? tLabel(t, "reports.kind.", k) : REPORT_KINDS.find((x) => x.id === k).label;
+  };
 
   return (
     <div className="bsf-screen">
       <div className="bsf-screen-head">
-        <h1>{isParent ? "Report Cards" : "Reports"}</h1>
+        <h1>{isParent ? t("reports.parentTitle") : "Reports"}</h1>
         {!isParent && <button className="bsf-btn" onClick={() => openForm("student")} disabled={data.students.length === 0}><Plus size={16} /> Generate</button>}
       </div>
       {!isParent && data.students.length === 0 && <p className="bsf-empty">Add students first, then generate reports here.</p>}
-      {isParent && reports.length === 0 && <p className="bsf-empty">No report cards have been generated for your child yet.</p>}
+      {isParent && reports.length === 0 && <p className="bsf-empty">{t("reports.emptyChild")}</p>}
 
       <section className="bsf-list">
         {!isParent && reports.length === 0 && <p className="bsf-empty">No reports generated yet.</p>}
@@ -5860,12 +5912,13 @@ function ReportsTab({ data, persist, profile }) {
             <div>
               <div className="bsf-row-head">
                 <span className="bsf-tag">{kindLabel(r)}</span>
-                <span className="bsf-muted">{r.createdDate}</span>
+                <span className="bsf-muted">{isParent ? formatDateLong(r.createdDate, language) : r.createdDate}</span>
               </div>
-              <strong>{r.kind === "student" || !r.kind ? r.studentName : r.grade}</strong>
+              <strong>{r.kind === "student" || !r.kind || (isParent && r.kind === "transcript") ? r.studentName : r.grade}</strong>
               <p className="bsf-muted">
-                {r.kind === "student" || !r.kind ? r.grade : (r.kind === "assessment" && r.subject ? r.subject : "")}
-                {" "}· {r.periodStart || "?"} to {r.periodEnd || "?"}
+                {isParent
+                  ? `${gradeLabel(r.grade, language)} · ${t("common.dateRange", { start: r.periodStart ? formatDateLong(r.periodStart, language) : "?", end: r.periodEnd ? formatDateLong(r.periodEnd, language) : "?" })}`
+                  : <>{r.kind === "student" || !r.kind ? r.grade : (r.kind === "assessment" && r.subject ? r.subject : "")}{" "}· {r.periodStart || "?"} to {r.periodEnd || "?"}</>}
               </p>
             </div>
             {!isParent && <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeReport(r.id); }} aria-label="Remove"><Trash2 size={16} /></button>}
@@ -6620,6 +6673,7 @@ function StaffTab({ data, persist }) {
 const emptyResourceForm = { title: "", category: RESOURCE_CATEGORIES[0], link: "", description: "", files: [], filesFr: [], visibleToParents: false, requiresSignature: false };
 
 function ResourcesTab({ data, persist, profile }) {
+  const { t, language } = useLanguage();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [categoryFilter, setCategoryFilter] = useState(null);
@@ -6644,15 +6698,15 @@ function ResourcesTab({ data, persist, profile }) {
 
   const saveSignature = () => {
     if (!signatureName.trim()) {
-      setSignatureError("Please type your full name.");
+      setSignatureError(t("sign.errName"));
       return;
     }
     if (!signatureDataUrl) {
-      setSignatureError("Please sign in the box above.");
+      setSignatureError(t("sign.errSignature"));
       return;
     }
     if (!signatureConfirmed) {
-      setSignatureError("Please confirm you've read the document before signing.");
+      setSignatureError(t("sign.errConfirm"));
       return;
     }
     const signature = { id: uid(), parentId: profile.id, parentName: signatureName.trim(), signatureDataUrl, date: todayStr() };
@@ -6706,8 +6760,8 @@ function ResourcesTab({ data, persist, profile }) {
   return (
     <div className="bsf-screen">
       <div className="bsf-hero">
-        <p className="bsf-eyebrow">Resources</p>
-        <h1>{resources.length} file{resources.length === 1 ? "" : "s"} shared</h1>
+        <p className="bsf-eyebrow">{t("nav.resources")}</p>
+        <h1>{t(pluralKey("resources.count", resources.length, language), { n: resources.length })}</h1>
       </div>
 
       <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
@@ -6716,24 +6770,26 @@ function ResourcesTab({ data, persist, profile }) {
       </div>
 
       <section className="bsf-card">
-        <h2>Filter by category</h2>
+        <h2>{t("common.filterByCategory")}</h2>
         <div className="bsf-chiprow">
-          <button className={`bsf-chip ${categoryFilter === null ? "active" : ""}`} onClick={() => setCategoryFilter(null)}>All</button>
+          <button className={`bsf-chip ${categoryFilter === null ? "active" : ""}`} onClick={() => setCategoryFilter(null)}>{t("common.all")}</button>
           {(isParent ? PARENT_RESOURCE_CATEGORIES : RESOURCE_CATEGORIES).map((c) => (
-            <button key={c} className={`bsf-chip ${categoryFilter === c ? "active" : ""}`} onClick={() => setCategoryFilter(c)}>{c}</button>
+            <button key={c} className={`bsf-chip ${categoryFilter === c ? "active" : ""}`} onClick={() => setCategoryFilter(c)}>{tLabel(t, "resourceCat.", c)}</button>
           ))}
         </div>
       </section>
 
       <section className="bsf-list">
-        {filtered.length === 0 && <p className="bsf-empty">{isParent ? "No shared documents yet." : "No resources added yet."}</p>}
+        {filtered.length === 0 && <p className="bsf-empty">{isParent ? t("resources.emptyParent") : "No resources added yet."}</p>}
         {filtered.map((r) => {
           const mySignature = (r.signatures || []).find((s) => s.parentId === profile?.id);
+          // Parents see only the file in their language (English when there is no French one).
+          const parentFiles = language === "fr" && (r.filesFr || []).length > 0 ? r.filesFr : (r.files || []).length > 0 ? r.files : r.filesFr || [];
           return (
           <div key={r.id} className="bsf-card bsf-student">
             <div>
               <div className="bsf-row-head">
-                <span className="bsf-tag">{r.category}</span>
+                <span className="bsf-tag">{tLabel(t, "resourceCat.", r.category)}</span>
               </div>
               <strong>{r.title}</strong>
               {r.description && <p>{r.description}</p>}
@@ -6742,16 +6798,21 @@ function ResourcesTab({ data, persist, profile }) {
                   {r.link}
                 </a>
               )}
-              {(r.files || []).length > 0 && (
+              {isParent && parentFiles.length > 0 && (
                 <div style={{ marginTop: 6 }}>
-                  <p className="bsf-muted" style={{ marginBottom: 2 }}>English</p>
-                  <AttachmentField folder="resources" files={r.files} onChange={(files) => persist({ ...data, resources: (data.resources || []).map((x) => (x.id === r.id ? { ...x, files } : x)) })} readOnly={isParent} />
+                  <AttachmentField folder="resources" files={parentFiles} onChange={() => {}} readOnly />
                 </div>
               )}
-              {(r.filesFr || []).length > 0 && (
+              {!isParent && (r.files || []).length > 0 && (
+                <div style={{ marginTop: 6 }}>
+                  <p className="bsf-muted" style={{ marginBottom: 2 }}>English</p>
+                  <AttachmentField folder="resources" files={r.files} onChange={(files) => persist({ ...data, resources: (data.resources || []).map((x) => (x.id === r.id ? { ...x, files } : x)) })} />
+                </div>
+              )}
+              {!isParent && (r.filesFr || []).length > 0 && (
                 <div style={{ marginTop: 6 }}>
                   <p className="bsf-muted" style={{ marginBottom: 2 }}>Français</p>
-                  <AttachmentField folder="resources" files={r.filesFr} onChange={(filesFr) => persist({ ...data, resources: (data.resources || []).map((x) => (x.id === r.id ? { ...x, filesFr } : x)) })} readOnly={isParent} />
+                  <AttachmentField folder="resources" files={r.filesFr} onChange={(filesFr) => persist({ ...data, resources: (data.resources || []).map((x) => (x.id === r.id ? { ...x, filesFr } : x)) })} />
                 </div>
               )}
               {!isParent && r.requiresSignature && (
@@ -6759,9 +6820,9 @@ function ResourcesTab({ data, persist, profile }) {
               )}
               {isParent && r.requiresSignature && (
                 mySignature ? (
-                  <p className="bsf-minitag" style={{ marginTop: 8, display: "inline-block" }}>Signed on {mySignature.date}</p>
+                  <p className="bsf-minitag" style={{ marginTop: 8, display: "inline-block" }}>{t("dash.signedOn", { date: formatDateLong(mySignature.date, language) })}</p>
                 ) : (
-                  <button className="bsf-btn" style={{ marginTop: 8 }} onClick={() => openSign(r.id)}>Read and sign</button>
+                  <button className="bsf-btn" style={{ marginTop: 8 }} onClick={() => openSign(r.id)}>{t("dash.readAndSign")}</button>
                 )
               )}
             </div>
@@ -6837,21 +6898,21 @@ function ResourcesTab({ data, persist, profile }) {
         const doc = (data.resources || []).find((r) => r.id === signingId);
         if (!doc) return null;
         return (
-          <Modal title={`Sign: ${doc.title}`} onClose={() => setSigningId(null)}>
+          <Modal title={t("sign.title", { title: doc.title })} onClose={() => setSigningId(null)}>
             <p className="bsf-muted" style={{ marginBottom: 12 }}>
-              By signing below, you confirm you have read and understood this document.
+              {t("sign.intro")}
             </p>
-            <Field label="Your full name">
+            <Field label={t("sign.fullName")}>
               <input value={signatureName} onChange={(e) => setSignatureName(e.target.value)} />
             </Field>
-            <Field label="Signature">
+            <Field label={t("sign.signature")}>
               <SignaturePad onChange={setSignatureDataUrl} />
             </Field>
             <label className="bsf-checkboxrow" style={{ marginBottom: 14 }}>
               <input type="checkbox" checked={signatureConfirmed} onChange={(e) => setSignatureConfirmed(e.target.checked)} />
-              <span>I confirm I have read and understood {doc.title}.</span>
+              <span>{t("sign.confirm", { title: doc.title })}</span>
             </label>
-            <button className="bsf-btn bsf-btn-block" onClick={saveSignature}>Submit signature</button>
+            <button className="bsf-btn bsf-btn-block" onClick={saveSignature}>{t("sign.submit")}</button>
             {signatureError && <p className="bsf-formerror">{signatureError}</p>}
           </Modal>
         );
@@ -7252,7 +7313,7 @@ function AccreditationTab({ data, persist }) {
             <button className="bsf-textbtn" onClick={loadMilestoneTemplate}>Load starter checklist</button>
           )}
         </div>
-        {milestones.length === 0 && <p className="bsf-empty">Load the starter checklist to track the standard IB candidacy stages.</p>}
+        {milestones.length === 0 && <p className="bsf-empty">Load the starter checklist to track the main stages towards accreditation.</p>}
         {milestones.map((m) => (
           <div key={m.id} className="bsf-comment">
             <div className="bsf-row-head">
@@ -7333,115 +7394,7 @@ function AccreditationTab({ data, persist }) {
   );
 }
 
-function buildSchoolContext(data) {
-  const settings = data.settings || DEFAULT_SETTINGS;
-  const counts = {};
-  data.students.forEach((s) => { counts[s.grade] = (counts[s.grade] || 0) + 1; });
-  const gradeSummary = Object.entries(counts).map(([g, n]) => `${g}: ${n}`).join(", ") || "no students added yet";
-
-  const upcoming = [...(data.events || [])]
-    .filter((e) => (e.endDate || e.date) >= todayStr())
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(0, 5)
-    .map((e) => `${e.title} (${e.date})`)
-    .join("; ") || "none scheduled";
-
-  return `You are the AI Assistant inside BrightSteps Hub, an internal tool for BrightSteps International School in Grand Bassam, Cote d'Ivoire. Today's date is ${todayStr()}.
-Curriculum framework: ${settings.curriculumFramework}.
-Enrollment by grade: ${gradeSummary}.
-Upcoming events: ${upcoming}.
-
-Help the school director and teachers with tasks like drafting parent communications, writing report card comments, summarizing student progress, and answering questions about how to use the hub.
-Style rules to always follow when drafting anything for parents or families: never use hyphens or dashes anywhere in the text, always put English before French in any bilingual material, keep a warm and polished international school tone.
-Keep answers concise and directly useful. If asked something outside your knowledge of this school, say so plainly rather than guessing.`;
-}
-
-function AIAssistantTab({ data }) {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const send = async () => {
-    const text = input.trim();
-    if (!text || loading) return;
-    const nextMessages = [...messages, { role: "user", content: text }];
-    setMessages(nextMessages);
-    setInput("");
-    setLoading(true);
-    setError("");
-
-    try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 1000,
-          system: buildSchoolContext(data),
-          messages: nextMessages.map((m) => ({ role: m.role, content: m.content }))
-        })
-      });
-      const json = await response.json();
-      const replyText = (json.content || []).map((c) => (c.type === "text" ? c.text : "")).filter(Boolean).join("\n");
-      setMessages((prev) => [...prev, { role: "assistant", content: replyText || "I couldn't generate a response, please try again." }]);
-    } catch (e) {
-      setError("Something went wrong reaching the assistant. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const suggestions = [
-    "Draft a bilingual reminder about the Welcome Coffee",
-    "Write a report card comment for a student who is progressing well in reading",
-    "Summarize what I should follow up on this week"
-  ];
-
-  return (
-    <div className="bsf-screen bsf-ai-screen">
-      <div className="bsf-screen-head">
-        <h1>AI Assistant</h1>
-      </div>
-
-      {messages.length === 0 && (
-        <section className="bsf-card">
-          <h2>Try asking</h2>
-          <div className="bsf-chiprow">
-            {suggestions.map((s) => (
-              <button key={s} className="bsf-chip" onClick={() => setInput(s)}>{s}</button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <div className="bsf-ai-thread">
-        {messages.map((m, i) => (
-          <div key={i} className={`bsf-ai-bubble ${m.role}`}>
-            {m.content}
-          </div>
-        ))}
-        {loading && <div className="bsf-ai-bubble assistant bsf-ai-loading">Thinking…</div>}
-        {error && <p className="bsf-formerror">{error}</p>}
-      </div>
-
-      <div className="bsf-ai-inputrow">
-        <textarea
-          rows={2}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder="Ask the assistant anything about BrightSteps"
-        />
-        <button className="bsf-iconbtn bsf-ai-sendbtn" onClick={send} disabled={loading} aria-label="Send">
-          <Send size={18} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-const FRAMEWORKS = ["Inquiry Based Learning", "IB PYP", "IB MYP", "Common Core", "British National Curriculum", "Other"];
+const FRAMEWORKS = ["Inquiry-based learning", "Common Core", "British National Curriculum", "Other"];
 
 function ListEditor({ label, items, onChange, placeholder }) {
   const [draft, setDraft] = useState("");
@@ -7530,7 +7483,7 @@ function SettingsModal({ data, persist, onClose }) {
   const saveMyProfile = async () => {
     setProfileStatus("");
     if (!profileFullName.trim()) {
-      setProfileStatus("Please enter your name.");
+      setProfileStatus("settings.enterName");
       return;
     }
     setProfileSaving(true);
@@ -7538,9 +7491,10 @@ function SettingsModal({ data, persist, onClose }) {
     const { error } = await supabase.from("profiles").update(patch).eq("id", profile.id);
     setProfileSaving(false);
     if (error) {
-      setProfileStatus(`Could not save: ${error.message}`);
+      console.error("Could not save profile", error);
+      setProfileStatus("settings.saveFailed");
     } else {
-      setProfileStatus("Saved.");
+      setProfileStatus("settings.saved");
       updateProfileLocal(patch);
     }
   };
@@ -7548,20 +7502,20 @@ function SettingsModal({ data, persist, onClose }) {
   const changePassword = async () => {
     setPasswordStatus("");
     if (newPassword.length < 8) {
-      setPasswordStatus("Password must be at least 8 characters.");
+      setPasswordStatus("settings.passwordTooShort");
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPasswordStatus("Passwords don't match.");
+      setPasswordStatus("settings.passwordMismatch");
       return;
     }
     setPasswordSaving(true);
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     setPasswordSaving(false);
     if (error) {
-      setPasswordStatus("Could not update password. Please try again.");
+      setPasswordStatus("settings.passwordFailed");
     } else {
-      setPasswordStatus("Password updated.");
+      setPasswordStatus("settings.passwordUpdated");
       setNewPassword("");
       setConfirmPassword("");
     }
@@ -7710,37 +7664,37 @@ function SettingsModal({ data, persist, onClose }) {
       )}
 
       <hr className="bsf-divider" />
-      <h3 className="bsf-subheading">My profile</h3>
-      <Field label="Full name">
+      <h3 className="bsf-subheading">{t("settings.myProfile")}</h3>
+      <Field label={t("settings.fullName")}>
         <input value={profileFullName} onChange={(e) => setProfileFullName(e.target.value)} />
       </Field>
-      <Field label="Phone number">
-        <input value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} placeholder="Optional" />
+      <Field label={t("settings.phone")}>
+        <input value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} placeholder={t("common.optional")} />
       </Field>
-      <Field label="Nationality">
+      <Field label={t("settings.nationality")}>
         <select value={profileNationality} onChange={(e) => setProfileNationality(e.target.value)}>
-          <option value="">Prefer not to say</option>
+          <option value="">{t("settings.preferNotToSay")}</option>
           {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
       </Field>
-      {profileStatus && <p className={profileStatus === "Saved." ? "bsf-muted" : "bsf-formerror"}>{profileStatus}</p>}
+      {profileStatus && <p className={profileStatus === "settings.saved" ? "bsf-muted" : "bsf-formerror"}>{t(profileStatus)}</p>}
       <button className="bsf-btn bsf-btn-block bsf-btn-ghost" onClick={saveMyProfile} disabled={profileSaving}>
-        {profileSaving ? "Saving..." : "Save profile"}
+        {profileSaving ? t("top.saving") : t("settings.saveProfile")}
       </button>
 
       <hr className="bsf-divider" />
       <h3 className="bsf-subheading">{t("settings.account")}</h3>
       {profile?.email && <p className="bsf-muted">{t("settings.signedInAs")} {profile.email}</p>}
 
-      <Field label="New password">
-        <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 8 characters" />
+      <Field label={t("settings.newPassword")}>
+        <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder={t("settings.passwordPlaceholder")} />
       </Field>
-      <Field label="Confirm new password">
+      <Field label={t("settings.confirmPassword")}>
         <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
       </Field>
-      {passwordStatus && <p className={passwordStatus === "Password updated." ? "bsf-muted" : "bsf-formerror"}>{passwordStatus}</p>}
+      {passwordStatus && <p className={passwordStatus === "settings.passwordUpdated" ? "bsf-muted" : "bsf-formerror"}>{t(passwordStatus)}</p>}
       <button className="bsf-btn bsf-btn-block bsf-btn-ghost" onClick={changePassword} disabled={passwordSaving || !newPassword}>
-        {passwordSaving ? "Updating..." : "Update password"}
+        {passwordSaving ? t("settings.updating") : t("settings.updatePassword")}
       </button>
 
       {isAdmin && (
@@ -7828,7 +7782,7 @@ function BrightStepsHubInner() {
       };
   const myLinkedStudent = isStudent ? data.students.find((s) => (profile.student_ids || [])[0] === s.id) : null;
   const isUpperStudent = !!myLinkedStudent && GRADES.indexOf(myLinkedStudent.grade) >= GRADES.indexOf("Grade 3");
-  const PARENT_HIDDEN_TABS = ["checkin", "leave", "classes", "staff", "admissions", "behavior", "accreditation", "ai", "planning", "gradebook"];
+  const PARENT_HIDDEN_TABS = ["checkin", "leave", "classes", "staff", "admissions", "behavior", "accreditation", "planning", "gradebook"];
   const ADMIN_ONLY_TABS = ["accreditation","staff","admissions"];
   // Only admin and the accountant role can see billing, everyone else is blocked outright.
   const BILLING_ALLOWED_ROLES = ["admin", "accountant", "viewer"];
@@ -7896,7 +7850,6 @@ function BrightStepsHubInner() {
     { id: "resources", label: "Resources", navKey: "nav.resources", icon: FolderOpen, category: "compliance" },
     { id: "accreditation", label: "Accreditation", navKey: "nav.accreditation", icon: Award, category: "compliance" },
     { id: "billing", label: "Billing", navKey: "nav.billing", icon: Wallet, category: "office" },
-    { id: "ai", label: "AI Assistant", navKey: "nav.ai", icon: Sparkles, hidden: true, category: "office" },
     { id: "updates", label: "Communication", navKey: "nav.updates", icon: Megaphone, category: "office" }
   ];
   const allSections = allSectionsRaw
@@ -8585,51 +8538,6 @@ function BrightStepsHubInner() {
         .bsf-photofield-preview img { width: 100%; height: 100%; object-fit: cover; }
         .bsf-photofield-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
         .bsf-resource-link { display: inline-block; color: var(--teal); font-size: 12.5px; word-break: break-all; margin-top: 4px; }
-        .bsf-ai-screen { display: flex; flex-direction: column; }
-        .bsf-ai-thread { display: flex; flex-direction: column; gap: 10px; padding: 4px; flex: 1; }
-        .bsf-ai-bubble {
-          max-width: 85%;
-          padding: 10px 13px;
-          border-radius: 14px;
-          font-size: 14px;
-          line-height: 1.45;
-          white-space: pre-wrap;
-        }
-        .bsf-ai-bubble.user {
-          align-self: flex-end;
-          background: var(--teal);
-          color: var(--white);
-          border-bottom-right-radius: 4px;
-        }
-        .bsf-ai-bubble.assistant {
-          align-self: flex-start;
-          background: var(--sand-deep);
-          color: var(--ink);
-          border-bottom-left-radius: 4px;
-        }
-        .bsf-ai-loading { opacity: 0.6; font-style: italic; }
-        .bsf-ai-inputrow {
-          display: flex;
-          gap: 8px;
-          align-items: flex-end;
-          padding: 10px 4px 4px;
-          position: sticky;
-          bottom: 0;
-          background: var(--sand);
-        }
-        .bsf-ai-inputrow textarea {
-          flex: 1;
-          font-family: 'Work Sans', sans-serif;
-          font-size: 14px;
-          padding: 9px 10px;
-          border: 1px solid var(--line);
-          border-radius: 10px;
-          background: #FCFAF4;
-          color: var(--ink);
-          resize: none;
-        }
-        .bsf-ai-sendbtn { background: var(--teal); color: var(--white); border-radius: 10px; padding: 10px; }
-        .bsf-ai-sendbtn:hover { background: var(--teal-light); }
       `}</style>
 
       <div className="bsf-topbar">
@@ -8738,7 +8646,7 @@ function BrightStepsHubInner() {
             .map(({ cat, items }) => (
               <div key={cat} style={{ marginBottom: 18 }}>
                 <p className="bsf-group-label">
-                  {cat === "classroom" ? "Classroom" : cat === "office" ? "School office" : "Reports & compliance"}
+                  {t(`menu.${cat}`)}
                 </p>
                 <div className="bsf-tilegrid">
                   {items.map(({ id, navKey, icon: Icon }) => (

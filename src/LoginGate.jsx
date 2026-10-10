@@ -25,8 +25,27 @@ const LOGIN_TEXT = {
     password: "Password",
     showPassword: "Show password",
     signIn: "Sign in",
-    signingIn: "Signing in...",
+    signingIn: "Signing in…",
     noAccount: "Don't have an account? Ask your BrightSteps administrator to create one for you.",
+    invalidLogin: "That email or password is not right. Please check and try again.",
+    invalidStudentLogin: "That student ID or password is not right. Please check and try again.",
+    loginFailed: "We could not sign you in. Please check your connection and try again.",
+    loading: "Loading BrightSteps Hub…",
+    loadingAccount: "Loading your account…",
+    noProfile: "Your account was created, but no profile has been set up for you yet. Please ask your BrightSteps administrator to add you in the profiles table.",
+    signOut: "Sign out",
+    welcome: "Welcome to BrightSteps Hub",
+    choosePassword: "For your security, please choose your own password before continuing.",
+    newPassword: "New password",
+    newPasswordPlaceholder: "At least 8 characters",
+    confirmPassword: "Confirm new password",
+    settingPassword: "Setting password…",
+    setPassword: "Set password and continue",
+    passwordTooShort: "Password must be at least 8 characters.",
+    passwordMismatch: "Passwords don't match.",
+    passwordSetFailed: "Your password could not be saved. Please try again.",
+    passwordSetupIncomplete: "Your password was saved, but we could not finish setting up your account. Please try again.",
+    footer: "© BrightSteps International School",
   },
   fr: {
     title: "BrightSteps Hub",
@@ -35,12 +54,31 @@ const LOGIN_TEXT = {
     student: "Élève",
     email: "E-mail",
     studentId: "Identifiant élève",
-    studentIdPlaceholder: "ex. 2026001",
+    studentIdPlaceholder: "ex. : 2026001",
     password: "Mot de passe",
     showPassword: "Afficher le mot de passe",
     signIn: "Se connecter",
-    signingIn: "Connexion...",
-    noAccount: "Vous n'avez pas de compte ? Demandez à votre administrateur BrightSteps d'en créer un pour vous.",
+    signingIn: "Connexion…",
+    noAccount: "Vous n'avez pas de compte ? Demandez à l'administration de BrightSteps de vous en créer un.",
+    invalidLogin: "L'adresse e-mail ou le mot de passe est incorrect. Veuillez vérifier et réessayer.",
+    invalidStudentLogin: "L'identifiant élève ou le mot de passe est incorrect. Veuillez vérifier et réessayer.",
+    loginFailed: "Connexion impossible. Veuillez vérifier votre connexion internet et réessayer.",
+    loading: "Chargement de BrightSteps Hub…",
+    loadingAccount: "Chargement de votre compte…",
+    noProfile: "Votre compte a bien été créé, mais votre profil n'est pas encore configuré. Veuillez demander à l'administration de BrightSteps de l'ajouter.",
+    signOut: "Se déconnecter",
+    welcome: "Bienvenue sur BrightSteps Hub",
+    choosePassword: "Pour votre sécurité, veuillez choisir votre propre mot de passe avant de continuer.",
+    newPassword: "Nouveau mot de passe",
+    newPasswordPlaceholder: "Au moins 8 caractères",
+    confirmPassword: "Confirmer le nouveau mot de passe",
+    settingPassword: "Enregistrement du mot de passe…",
+    setPassword: "Enregistrer et continuer",
+    passwordTooShort: "Le mot de passe doit contenir au moins 8 caractères.",
+    passwordMismatch: "Les mots de passe ne correspondent pas.",
+    passwordSetFailed: "Votre mot de passe n'a pas pu être enregistré. Veuillez réessayer.",
+    passwordSetupIncomplete: "Votre mot de passe a été enregistré, mais la configuration de votre compte n'a pas pu être finalisée. Veuillez réessayer.",
+    footer: "© BrightSteps International School",
   }
 };
 
@@ -52,10 +90,15 @@ export default function LoginGate({ children }) {
   const [loginLang, setLoginLang] = useState(() => {
     try { return localStorage.getItem("bsf-login-lang") || "en"; } catch { return "en"; }
   });
-  const lt = LOGIN_TEXT[loginLang];
+  const lt = LOGIN_TEXT[loginLang] || LOGIN_TEXT.en;
+  // "bsf-login-lang-chosen" tells the app (lib/i18n.jsx) that this choice was
+  // made just now, so it carries over to the parent's screens after sign-in.
   const setLoginLangPersisted = (lang) => {
     setLoginLang(lang);
-    try { localStorage.setItem("bsf-login-lang", lang); } catch {}
+    try {
+      localStorage.setItem("bsf-login-lang", lang);
+      localStorage.setItem("bsf-login-lang-chosen", "1");
+    } catch {}
   };
   const [email, setEmail] = useState("");
   const [studentId, setStudentId] = useState("");
@@ -113,9 +156,7 @@ export default function LoginGate({ children }) {
       .then(({ data, error }) => {
         if (cancelled) return;
         if (error || !data) {
-          setProfileError(
-            "Your account was created, but no profile has been set up for you yet. Please ask your BrightSteps administrator to add you in the profiles table."
-          );
+          setProfileError("noProfile");
           setProfile(null);
         } else {
           setProfile(data);
@@ -163,7 +204,10 @@ export default function LoginGate({ children }) {
     });
     setSubmitting(false);
     if (error) {
-      setFormError(`${error.message} (code: ${error.status || "unknown"})`);
+      // Show a friendly message, never the raw Supabase error or code.
+      console.error("Sign-in failed", error);
+      const badCredentials = error.code === "invalid_credentials" || /invalid login credentials/i.test(error.message || "");
+      setFormError(badCredentials ? (loginMode === "student" ? "invalidStudentLogin" : "invalidLogin") : "loginFailed");
     }
   }
 
@@ -175,18 +219,19 @@ export default function LoginGate({ children }) {
     e.preventDefault();
     setPasswordSetError("");
     if (newPassword.length < 8) {
-      setPasswordSetError("Password must be at least 8 characters.");
+      setPasswordSetError("passwordTooShort");
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPasswordSetError("Passwords don't match.");
+      setPasswordSetError("passwordMismatch");
       return;
     }
     setSettingPassword(true);
     const { error: pwError } = await supabase.auth.updateUser({ password: newPassword });
     if (pwError) {
       setSettingPassword(false);
-      setPasswordSetError(`Could not set password: ${pwError.message} (code: ${pwError.status || "unknown"})`);
+      console.error("Could not set password", pwError);
+      setPasswordSetError("passwordSetFailed");
       return;
     }
     // Changing the password can momentarily refresh the session token, so
@@ -206,7 +251,8 @@ export default function LoginGate({ children }) {
     }
     setSettingPassword(false);
     if (profileUpdateError) {
-      setPasswordSetError(`Password was set, but we couldn't finish setup: ${profileUpdateError.message}`);
+      console.error("Could not finish account setup", profileUpdateError);
+      setPasswordSetError("passwordSetupIncomplete");
       return;
     }
     setProfile((p) => (p ? { ...p, password_changed: true } : p));
@@ -216,7 +262,7 @@ export default function LoginGate({ children }) {
     return (
       <div style={styles.centerScreen}>
         <BrandStyles />
-        <p style={{ color: "#F0D9DD", fontFamily: "'Work Sans', sans-serif" }}>Loading BrightSteps Hub...</p>
+        <p style={{ color: "#F0D9DD", fontFamily: "'Work Sans', sans-serif" }}>{lt.loading}</p>
       </div>
     );
   }
@@ -310,7 +356,7 @@ export default function LoginGate({ children }) {
               />
               <span style={{ marginLeft: 6 }}>{lt.showPassword}</span>
             </label>
-            {formError && <p style={styles.error}>{formError}</p>}
+            {formError && <p style={styles.error}>{lt[formError] || formError}</p>}
             <button type="submit" disabled={submitting} style={styles.button} className="bsh-btn">
               {submitting ? lt.signingIn : lt.signIn}
             </button>
@@ -320,7 +366,7 @@ export default function LoginGate({ children }) {
           </p>
         </div>
         <div style={styles.footerBar}>
-          <p style={styles.footerBarText}>2026 BrightSteps International School. All rights reserved.</p>
+          <p style={styles.footerBarText}>{lt.footer}</p>
         </div>
       </div>
     );
@@ -333,9 +379,9 @@ export default function LoginGate({ children }) {
         <div style={styles.card}>
           <Logo url={logoUrl} />
           <h1 style={styles.title}>BrightSteps Hub</h1>
-          <p style={{ color: "#801524", marginTop: 16, fontFamily: "'Work Sans', sans-serif", fontSize: 14 }}>{profileError}</p>
+          <p style={{ color: "#801524", marginTop: 16, fontFamily: "'Work Sans', sans-serif", fontSize: 14 }}>{lt[profileError] || profileError}</p>
           <button onClick={handleSignOut} style={{ ...styles.button, marginTop: 20 }} className="bsh-btn">
-            Sign out
+            {lt.signOut}
           </button>
         </div>
       </div>
@@ -346,7 +392,7 @@ export default function LoginGate({ children }) {
     return (
       <div style={styles.centerScreen}>
         <BrandStyles />
-        <p style={{ color: "#F0D9DD", fontFamily: "'Work Sans', sans-serif" }}>Loading your account...</p>
+        <p style={{ color: "#F0D9DD", fontFamily: "'Work Sans', sans-serif" }}>{lt.loadingAccount}</p>
       </div>
     );
   }
@@ -357,12 +403,12 @@ export default function LoginGate({ children }) {
         <BrandStyles />
         <div style={styles.card}>
           <Logo url={logoUrl} />
-          <h1 style={styles.title}>Welcome to BrightSteps Hub</h1>
+          <h1 style={styles.title}>{lt.welcome}</h1>
           <p style={styles.subtitle}>
-            For your security, please choose your own password before continuing.
+            {lt.choosePassword}
           </p>
           <form onSubmit={handleSetFirstPassword}>
-            <label style={styles.label}>New password</label>
+            <label style={styles.label}>{lt.newPassword}</label>
             <input
               type="password"
               required
@@ -371,9 +417,9 @@ export default function LoginGate({ children }) {
               style={styles.input}
               className="bsh-input"
               autoComplete="new-password"
-              placeholder="At least 8 characters"
+              placeholder={lt.newPasswordPlaceholder}
             />
-            <label style={styles.label}>Confirm new password</label>
+            <label style={styles.label}>{lt.confirmPassword}</label>
             <input
               type="password"
               required
@@ -383,9 +429,9 @@ export default function LoginGate({ children }) {
               className="bsh-input"
               autoComplete="new-password"
             />
-            {passwordSetError && <p style={styles.error}>{passwordSetError}</p>}
+            {passwordSetError && <p style={styles.error}>{lt[passwordSetError] || passwordSetError}</p>}
             <button type="submit" disabled={settingPassword} style={styles.button} className="bsh-btn">
-              {settingPassword ? "Setting password..." : "Set password and continue"}
+              {settingPassword ? lt.settingPassword : lt.setPassword}
             </button>
           </form>
           <button
@@ -393,7 +439,7 @@ export default function LoginGate({ children }) {
             style={{ ...styles.button, marginTop: 12, background: "transparent", color: "#801524", border: "1px solid #E2C6CB", boxShadow: "none" }}
             className="bsh-btn-ghost"
           >
-            Sign out
+            {lt.signOut}
           </button>
         </div>
       </div>

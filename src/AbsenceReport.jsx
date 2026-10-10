@@ -67,7 +67,7 @@ export function ReportAbsenceCard({ students }) {
   const send = async () => {
     if (picked.length === 0) return setError(fr ? "Choisissez au moins un enfant." : "Choose at least one child.");
     if (!start || !end || end < start) return setError(fr ? "Vérifiez les dates." : "Check the dates.");
-    if (start < today) return setError(fr ? "Le premier jour ne peut pas être passé." : "The first day can't be in the past.");
+    if (start < today) return setError(fr ? "La date de début ne peut pas être dans le passé." : "The first day can't be in the past.");
     if (!reason) return setError(fr ? "Choisissez un motif." : "Choose a reason.");
     setError("");
     setSending(true);
@@ -87,7 +87,7 @@ export function ReportAbsenceCard({ students }) {
       {!open && (
         <>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-            <strong style={{ fontSize: 15 }}>{fr ? "Votre enfant sera absent ?" : "Will your child be absent?"}</strong>
+            <strong style={{ fontSize: 15 }}>{fr ? "Une absence à signaler ?" : "Will your child be absent?"}</strong>
             <button className="bsf-btn" onClick={startForm}>{fr ? "Signaler une absence" : "Report an absence"}</button>
           </div>
           {done && <p style={{ margin: "10px 0 0", fontSize: 13, color: "#2F7A5C" }}>{done}</p>}

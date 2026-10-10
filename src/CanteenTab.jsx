@@ -20,7 +20,7 @@ const T = {
   order: { en: "Confirm order", fr: "Confirmer la commande" },
   ordering: { en: "Sending…", fr: "Envoi…" },
   myOrders: { en: "Orders", fr: "Commandes" },
-  paid: { en: "Paid", fr: "Payé" },
+  paid: { en: "Paid", fr: "Payée" },
   awaiting: { en: "Awaiting payment", fr: "En attente de paiement" },
   noneOpen: { en: "Nothing available to order right now.", fr: "Rien à commander pour le moment." },
   noOrders: { en: "No orders yet.", fr: "Aucune commande." },
@@ -36,11 +36,11 @@ const T = {
   savedFor: { en: "Order received for", fr: "Commande reçue pour" },
   payToConfirm: { en: "Please pay at the school office to confirm it.", fr: "Merci de régler au secrétariat pour la confirmer." },
   lunchThisMonth: { en: "Lunch this month", fr: "Cantine ce mois-ci" },
-  lunchPaidFor: { en: "Lunch paid for all of", fr: "Cantine payée pour tout le mois de" },
-  lunchAwaitingFor: { en: "Ordered for all of", fr: "Commandée pour tout le mois de" },
+  lunchPaidFor: { en: "Lunch paid for all of", fr: "Cantine payée pour tout le mois" },
+  lunchAwaitingFor: { en: "Ordered for all of", fr: "Commandée pour tout le mois" },
   lunchAwaitingPay: { en: "please pay at the school office", fr: "merci de régler au secrétariat" },
   lunchDaysBooked: { en: "lunch days booked in", fr: "jours de cantine réservés en" },
-  lunchNone: { en: "No lunch booked for", fr: "Aucune cantine réservée pour" },
+  lunchNone: { en: "No lunch booked for", fr: "Aucune cantine réservée en" },
   noChildren: { en: "No child is linked to your account yet. Please contact the school office.", fr: "Aucun enfant n'est encore lié à votre compte. Merci de contacter le secrétariat." }
 };
 
@@ -171,7 +171,7 @@ const primaryBtn = {
 export default function CanteenTab({ profile }) {
   const { language } = useLanguage();
   const locale = language === "fr" ? "fr-FR" : "en-GB";
-  const tr = (k) => T[k][language === "fr" ? "fr" : "en"];
+  const tr = (k) => (T[k] ? T[k][language === "fr" ? "fr" : "en"] : k);
 
   const role = profile?.role;
   const isParent = role === "parent";
@@ -279,7 +279,7 @@ export default function CanteenTab({ profile }) {
 
   if (onlyOwnMeals) return <div style={{ padding: "16px 16px 90px" }}><MyStaffMeals /></div>;
   if (loading) return <div style={card}>{tr("loading")}</div>;
-  if (error) return <div style={card}>Could not load: {error}</div>;
+  if (error) return <div style={card}>{language === "fr" ? "Chargement impossible : " : "Could not load: "}{error}</div>;
 
   if (isParent) {
     if (students.length === 0) return <div style={card}>{tr("noChildren")}</div>;
@@ -329,7 +329,7 @@ export default function CanteenTab({ profile }) {
           <div style={{ display: "flex", gap: 7, marginBottom: 14, flexWrap: "wrap" }}>
             {PARENT_PASS_TYPES.map((t) => (
               <button key={t} onClick={() => setPassType(t)} style={passType === t ? chipOn : chip}>
-                {tr(t)} · {money(PRICES[t])}
+                {tr(t)} · {money(PRICES[t])} FCFA
               </button>
             ))}
           </div>
@@ -487,7 +487,7 @@ export default function CanteenTab({ profile }) {
               <div style={{ display: "flex", gap: 7, marginBottom: 12, flexWrap: "wrap" }}>
                 {PARENT_PASS_TYPES.map((t) => (
                   <button key={t} onClick={() => setPassType(t)} style={passType === t ? chipOn : chip}>
-                    {tr(t)} · {money(PRICES[t])}
+                    {tr(t)} · {money(PRICES[t])} FCFA
                   </button>
                 ))}
               </div>
@@ -596,6 +596,8 @@ function ParentLunchStatus({ students, passes, tr, locale }) {
   const first = toISO(new Date(now.getFullYear(), now.getMonth(), 1));
   const last = toISO(new Date(now.getFullYear(), now.getMonth() + 1, 0));
   const monthName = now.toLocaleDateString(locale, { month: "long" });
+  // "tout le mois d'octobre" / "tout le mois de mars" in French.
+  const ofMonth = locale.startsWith("fr") ? (/^[aeiouâéèêîôû]/i.test(monthName) ? `d'${monthName}` : `de ${monthName}`) : monthName;
 
   function schoolDays(p) {
     let n = 0;
@@ -617,9 +619,9 @@ function ParentLunchStatus({ students, passes, tr, locale }) {
         const monthPass = mine.find((p) => p.pass_type === "month");
         let text, ok;
         if (monthPass && monthPass.paid) {
-          ok = true; text = `${tr("lunchPaidFor")} ${monthName}`;
+          ok = true; text = `${tr("lunchPaidFor")} ${ofMonth}`;
         } else if (monthPass) {
-          ok = false; text = `${tr("lunchAwaitingFor")} ${monthName} · ${tr("lunchAwaitingPay")}`;
+          ok = false; text = `${tr("lunchAwaitingFor")} ${ofMonth} · ${tr("lunchAwaitingPay")}`;
         } else if (mine.length > 0) {
           const days = mine.reduce((sum, p) => sum + schoolDays(p), 0);
           ok = mine.every((p) => p.paid);

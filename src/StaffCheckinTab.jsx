@@ -162,6 +162,7 @@ function MyCheckin({ profile }) {
     setError("");
     const { data, error: e } = await supabase.rpc("staff_checkin_status");
     if (e) { setError(e.message); return; }
+    if (!data || !data.today) { setError("Check-in is not available right now. Please try again."); return; }
     setS(data);
     setOffset(Number(data.server_now) - Date.now());
     const first = `${data.today.slice(0, 7)}-01`;
