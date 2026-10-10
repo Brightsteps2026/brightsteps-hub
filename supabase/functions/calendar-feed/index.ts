@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
       "Content-Disposition": 'inline; filename="brightsteps.ics"',
-      "Cache-Control": "public, max-age=900",
+      "Cache-Control": "private, max-age=900",
     },
   });
 });

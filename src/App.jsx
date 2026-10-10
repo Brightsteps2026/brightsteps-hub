@@ -398,14 +398,20 @@ function getUnreadThreads(data, profile) {
   (data.students || []).forEach((s) => {
     if (isSelfScoped && !linkedIds.includes(s.id)) return;
     if (teacherGrades && !teacherGrades.includes(s.grade)) return;
-    const lastRead = (s.lastRead && s.lastRead[profile.id]) || "1970-01-01T00:00:00.000Z";
+    // Parents: the family thread. Students: their own thread. Staff: both.
+    const threadKeys = isParent ? [["messages", "lastRead"]]
+      : isStudent ? [["studentMessages", "studentLastRead"]]
+      : [["messages", "lastRead"], ["studentMessages", "studentLastRead"]];
     let count = 0;
-    (s.messages || []).forEach((m) => {
-      const messageIsFromFamily = m.role === "parent" || m.role === "student";
-      const relevant = isSelfScoped ? !messageIsFromFamily : messageIsFromFamily;
-      if (!relevant) return;
-      const ts = m.createdAt || (m.date ? `${m.date}T00:00:00.000Z` : null);
-      if (ts && ts > lastRead) count += 1;
+    threadKeys.forEach(([msgKey, readKey]) => {
+      const lastRead = (s[readKey] && s[readKey][profile.id]) || "1970-01-01T00:00:00.000Z";
+      (s[msgKey] || []).forEach((m) => {
+        const messageIsFromFamily = m.role === "parent" || m.role === "student";
+        const relevant = isSelfScoped ? !messageIsFromFamily : messageIsFromFamily;
+        if (!relevant) return;
+        const ts = m.createdAt || (m.date ? `${m.date}T00:00:00.000Z` : null);
+        if (ts && ts > lastRead) count += 1;
+      });
     });
     if (count > 0) threads.push({ id: s.id, name: s.name, count });
   });
@@ -856,6 +862,9 @@ const saveLunchMenu = async () => {
     }).select().single();
     if (error) { console.error("menu announcement failed", error); }
     else { setAnnouncements([row, ...announcements]); }
+    // Bell notice for every parent.
+    supabase.rpc("notify_lunch_menu", { p_week: /^\d{4}-\d{2}-\d{2}$/.test(lunchForm.weekOf || "") ? lunchForm.weekOf : null })
+      .then(({ error: e }) => { if (e) console.error("lunch bell notice failed", e); });
     setSavingLunch(false);
     setEditingLunch(false);
   };
@@ -1654,37 +1663,75 @@ const GENDERS = ["Female", "Male", "Prefer not to say"];
 
 const COUNTRIES = ["Afghanistan","Albania","Algeria","Andorra","Angola","Antigua & Barbuda","Argentina","Armenia","Australia","Austria","Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bhutan","Bolivia","Bosnia & Herzegovina","Botswana","Brazil","Brunei","Bulgaria","Burkina Faso","Burundi","Cambodia","Cameroon","Canada","Cape Verde","Central African Republic","Chad","Chile","China","Colombia","Comoros","Congo - Brazzaville","Congo - Kinshasa","Costa Rica","Cote d'Ivoire","Croatia","Cuba","Cyprus","Czechia","Denmark","Djibouti","Dominica","Dominican Republic","Ecuador","Egypt","El Salvador","Equatorial Guinea","Eritrea","Estonia","Eswatini","Ethiopia","Fiji","Finland","France","Gabon","Gambia","Georgia","Germany","Ghana","Greece","Grenada","Guatemala","Guinea","Guinea-Bissau","Guyana","Haiti","Honduras","Hungary","Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy","Jamaica","Japan","Jordan","Kazakhstan","Kenya","Kiribati","Kuwait","Kyrgyzstan","Laos","Latvia","Lebanon","Lesotho","Liberia","Libya","Liechtenstein","Lithuania","Luxembourg","Madagascar","Malawi","Malaysia","Maldives","Mali","Malta","Marshall Islands","Mauritania","Mauritius","Mexico","Micronesia","Moldova","Monaco","Mongolia","Montenegro","Morocco","Mozambique","Myanmar (Burma)","Namibia","Nauru","Nepal","Netherlands","New Zealand","Nicaragua","Niger","Nigeria","North Korea","North Macedonia","Norway","Oman","Pakistan","Palau","Panama","Papua New Guinea","Paraguay","Peru","Philippines","Poland","Portugal","Qatar","Romania","Russia","Rwanda","Samoa","San Marino","Sao Tome & Principe","Saudi Arabia","Senegal","Serbia","Seychelles","Sierra Leone","Singapore","Slovakia","Slovenia","Solomon Islands","Somalia","South Africa","South Korea","South Sudan","Spain","Sri Lanka","St. Kitts & Nevis","St. Lucia","St. Vincent & Grenadines","Sudan","Suriname","Sweden","Switzerland","Syria","Taiwan","Tajikistan","Tanzania","Thailand","Timor-Leste","Togo","Tonga","Trinidad & Tobago","Tunisia","Turkiye","Turkmenistan","Tuvalu","Uganda","Ukraine","United Arab Emirates","United Kingdom","United States","Uruguay","Uzbekistan","Vanuatu","Vatican City","Venezuela","Vietnam","Yemen","Zambia","Zimbabwe"];
 
+// Two private threads per student:
+//   "family"  (messages / lastRead): parents and teachers. Students never see it.
+//   "student" (studentMessages / studentLastRead): a Grade 3+ student and teachers.
+//             Parents never see it.
+// Staff switch between the two for Grade 3+ students. The database stamps who
+// sent each family or student message, and they can only add to their thread.
+const THREAD_FIELDS = {
+  family: { msgs: "messages", read: "lastRead" },
+  student: { msgs: "studentMessages", read: "studentLastRead" }
+};
+const MESSAGE_ROLE_LABELS = {
+  en: { parent: "parent", student: "student", teacher: "teacher", admin: "school", learning_assistant: "assistant" },
+  fr: { parent: "parent", student: "élève", teacher: "enseignant(e)", admin: "école", learning_assistant: "assistant(e)" }
+};
+const unreadIn = (student, thread, userId, fromFamily) => {
+  const f = THREAD_FIELDS[thread];
+  const seen = ((student[f.read] || {})[userId]) || "";
+  return (student[f.msgs] || []).filter((m) => {
+    const isFamily = m.role === "parent" || m.role === "student";
+    return (fromFamily ? isFamily : !isFamily) && (m.createdAt || m.date || "") > seen;
+  }).length;
+};
+
 function StudentMessages({ student, data, persist }) {
   const { profile } = useAuth();
-    const { language } = useLanguage();
+  const { language } = useLanguage();
+  const fr = language === "fr";
+  const role = profile?.role;
+  const isStudentUser = role === "student";
+  const isParentUser = role === "parent";
+  const isStaffUser = !isStudentUser && !isParentUser;
+  const hasStudentThread = GRADES.indexOf(student.grade) >= GRADES.indexOf("Grade 3");
   const [messageText, setMessageText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [staffThread, setStaffThread] = useState(() =>
+    isStaffUser && hasStudentThread && profile?.id &&
+    unreadIn(student, "student", profile.id, true) > 0 && unreadIn(student, "family", profile.id, true) === 0
+      ? "student" : "family"
+  );
+  const thread = isStudentUser ? "student" : isParentUser ? "family" : (hasStudentThread ? staffThread : "family");
+  const F = THREAD_FIELDS[thread];
+  const canPost = role !== "viewer" && role !== "learning_assistant" && role !== "accountant";
 
   useEffect(() => {
     if (!profile?.id || !student?.id) return;
-    if (profile.role === "viewer") return;
+    if (role === "viewer") return;
     // Only save "last read" when there is actually something new to mark as read.
-    const seen = (student.lastRead || {})[profile.id] || "";
-    const hasNew = (student.messages || []).some((m) => (m.createdAt || m.date || "") > seen);
+    const seen = (student[F.read] || {})[profile.id] || "";
+    const hasNew = (student[F.msgs] || []).some((m) => (m.createdAt || m.date || "") > seen);
     if (!hasNew) return;
     persist({
       ...data,
       students: data.students.map((s) =>
-        s.id === student.id ? { ...s, lastRead: { ...(s.lastRead || {}), [profile.id]: new Date().toISOString() } } : s
+        s.id === student.id ? { ...s, [F.read]: { ...(s[F.read] || {}), [profile.id]: new Date().toISOString() } } : s
       )
     });
-    // Only re-run when switching to a different student, not on every persist.
+    // Only re-run when switching student or thread, not on every persist.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [student.id, profile?.id]);
+  }, [student.id, profile?.id, thread]);
 
-  const [sending, setSending] = useState(false);
   const addMessage = async () => {
     if (!messageText.trim() || sending) return;
     const message = {
       id: uid(),
       author: (profile && profile.full_name) || "Someone",
-      role: (profile && profile.role) || "",
+      authorId: profile?.id,
+      role: role || "",
       text: messageText.trim(),
-      date: new Date().toISOString().slice(0, 10),
+      date: todayStr(),
       createdAt: new Date().toISOString()
     };
     setSending(true);
@@ -1692,84 +1739,114 @@ function StudentMessages({ student, data, persist }) {
       ...data,
       students: data.students.map((s) =>
         s.id === student.id
-          ? { ...s, messages: [...(s.messages || []), message], lastRead: { ...(s.lastRead || {}), [profile.id]: message.createdAt } }
+          ? { ...s, [F.msgs]: [...(s[F.msgs] || []), message], [F.read]: { ...(s[F.read] || {}), [profile.id]: message.createdAt } }
           : s
       )
     });
     setSending(false);
     if (!ok) return; // keep the text in the box; the top bar says "Not saved"
     setMessageText("");
-    // Only email once the message is really saved.
-    supabase.functions
-      .invoke("notify-message", { body: { studentId: student.id, senderRole: (profile && profile.role) || "", senderName: (profile && profile.full_name) || "Someone" } })
-      .catch((e) => console.error("notify-message failed", e));
+    // Only email once the message is really saved (family thread only: emails go to parents).
+    if (thread === "family") {
+      supabase.functions
+        .invoke("notify-message", { body: { studentId: student.id, senderRole: role || "", senderName: (profile && profile.full_name) || "Someone" } })
+        .catch((e) => console.error("notify-message failed", e));
+    }
   };
 
   const removeMessage = (msgId) => {
+    if (!window.confirm(fr ? "Supprimer ce message ?" : "Remove this message?")) return;
     persist({
       ...data,
-      students: data.students.map((s) => (s.id === student.id ? { ...s, messages: (s.messages || []).filter((m) => m.id !== msgId) } : s))
+      students: data.students.map((s) => (s.id === student.id ? { ...s, [F.msgs]: (s[F.msgs] || []).filter((m) => m.id !== msgId) } : s))
     });
   };
 
   const initials = (name) =>
     (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("");
+  const dateLabel = (d) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d || "")) return d;
+    const [y, m, dd] = d.split("-").map(Number);
+    return new Date(y, m - 1, dd).toLocaleDateString(fr ? "fr-FR" : "en-GB", { weekday: "short", day: "numeric", month: "long" });
+  };
+  const roleLabel = (r) => (MESSAGE_ROLE_LABELS[fr ? "fr" : "en"][r] || r);
 
-  const messages = student.messages || [];
+  const messages = student[F.msgs] || [];
   let lastDate = null;
-  const isOwnThread = profile?.role === "student";
+
+  const intro = isStudentUser
+    ? "A private thread between you and your teachers."
+    : isParentUser
+      ? (fr ? `Échanges privés entre les parents et les enseignants au sujet de ${student.name}.` : `A private thread between parents and teachers about ${student.name}.`)
+      : thread === "student"
+        ? `A private thread between ${student.name} and teachers. Parents don't see it.`
+        : `A private thread between parents and teachers about ${student.name}. ${student.name} doesn't see it.`;
 
   return (
     <>
       <div className="bsf-msg-header">
         <div>
           <h3 className="bsf-subheading" style={{ margin: 0 }}>Messages</h3>
-          <p className="bsf-muted">
-            {isOwnThread
-              ? "A private thread between you and your teachers."
-              : `A private thread between parents and teachers about ${student.name}.`}
-          </p>
+          <p className="bsf-muted">{intro}</p>
         </div>
       </div>
+      {isStaffUser && hasStudentThread && (
+        <div className="bsf-chiprow" style={{ marginBottom: 10 }}>
+          {["family", "student"].map((k) => {
+            const n = profile?.id ? unreadIn(student, k, profile.id, true) : 0;
+            return (
+              <button key={k} className={`bsf-chip ${thread === k ? "active" : ""}`} onClick={() => setStaffThread(k)}>
+                {k === "family" ? "Parents" : "Student"}{n > 0 ? ` (${n})` : ""}
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div className="bsf-chatthread">
-        {messages.length === 0 && <p className="bsf-empty">{isOwnThread ? "No messages yet. Say hello to your teacher below." : "No messages yet. Say hello below."}</p>}
+        {messages.length === 0 && (
+          <p className="bsf-empty">
+            {isStudentUser ? "No messages yet. Say hello to your teacher below." : fr && isParentUser ? "Aucun message pour l'instant. Écrivez ci-dessous." : "No messages yet. Say hello below."}
+          </p>
+        )}
         {messages.map((m) => {
-          const isMine = profile && m.author === profile.full_name && m.role === profile.role;
+          const isMine = profile && (m.authorId ? m.authorId === profile.id : (m.author === profile.full_name && m.role === role));
           const showDateDivider = m.date !== lastDate;
           lastDate = m.date;
           return (
             <Fragment key={m.id}>
-              {showDateDivider && <div className="bsf-chatdate">{m.date}</div>}
+              {showDateDivider && <div className="bsf-chatdate">{dateLabel(m.date)}</div>}
               <div className={`bsf-chatrow ${isMine ? "mine" : ""}`}>
                 {!isMine && <div className="bsf-chatavatar">{initials(m.author)}</div>}
                 <div className="bsf-chatbubble">
-                  {!isMine && <div className="bsf-chatauthor">{m.author}{m.role ? ` · ${m.role}` : ""}</div>}
-                  <p>{language === "fr" && m.textFr ? m.textFr : m.text}</p>
-                                   {(isMine || profile?.role === "admin") && (
-                  <button className="bsf-chatremove" onClick={() => removeMessage(m.id)} aria-label="Remove message">
-                    <X size={12} />
-                  </button>
-              )}
+                  {!isMine && <div className="bsf-chatauthor">{m.author}{m.role ? ` · ${roleLabel(m.role)}` : ""}</div>}
+                  <p>{fr && m.textFr ? m.textFr : m.text}</p>
+                  {(role === "admin" || (isMine && (isStaffUser || m.authorId === profile?.id))) && (
+                    <button className="bsf-chatremove" onClick={() => removeMessage(m.id)} aria-label={fr ? "Supprimer le message" : "Remove message"}>
+                      <X size={12} />
+                    </button>
+                  )}
                 </div>
               </div>
             </Fragment>
           );
         })}
       </div>
-      <div className="bsf-chatinputbar">
-        <textarea
-          rows={1}
-          value={messageText}
-          onChange={(e) => setMessageText(e.target.value)}
-          placeholder="Write a message..."
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addMessage(); }
-          }}
-        />
-        <button className="bsf-chatsendbtn" onClick={addMessage} aria-label="Send message" disabled={!messageText.trim() || sending}>
-          <Send size={18} />
-        </button>
-      </div>
+      {canPost && (
+        <div className="bsf-chatinputbar">
+          <textarea
+            rows={1}
+            value={messageText}
+            onChange={(e) => setMessageText(e.target.value)}
+            placeholder={fr && isParentUser ? "Écrire un message…" : "Write a message…"}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addMessage(); }
+            }}
+          />
+          <button className="bsf-chatsendbtn" onClick={addMessage} aria-label={fr ? "Envoyer" : "Send message"} disabled={!messageText.trim() || sending}>
+            <Send size={18} />
+          </button>
+        </div>
+      )}
     </>
   );
 }
@@ -4656,7 +4733,7 @@ function CalendarTab({ data, persist, profile }) {
         </section>
       )}
 
-      {showSubscribe && <CalendarSubscribeModal isFamily={isFamily} onClose={() => setShowSubscribe(false)} />}
+      {showSubscribe && <CalendarSubscribeModal isFamily={isFamily} isAdmin={profile?.role === "admin"} onClose={() => setShowSubscribe(false)} />}
 
       {showAdd && (
         <Modal title="New calendar event" onClose={() => setShowAdd(false)}>
@@ -4724,11 +4801,25 @@ function CalendarTab({ data, persist, profile }) {
 // or a phone calendar can follow. Staff get every event; families get only the
 // events marked "Everyone". The link comes from the calendar_feeds table, which only
 // hands each person the link they are allowed to have.
-function CalendarSubscribeModal({ isFamily, onClose }) {
+function CalendarSubscribeModal({ isFamily, onClose, isAdmin }) {
   const { t } = useLanguage();
   const [feedUrl, setFeedUrl] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [renewing, setRenewing] = useState(false);
+
+  // Admin only: replace both calendar links (staff and families). Old links stop
+  // working; everyone who subscribed must add the calendar again.
+  const renewLinks = async () => {
+    if (!window.confirm("Make new calendar links? Everyone who added the school calendar to their phone will have to add it again.")) return;
+    setRenewing(true);
+    const { error: e } = await supabase.rpc("rotate_calendar_feeds");
+    setRenewing(false);
+    if (e) { alert("Could not make new links: " + e.message); return; }
+    setFeedUrl("");
+    setReloadKey((k) => k + 1);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -4740,7 +4831,7 @@ function CalendarSubscribeModal({ isFamily, onClose }) {
       setFeedUrl(`${base}/functions/v1/calendar-feed?t=${row.token}`);
     });
     return () => { cancelled = true; };
-  }, [isFamily]);
+  }, [isFamily, reloadKey]);
 
   const webcalUrl = feedUrl.replace(/^https?:\/\//, "webcal://");
   const googleUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcalUrl)}`;
@@ -4760,6 +4851,11 @@ function CalendarSubscribeModal({ isFamily, onClose }) {
           <a className="bsf-btn bsf-btn-ghost bsf-btn-block" href={webcalUrl}>{t("calendar.subscribePhone")}</a>
           <button type="button" className="bsf-btn bsf-btn-ghost bsf-btn-block" onClick={copy}>{copied ? t("calendar.subscribeCopied") : t("calendar.subscribeCopy")}</button>
           <p className="bsf-muted" style={{ fontSize: 13 }}>{t("calendar.subscribeNote")}</p>
+          {isAdmin && (
+            <button type="button" className="bsf-textbtn" onClick={renewLinks} disabled={renewing}>
+              {renewing ? "Making new links…" : "Make new links (if a link was shared by mistake)"}
+            </button>
+          )}
         </div>
       )}
     </Modal>
@@ -7742,9 +7838,9 @@ function BrightStepsHubInner() {
   // An accountant only ever needs billing, nothing about students' academic
   // records, behavior, or staff information.
   const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "billing", "checkin", "leave"];
-  const RESTRICTED_TEACHER_EMAILS = ["thairy.ekellem@bischoolci.org"];
   const RESTRICTED_TEACHER_TABS = ["checkin", "leave", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "assignments", "reports", "calendar", "incidents", "updates", "resources"];
-  const isRestrictedTeacher = profile?.role === "teacher" && RESTRICTED_TEACHER_EMAILS.includes((profile?.email || "").toLowerCase());
+  // Set per teacher by the admin in the database (profiles.limited_access).
+  const isRestrictedTeacher = profile?.role === "teacher" && profile?.limited_access === true;
   // Pre-N through Grade 2: reflections only. Grade 3 and up: can also see (not edit)
   // their own attendance and grades.
   const STUDENT_ALLOWED_TABS = isUpperStudent ? ["portfolio", "attendance", "gradebook", "assignments", "assessment", "messages"] : ["portfolio"];
