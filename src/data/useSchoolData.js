@@ -59,11 +59,14 @@ function useSchoolData() {
   const unsavedRef = useRef(null);
   // What this screen last loaded or saved, used to work out what we changed.
   const baseRef = useRef(null);
+  // Which copy of the school data baseRef is (used to refuse out-of-date saves).
+  const versionRef = useRef(null);
   const savingRef = useRef(false);
 
   const fetchLatest = async () => {
     const res = await window.storage.get(STORAGE_KEY, true);
     if (!res || !res.value) return null;
+    versionRef.current = res.version || null;
     const parsed = { ...emptyData, ...JSON.parse(res.value) };
     if (!parsed.settings) parsed.settings = DEFAULT_SETTINGS;
     return parsed;
@@ -106,6 +109,7 @@ function useSchoolData() {
     (async () => {
       try {
         const res = await window.storage.get(STORAGE_KEY, true);
+        if (res) versionRef.current = res.version || null;
         if (res && res.value) {
           const parsed = { ...emptyData, ...JSON.parse(res.value) };
           if (!parsed.settings) parsed.settings = DEFAULT_SETTINGS;
@@ -146,7 +150,7 @@ function useSchoolData() {
           baseRef.current = parsed;
           setData(parsed);
           if (studentsChanged || renamedGrade) {
-            window.storage.set(STORAGE_KEY, JSON.stringify(parsed), true).catch((e) => {
+            window.storage.set(STORAGE_KEY, JSON.stringify(parsed), true, versionRef.current).catch((e) => {
               console.error("Failed to save backfilled student ID numbers", e);
             });
           }
@@ -180,9 +184,20 @@ function useSchoolData() {
       // Merge with the latest saved copy so we don't wipe out changes other
       // people made since this screen was loaded. If the latest copy can't be
       // read, don't save at all: saving an old copy could undo their work.
-      const latest = await fetchLatest();
-      const toSave = latest && baseRef.current ? mergeSchoolValue(baseRef.current, next, latest) : next;
-      await window.storage.set(STORAGE_KEY, JSON.stringify(toSave), true);
+      // If someone else saves at the same moment, the database refuses this save;
+      // read their copy, combine again and retry (up to 4 times).
+      let toSave = next;
+      for (let attempt = 1; ; attempt++) {
+        const latest = await fetchLatest();
+        toSave = latest && baseRef.current ? mergeSchoolValue(baseRef.current, next, latest) : next;
+        try {
+          await window.storage.set(STORAGE_KEY, JSON.stringify(toSave), true, versionRef.current);
+          break;
+        } catch (err) {
+          if (!err?.stale || attempt >= 4) throw err;
+          await new Promise((r) => setTimeout(r, 150 * attempt));
+        }
+      }
       baseRef.current = toSave;
       if (unsavedRef.current === next) unsavedRef.current = null;
       setSaveError(false);

@@ -21,12 +21,21 @@ async function rowKeyFor(key, shared) {
 // children) and puts hidden information back when they save.
 const SCHOOL_DATA_KEY = "brightsteps-hub-data";
 
+// True when a database function isn't installed yet (its SQL file not run).
+const isMissingFunction = (error) =>
+  !!error && (error.code === "PGRST202" || /could not find the function/i.test(error.message || ""));
+
 async function get(key, shared = false) {
   if (shared && key === SCHOOL_DATA_KEY) {
+    // Read which copy this is BEFORE reading the data, so a save in between
+    // can only make our version look older (safe), never newer.
+    let version = null;
+    const v = await supabase.rpc("hub_data_version");
+    if (!v.error && typeof v.data === "string") version = v.data;
     const { data, error } = await supabase.rpc("get_hub_data");
     if (error) throw error;
     if (data === null || data === undefined) return null;
-    return { key, value: data, shared };
+    return { key, value: data, shared, version };
   }
   const rowKey = await rowKeyFor(key, shared);
   const { data, error } = await supabase
@@ -41,8 +50,24 @@ async function get(key, shared = false) {
   return { key, value: data.value, shared };
 }
 
-async function set(key, value, shared = false) {
+async function set(key, value, shared = false, baseVersion = undefined) {
   if (shared && key === SCHOOL_DATA_KEY) {
+    // With a version: the database refuses the save if someone else saved
+    // since that version (error.stale = true), so nobody's work is overwritten.
+    if (baseVersion) {
+      const res = await supabase.rpc("save_hub_data_checked", { new_value: value, base_version: baseVersion });
+      if (!res.error) return { key, value, shared, version: res.data };
+      if (/stale_data/.test(res.error.message || "")) {
+        const err = new Error("The school data changed since it was loaded");
+        err.stale = true;
+        throw err;
+      }
+      if (!isMissingFunction(res.error)) {
+        console.error("Storage set failed", res.error);
+        throw res.error;
+      }
+      // Not installed yet: fall through to the older save.
+    }
     const { error } = await supabase.rpc("save_hub_data", { new_value: value });
     if (error) {
       // Throw so the screen knows the save did NOT happen and can say so.
