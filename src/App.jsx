@@ -1119,7 +1119,7 @@ const saveLunchMenu = async () => {
               <div key={a.id} className="bsf-row">
                 <div>
                   <strong>{showFrench ? a.titleFr : a.titleEn}</strong>
-                  <p>{showFrench ? a.bodyFr : a.bodyEn}</p>
+                  <p style={{ whiteSpace: "pre-wrap" }}>{showFrench ? a.bodyFr : a.bodyEn}</p>
                   {(() => {
                     const postFiles = language === "fr" && (a.filesFr || []).length > 0 ? a.filesFr : (a.files || []).length > 0 ? a.files : a.filesFr || [];
                     return postFiles.length > 0 && (
@@ -1152,9 +1152,9 @@ const saveLunchMenu = async () => {
     <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>Titre (Français)</p>
     <input value={annForm.title_fr} onChange={(e) => setAnnForm({ ...annForm, title_fr: e.target.value })} style={{ width: "100%", marginBottom: 10 }} />
     <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>Message (English)</p>
-    <textarea rows={3} value={annForm.body} onChange={(e) => setAnnForm({ ...annForm, body: e.target.value })} style={{ width: "100%", marginBottom: 10 }} />
+    <textarea rows={8} value={annForm.body} onChange={(e) => setAnnForm({ ...annForm, body: e.target.value })} style={{ width: "100%", marginBottom: 10 }} />
     <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>Message (Français)</p>
-    <textarea rows={3} value={annForm.body_fr} onChange={(e) => setAnnForm({ ...annForm, body_fr: e.target.value })} style={{ width: "100%", marginBottom: 10 }} />
+    <textarea rows={8} value={annForm.body_fr} onChange={(e) => setAnnForm({ ...annForm, body_fr: e.target.value })} style={{ width: "100%", marginBottom: 10 }} />
     <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 12 }}>
       <input type="checkbox" checked={annForm.show_staff} onChange={(e) => setAnnForm({ ...annForm, show_staff: e.target.checked })} />
       Also show on staff dashboard
@@ -1171,7 +1171,7 @@ const saveLunchMenu = async () => {
         <div key={a.id} style={{ borderTop: "1px solid #eee", padding: "12px 0" }}>
         <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>{a.audience === "school" ? "Whole school" : a.audience === "lower" ? "Lower school" : a.audience === "upper" ? "Upper school" : a.audience} · {new Date(a.created_at).toLocaleDateString()}</p>
         <p style={{ fontSize: 14, fontWeight: 500, margin: "0 0 2px" }}>{language === "fr" && a.title_fr ? a.title_fr : a.title}</p>
-        <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6 }}>{language === "fr" && a.body_fr ? a.body_fr : a.body}</p>
+        <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{language === "fr" && a.body_fr ? a.body_fr : a.body}</p>
         {isAdmin && (
   <button className="bsf-textbtn" style={{ fontSize: 12, marginTop: 6 }} onClick={() => deleteAnnouncement(a.id)}>Delete</button>
 )}  
@@ -1478,7 +1478,7 @@ function FamilyViewModal({ student, data, onClose, hideContacts = false }) {
           <div key={a.id} className="bsf-row">
             <div>
               <strong>{a.titleEn}</strong>
-              <p>{a.bodyEn}</p>
+              <p style={{ whiteSpace: "pre-wrap" }}>{a.bodyEn}</p>
             </div>
           </div>
         ))}
@@ -3558,7 +3558,7 @@ function UpdatesTab({ data, persist }) {
                 <div>
                   <span className="bsf-muted">{a.date}</span>
                   <strong>{showFrench ? a.titleFr : a.titleEn}</strong>
-                  <p>{showFrench ? a.bodyFr : a.bodyEn}</p>
+                  <p style={{ whiteSpace: "pre-wrap" }}>{showFrench ? a.bodyFr : a.bodyEn}</p>
                   {(() => {
                     const postFiles = language === "fr" && (a.filesFr || []).length > 0 ? a.filesFr : (a.files || []).length > 0 ? a.files : a.filesFr || [];
                     return postFiles.length > 0 && (
@@ -3577,7 +3577,7 @@ function UpdatesTab({ data, persist }) {
                   <span className="bsf-tag">{audienceLabel(a)}</span>
                 </div>
                 <strong>{a.titleEn}</strong>
-                <p>{a.bodyEn}</p>
+                <p style={{ whiteSpace: "pre-wrap" }}>{a.bodyEn}</p>
                 <div style={{ marginTop: 6 }}>
                   <p className="bsf-muted" style={{ marginBottom: 2 }}>File (English)</p>
                   <AttachmentField folder="resources" files={a.files || []} onChange={(files) => setPostFiles(a.id, "files", files)} />
@@ -3589,7 +3589,7 @@ function UpdatesTab({ data, persist }) {
                 {a.titleFr && (
                   <div className="bsf-fr-block">
                     <strong>{a.titleFr}</strong>
-                    <p>{a.bodyFr}</p>
+                    <p style={{ whiteSpace: "pre-wrap" }}>{a.bodyFr}</p>
                   </div>
                 )}
                 <button className="bsf-textbtn" onClick={() => openTranslate(a)} style={{ marginTop: 6 }}>
@@ -3648,7 +3648,7 @@ function UpdatesTab({ data, persist }) {
             <input value={form.titleEn} onChange={(e) => setForm({ ...form, titleEn: e.target.value })} />
           </Field>
           <Field label="Message (English)">
-            <textarea rows={3} value={form.bodyEn} onChange={(e) => setForm({ ...form, bodyEn: e.target.value })} />
+            <textarea rows={8} value={form.bodyEn} onChange={(e) => setForm({ ...form, bodyEn: e.target.value })} />
           </Field>
           <Field label="File, e.g. newsletter (English, optional)">
             <AttachmentField folder="resources" files={form.files} onChange={(files) => setForm({ ...form, files })} />
@@ -3673,7 +3673,7 @@ function UpdatesTab({ data, persist }) {
             <input value={translateForm.titleFr} onChange={(e) => setTranslateForm({ ...translateForm, titleFr: e.target.value })} />
           </Field>
           <Field label="Message (Francais)">
-            <textarea rows={3} value={translateForm.bodyFr} onChange={(e) => setTranslateForm({ ...translateForm, bodyFr: e.target.value })} />
+            <textarea rows={8} value={translateForm.bodyFr} onChange={(e) => setTranslateForm({ ...translateForm, bodyFr: e.target.value })} />
           </Field>
           <button className="bsf-btn bsf-btn-block" onClick={saveTranslation}>Save translation</button>
         </Modal>
