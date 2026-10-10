@@ -176,8 +176,8 @@ export default function CanteenTab({ profile }) {
   const role = profile?.role;
   const isParent = role === "parent";
   const canEdit = role === "admin" || role === "accountant";
-  // Kitchen counts and passes: admin (and accountant) only. Teachers and learning
-  // assistants only see their own staff meals.
+  // Passes and payments: admin and accountant. Kitchen counts: admin only.
+  // Teachers and learning assistants only see their own staff meals.
   const isStaff = canEdit;
   const isStaffMember = STAFF_ROLES.includes(role);
 
@@ -408,6 +408,7 @@ export default function CanteenTab({ profile }) {
 
   return (
     <div style={{ padding: "16px 16px 90px" }}>
+      {role === "admin" && (
       <div style={card}>
         <p style={{ margin: "0 0 2px", fontSize: 15, fontWeight: 600 }}>Kitchen count for tomorrow</p>
         <p style={{ margin: "0 0 8px", fontSize: 13, color: "#6E7B7D" }}>{tomorrow}</p>
@@ -425,6 +426,7 @@ export default function CanteenTab({ profile }) {
           </div>
         )}
       </div>
+      )}
 
       {canEdit && awaiting.length > 0 && (
         <div style={card}>

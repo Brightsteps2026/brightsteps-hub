@@ -45,8 +45,9 @@ async function set(key, value, shared = false) {
   if (shared && key === SCHOOL_DATA_KEY) {
     const { error } = await supabase.rpc("save_hub_data", { new_value: value });
     if (error) {
+      // Throw so the screen knows the save did NOT happen and can say so.
       console.error("Storage set failed", error);
-      return null;
+      throw error;
     }
     return { key, value, shared };
   }
@@ -57,7 +58,7 @@ async function set(key, value, shared = false) {
 
   if (error) {
     console.error("Storage set failed", error);
-    return null;
+    throw error;
   }
   return { key, value, shared };
 }

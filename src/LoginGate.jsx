@@ -174,8 +174,8 @@ export default function LoginGate({ children }) {
   async function handleSetFirstPassword(e) {
     e.preventDefault();
     setPasswordSetError("");
-    if (newPassword.length < 6) {
-      setPasswordSetError("Password must be at least 6 characters.");
+    if (newPassword.length < 8) {
+      setPasswordSetError("Password must be at least 8 characters.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -371,7 +371,7 @@ export default function LoginGate({ children }) {
               style={styles.input}
               className="bsh-input"
               autoComplete="new-password"
-              placeholder="At least 6 characters"
+              placeholder="At least 8 characters"
             />
             <label style={styles.label}>Confirm new password</label>
             <input

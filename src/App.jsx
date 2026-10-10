@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, Fragment } from "react";
+import { Component, useState, useEffect, useMemo, useRef, Fragment } from "react";
 import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, Plus, X, Trash2, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Flag, Percent, Briefcase, FolderOpen, Award, Sparkles, Send, LogOut, Bell, Utensils, Wallet } from "lucide-react";
 import AttachmentField from "./AttachmentField";
 import StudentPhotoField from "./StudentPhotoField";
@@ -12,11 +12,15 @@ import LeaveTab, { LeaveIcon } from "./LeaveTab";
 import StaffCheckinTab, { CheckinIcon, CheckinBanner } from "./StaffCheckinTab";
 import SchoolGradebook from "./SchoolGradebook";
 import { ReportAbsenceCard, useReportedAbsences } from "./AbsenceReport";
-let GRADES = [
+// The school's ten grades. These are always shown, in this order, even if
+// the grade list saved in Settings is missing some (that used to make grade
+// buttons disappear and treat young students as upper school).
+const CORE_GRADES = [
   "Pre-N", "PreK", "Kindergarten",
   "Grade 1", "Grade 2", "Grade 3", "Grade 4",
   "Grade 5", "Grade 6", "Grade 7"
 ];
+let GRADES = [...CORE_GRADES];
 
 const TAGS = ["Inquiry", "Literacy", "Numeracy", "Social Emotional", "Creative Arts", "Physical"];
 
@@ -205,14 +209,21 @@ const emptyData = { students: [], classes: [], portfolio: [], plans: [], announc
 
 function syncGlobalsFromSettings(settings) {
   if (!settings) return;
-  if (settings.grades && settings.grades.length) {
-    GRADES.length = 0;
-    GRADES.push(...settings.grades);
-  }
+  const extraGrades = (settings.grades || []).filter((g) => g && !CORE_GRADES.includes(g) && g !== "Pre Nursery");
+  GRADES.length = 0;
+  GRADES.push(...CORE_GRADES, ...extraGrades);
   if (settings.assessmentLevels && settings.assessmentLevels.length) {
     ASSESS_LEVELS.length = 0;
     ASSESS_LEVELS.push(...settings.assessmentLevels);
   }
+}
+
+// Only open ordinary web links typed into the Hub (never "javascript:" and the like).
+function safeLink(url) {
+  const u = String(url || "").trim();
+  if (/^https?:\/\//i.test(u)) return u;
+  if (/^www\./i.test(u)) return "https://" + u;
+  return undefined;
 }
 
 function todayStr() {
@@ -222,6 +233,26 @@ function todayStr() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// "2026-10-12" -> "12 October 2026" / "12 octobre 2026". Older menus saved a
+// typed week (e.g. "Aug 31, 2026"); those are shown as they were typed.
+function lunchWeekLabel(weekOf, lang) {
+  if (!weekOf) return "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(weekOf)) return weekOf;
+  const [y, m, d] = weekOf.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-GB", { day: "numeric", month: "long", year: "numeric" });
+}
+
+// True when today falls in the Monday-to-Sunday week starting on (or containing) this date.
+function isThisSchoolWeek(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const start = new Date(y, m - 1, d);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); // back to Monday
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+  const now = new Date();
+  return now >= start && now < end;
 }
 
 // Returns the weekday name for right now, and re-renders the component when the
@@ -436,6 +467,10 @@ function useSchoolData() {
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  // Set when a save did not reach the database. The change stays on screen
+  // and the top bar offers to try again, instead of wrongly saying "Saved".
+  const [saveError, setSaveError] = useState(false);
+  const unsavedRef = useRef(null);
   // What this screen last loaded or saved, used to work out what we changed.
   const baseRef = useRef(null);
   const savingRef = useRef(false);
@@ -453,10 +488,11 @@ function useSchoolData() {
   useEffect(() => {
     if (!loaded || loadError) return;
     const refresh = async () => {
-      if (document.hidden || savingRef.current) return;
+      // Never replace a change that has not been saved yet.
+      if (document.hidden || savingRef.current || unsavedRef.current) return;
       try {
         const latest = await fetchLatest();
-        if (!latest || savingRef.current) return;
+        if (!latest || savingRef.current || unsavedRef.current) return;
         if (!latest.settings.branding) latest.settings.branding = DEFAULT_SETTINGS.branding;
         if (!latest.settings.branding.logoUrl) {
           latest.settings = { ...latest.settings, branding: { ...latest.settings.branding, logoUrl: BRIGHTSTEPS_LOGO_DATA_URI } };
@@ -541,41 +577,48 @@ function useSchoolData() {
     })();
   }, []);
 
+  // Saves the whole school data. Returns true when it reached the database,
+  // false when it did not (the top bar then shows "Not saved").
   const persist = async (next) => {
     if (loadError) {
       // Refuse to save if we never confirmed we loaded the real data first.
       console.error("Refusing to save: data was never successfully loaded.");
-      return;
+      return false;
     }
     syncGlobalsFromSettings(next.settings);
     setData(next);
+    unsavedRef.current = next;
     setSaving(true);
     savingRef.current = true;
     try {
       // Merge with the latest saved copy so we don't wipe out changes other
-      // people made since this screen was loaded.
-      let toSave = next;
-      try {
-        const latest = await fetchLatest();
-        if (latest && baseRef.current) toSave = mergeSchoolValue(baseRef.current, next, latest);
-      } catch (e) {
-        console.error("Could not fetch latest before saving; saving as is", e);
-      }
+      // people made since this screen was loaded. If the latest copy can't be
+      // read, don't save at all: saving an old copy could undo their work.
+      const latest = await fetchLatest();
+      const toSave = latest && baseRef.current ? mergeSchoolValue(baseRef.current, next, latest) : next;
       await window.storage.set(STORAGE_KEY, JSON.stringify(toSave), true);
       baseRef.current = toSave;
+      if (unsavedRef.current === next) unsavedRef.current = null;
+      setSaveError(false);
       if (toSave !== next) {
         syncGlobalsFromSettings(toSave.settings);
         setData(toSave);
       }
+      return true;
     } catch (e) {
       console.error("Save failed", e);
+      setSaveError(true);
+      return false;
     } finally {
       savingRef.current = false;
       setSaving(false);
     }
   };
 
-  return { data, persist, loaded, saving, loadError };
+  // Try the last change that did not save again.
+  const retrySave = () => (unsavedRef.current ? persist(unsavedRef.current) : Promise.resolve(true));
+
+  return { data, persist, loaded, saving, loadError, saveError, retrySave };
 }
 
 function Field({ label, children }) {
@@ -674,6 +717,38 @@ function AvatarStack({ students }) {
   );
 }
 
+// If one screen hits an error, only that screen shows a message; the rest of
+// the Hub (top bar, menu, other tabs) keeps working.
+class TabErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { failed: false };
+  }
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error, info) {
+    console.error("Screen error", error, info);
+  }
+  render() {
+    if (!this.state.failed) return this.props.children;
+    const fr = this.props.language === "fr";
+    return (
+      <div className="bsf-screen">
+        <section className="bsf-card">
+          <h2>{fr ? "Cette page n'a pas pu s'afficher" : "This page could not be shown"}</h2>
+          <p className="bsf-muted">
+            {fr
+              ? "Un problème est survenu. Rechargez la page ou ouvrez une autre section."
+              : "Something went wrong. Reload the page or open another section."}
+          </p>
+          <button className="bsf-btn" onClick={() => window.location.reload()}>{fr ? "Recharger" : "Reload"}</button>
+        </section>
+      </div>
+    );
+  }
+}
+
 // Lets a tap on a child on the Dashboard open that child's profile directly.
 let pendingChildProfileId = null;
 
@@ -697,13 +772,16 @@ function Dashboard({ data, profile, persist, onNavigate }) {
   };
   const lunchMenu = data.lunchMenu || { weekOf: "", days: {} };
   const [editingLunch, setEditingLunch] = useState(false);
-  const [emailLunchMenu, setEmailLunchMenu] = useState(false);
+  const [savingLunch, setSavingLunch] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
   const [showAnnForm, setShowAnnForm] = useState(false);
   const [annForm, setAnnForm] = useState({ title: "", title_fr: "", body: "", body_fr: "", audience: "school", show_staff: true, email: false });
+const [postingAnn, setPostingAnn] = useState(false);
 const postAnnouncement = async () => {
-  if (!annForm.title.trim() || !annForm.body.trim()) return;
+  if (!annForm.title.trim() || !annForm.body.trim() || postingAnn) return;
+  setPostingAnn(true);
   const { data: row, error } = await supabase.from("announcements").insert({ title: annForm.title.trim(), title_fr: annForm.title_fr.trim(), body: annForm.body.trim(), body_fr: annForm.body_fr.trim(), audience: annForm.audience, show_staff: annForm.show_staff }).select().single();
+  setPostingAnn(false);
   if (error) { console.error("announcement failed", error); alert("Could not post announcement."); return; }
   setAnnouncements([row, ...announcements]);
   setAnnForm({ title: "", title_fr: "", body: "", body_fr: "", audience: "school", show_staff: true, email: false });
@@ -721,6 +799,26 @@ useEffect(() => {
     setAnnouncements(data || []);
   });
 }, []);
+  // Each person only sees the announcements meant for them: families by their
+  // children's grades, staff only those marked "Also show on staff dashboard".
+  const visibleAnnouncements = (() => {
+    const role = profile?.role;
+    if (role === "admin" || role === "viewer") return announcements;
+    if (role === "parent" || role === "student") {
+      const kids = data.students.filter((s) => linkedIds.includes(s.id));
+      const lowerEnd = GRADES.indexOf("Grade 5");
+      return announcements.filter((a) =>
+        a.audience === "school" || !a.audience ||
+        kids.some((k) => {
+          const gi = GRADES.indexOf(k.grade);
+          if (a.audience === "lower") return gi >= 0 && gi <= lowerEnd;
+          if (a.audience === "upper") return gi > lowerEnd;
+          return a.audience === k.grade;
+        })
+      );
+    }
+    return announcements.filter((a) => a.show_staff !== false);
+  })();
   const [gradeStaff, setGradeStaff] = useState({});
     const isFr = language === "fr";
 useEffect(() => {
@@ -738,26 +836,37 @@ useEffect(() => {
     setEditingLunch(true);
   };
 const saveLunchMenu = async () => {
-    const week = lunchForm.weekOf || "";
-    persist({ ...data, lunchMenu: lunchForm });
+    if (savingLunch) return;
+    setSavingLunch(true);
+    const ok = await persist({ ...data, lunchMenu: lunchForm });
+    if (!ok) {
+      setSavingLunch(false);
+      alert("The menu could not be saved. Please check your connection and try again.");
+      return;
+    }
+    const weekEn = lunchWeekLabel(lunchForm.weekOf, "en");
+    const weekFr = lunchWeekLabel(lunchForm.weekOf, "fr");
     const { data: row, error } = await supabase.from("announcements").insert({
       title: "Lunch menu updated",
-      title_fr: "Menu du déjeuner mis à jour",
-      body: "The lunch menu for " + week + " has been updated. You can see it on your dashboard.",
-      body_fr: "Le menu du déjeuner pour " + week + " a été mis à jour. Vous pouvez le consulter sur votre tableau de bord.",
+      title_fr: "Menu de la cantine mis à jour",
+      body: "The lunch menu" + (weekEn ? " for the week of " + weekEn : "") + " has been updated. You can see it on your dashboard.",
+      body_fr: "Le menu de la cantine" + (weekFr ? " de la semaine du " + weekFr : "") + " a été mis à jour. Vous pouvez le consulter sur votre tableau de bord.",
       audience: "school",
       show_staff: true
     }).select().single();
     if (error) { console.error("menu announcement failed", error); }
     else { setAnnouncements([row, ...announcements]); }
-    setEmailLunchMenu(false);
+    setSavingLunch(false);
     setEditingLunch(false);
   };
  // Was: LUNCH_DAYS[new Date().getDay() - 1]. That was computed once per render,
   // so an open tab kept highlighting a stale day, and on Sat/Sun it read index
   // 5 / -1 and quietly produced undefined.
   const todayWeekday = useTodayWeekday();
-  const todayLunchName = LUNCH_DAYS.includes(todayWeekday) ? todayWeekday : null;
+  // Only highlight today's lunch when the menu is for this week (an old menu
+  // used to show as "today's lunch"). Older menus with a typed week still highlight.
+  const lunchIsThisWeek = !/^\d{4}-\d{2}-\d{2}$/.test(lunchMenu.weekOf || "") || isThisSchoolWeek(lunchMenu.weekOf);
+  const todayLunchName = lunchIsThisWeek && LUNCH_DAYS.includes(todayWeekday) ? todayWeekday : null;
   const activeLunchDays = language === "fr" ? (lunchMenu.daysFr || {}) : (lunchMenu.days || {});
   const hasLunchMenu = lunchMenu.weekOf || LUNCH_DAYS.some((d) => lunchMenu.days?.[d] || lunchMenu.daysFr?.[d]);
 
@@ -1160,14 +1269,14 @@ const saveLunchMenu = async () => {
       Also show on staff dashboard
     </label>
     <div style={{ display: "flex", gap: 8 }}>
-      <button className="bsf-btn" onClick={postAnnouncement}>Post announcement</button>
+      <button className="bsf-btn" onClick={postAnnouncement} disabled={postingAnn}>{postingAnn ? "Posting…" : "Post announcement"}</button>
       <button className="bsf-textbtn" onClick={() => setShowAnnForm(false)}>Cancel</button>
     </div>
   </div>
 )}
         </div>
-        {announcements.length === 0 && <p className="bsf-empty">No announcements yet.</p>}
-        {announcements.slice(0, 3).map((a) => (
+        {visibleAnnouncements.length === 0 && <p className="bsf-empty">No announcements yet.</p>}
+        {visibleAnnouncements.slice(0, 3).map((a) => (
         <div key={a.id} style={{ borderTop: "1px solid #eee", padding: "12px 0" }}>
         <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>{a.audience === "school" ? "Whole school" : a.audience === "lower" ? "Lower school" : a.audience === "upper" ? "Upper school" : a.audience} · {new Date(a.created_at).toLocaleDateString()}</p>
         <p style={{ fontSize: 14, fontWeight: 500, margin: "0 0 2px" }}>{language === "fr" && a.title_fr ? a.title_fr : a.title}</p>
@@ -1178,7 +1287,6 @@ const saveLunchMenu = async () => {
         </div>
         ))}
         </section>
-          <h2>Lunch Menu</h2>
           <section className="bsf-card">
 <div className="bsf-row-head">
   <h2>Lunch Menu</h2>
@@ -1186,7 +1294,7 @@ const saveLunchMenu = async () => {
             <button className="bsf-textbtn" onClick={openLunchEdit}>Edit menu</button>
           )}
         </div>
-        {lunchMenu.weekOf && <p className="bsf-muted" style={{ marginBottom: 8 }}>Week of {lunchMenu.weekOf}</p>}
+        {lunchMenu.weekOf && <p className="bsf-muted" style={{ marginBottom: 8 }}>{language === "fr" ? "Semaine du" : "Week of"} {lunchWeekLabel(lunchMenu.weekOf, language)}</p>}
         {hasLunchMenu && LUNCH_DAYS.map((day) => (
           <div key={day} style={{ display: "grid", gridTemplateColumns: "56px 1fr", gap: 8, padding: "8px 10px", borderRadius: 8, background: day === todayLunchName ? "#eaf1fb" : "transparent" }}>
             <p style={{ fontWeight: 500, fontSize: 13, margin: 0, color: day === todayLunchName ? "#185fa5" : "#666" }}>
@@ -1203,17 +1311,13 @@ const saveLunchMenu = async () => {
 
       {editingLunch && (
         <Modal title="Edit lunch menu" onClose={() => setEditingLunch(false)}>
-          <Field label="Week of">
+          <Field label="Week of (pick the Monday)">
             <input
-              value={lunchForm.weekOf || ""}
+              type="date"
+              value={/^\d{4}-\d{2}-\d{2}$/.test(lunchForm.weekOf || "") ? lunchForm.weekOf : ""}
               onChange={(e) => setLunchForm({ ...lunchForm, weekOf: e.target.value })}
-              placeholder="e.g. Aug 31, 2026"
             />
           </Field>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 13 }}>
-          <input type="checkbox" checked={emailLunchMenu} onChange={(e) => setEmailLunchMenu(e.target.checked)} />
-          Also email parents about this menu
-          </label>
           <div style={{ display: "grid", gridTemplateColumns: "56px 1fr 1fr", gap: "6px 8px", fontSize: 12, color: "#888", marginTop: 12 }}>
             <span></span><span>English</span><span>Français</span>
           </div>
@@ -1251,7 +1355,7 @@ const saveLunchMenu = async () => {
               </div>
             </div>
           ))}
-          <button className="bsf-btn bsf-btn-block" onClick={saveLunchMenu} style={{ marginTop: 14 }}>Save menu</button>
+          <button className="bsf-btn bsf-btn-block" onClick={saveLunchMenu} disabled={savingLunch} style={{ marginTop: 14 }}>{savingLunch ? "Saving…" : "Save menu"}</button>
         </Modal>
       )}
 
@@ -1557,7 +1661,11 @@ function StudentMessages({ student, data, persist }) {
 
   useEffect(() => {
     if (!profile?.id || !student?.id) return;
-    if ((student.messages || []).length === 0) return;
+    if (profile.role === "viewer") return;
+    // Only save "last read" when there is actually something new to mark as read.
+    const seen = (student.lastRead || {})[profile.id] || "";
+    const hasNew = (student.messages || []).some((m) => (m.createdAt || m.date || "") > seen);
+    if (!hasNew) return;
     persist({
       ...data,
       students: data.students.map((s) =>
@@ -1568,8 +1676,9 @@ function StudentMessages({ student, data, persist }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [student.id, profile?.id]);
 
-  const addMessage = () => {
-    if (!messageText.trim()) return;
+  const [sending, setSending] = useState(false);
+  const addMessage = async () => {
+    if (!messageText.trim() || sending) return;
     const message = {
       id: uid(),
       author: (profile && profile.full_name) || "Someone",
@@ -1578,7 +1687,8 @@ function StudentMessages({ student, data, persist }) {
       date: new Date().toISOString().slice(0, 10),
       createdAt: new Date().toISOString()
     };
-    persist({
+    setSending(true);
+    const ok = await persist({
       ...data,
       students: data.students.map((s) =>
         s.id === student.id
@@ -1586,7 +1696,13 @@ function StudentMessages({ student, data, persist }) {
           : s
       )
     });
-    setMessageText("");    supabase.functions.invoke("notify-message", { body: { studentId: student.id, senderRole: (profile && profile.role) || "", senderName: (profile && profile.full_name) || "Someone" } }).catch((e) => console.error("notify-message failed", e));
+    setSending(false);
+    if (!ok) return; // keep the text in the box; the top bar says "Not saved"
+    setMessageText("");
+    // Only email once the message is really saved.
+    supabase.functions
+      .invoke("notify-message", { body: { studentId: student.id, senderRole: (profile && profile.role) || "", senderName: (profile && profile.full_name) || "Someone" } })
+      .catch((e) => console.error("notify-message failed", e));
   };
 
   const removeMessage = (msgId) => {
@@ -1650,7 +1766,7 @@ function StudentMessages({ student, data, persist }) {
             if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addMessage(); }
           }}
         />
-        <button className="bsf-chatsendbtn" onClick={addMessage} aria-label="Send message" disabled={!messageText.trim()}>
+        <button className="bsf-chatsendbtn" onClick={addMessage} aria-label="Send message" disabled={!messageText.trim() || sending}>
           <Send size={18} />
         </button>
       </div>
@@ -1674,8 +1790,17 @@ function useUnreadNoticeCount(profile) {
       if (!cancelled && !error) setCount(n || 0);
     };
     load();
+    // Keep the badge current: every minute while the Hub is open, and when it comes back to the front.
+    const id = setInterval(() => { if (!document.hidden) load(); }, 60 * 1000);
+    const onVisible = () => { if (!document.hidden) load(); };
     window.addEventListener("bs-notices-changed", load);
-    return () => { cancelled = true; window.removeEventListener("bs-notices-changed", load); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      window.removeEventListener("bs-notices-changed", load);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [profile?.id, profile?.role]);
   return count;
 }
@@ -1801,7 +1926,9 @@ function NotificationBell({ profile, unreadThreads, unreadNoticeCount, onOpenThr
             role="dialog"
             aria-label="Notifications"
             style={{
-              position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 91,
+              // Fixed to the screen edge so it never opens off-screen on phones
+              // (the bell isn't the right-most button in the top bar).
+              position: "fixed", top: 62, right: 12, zIndex: 91,
               width: "min(360px, calc(100vw - 24px))", maxHeight: "70vh", overflowY: "auto",
               background: "#fff", border: "1px solid var(--line)", borderRadius: 14,
               boxShadow: "0 8px 24px rgba(36,16,18,0.14)", padding: "12px 14px", textAlign: "left"
@@ -2301,6 +2428,9 @@ function StudentsTab({ data, persist, profile }) {
   };
 
   const removeStudent = (id) => {
+    const st = data.students.find((s) => s.id === id);
+    const name = st ? (st.name || `${st.firstName || ""} ${st.lastName || ""}`.trim()) : "this student";
+    if (!window.confirm(`Remove ${name} from the Hub? Their profile and their message thread with parents will be deleted. This cannot be undone.`)) return;
     persist({ ...data, students: data.students.filter((s) => s.id !== id) });
   };
 
@@ -6512,7 +6642,7 @@ function ResourcesTab({ data, persist, profile }) {
               <strong>{r.title}</strong>
               {r.description && <p>{r.description}</p>}
               {r.link && (
-                <a className="bsf-resource-link" href={r.link} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                <a className="bsf-resource-link" href={safeLink(r.link)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
                   {r.link}
                 </a>
               )}
@@ -7071,7 +7201,7 @@ function AccreditationTab({ data, persist }) {
               </div>
               <strong>{c.name}</strong>
               {c.notes && <p>{c.notes}</p>}
-              {c.evidenceLink && <a className="bsf-resource-link" href={c.evidenceLink} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>{c.evidenceLink}</a>}
+              {c.evidenceLink && <a className="bsf-resource-link" href={safeLink(c.evidenceLink)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>{c.evidenceLink}</a>}
             </div>
             <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeChecklistItem(c.id); }} aria-label="Remove"><Trash2 size={16} /></button>
           </div>
@@ -7321,8 +7451,8 @@ function SettingsModal({ data, persist, onClose }) {
 
   const changePassword = async () => {
     setPasswordStatus("");
-    if (newPassword.length < 6) {
-      setPasswordStatus("Password must be at least 6 characters.");
+    if (newPassword.length < 8) {
+      setPasswordStatus("Password must be at least 8 characters.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -7347,7 +7477,9 @@ function SettingsModal({ data, persist, onClose }) {
     // in. Rather than exposing the whole shared dataset to do that, it lives
     // in its own small, separate row that only ever holds this one thing.
     if (patch.logoUrl !== undefined && window.storage) {
-      window.storage.set("brightsteps-hub-logo", patch.logoUrl || "", true);
+      window.storage.set("brightsteps-hub-logo", patch.logoUrl || "", true).catch(() => {
+        alert("The logo for the login screen could not be saved. Please try again.");
+      });
     }
   };
   const updateYear = (patch) => update({ academicYear: { ...settings.academicYear, ...patch } });
@@ -7368,10 +7500,13 @@ function SettingsModal({ data, persist, onClose }) {
 
       <hr className="bsf-divider" />
       <h3 className="bsf-subheading">Grade structure</h3>
+      <p className="bsf-muted" style={{ margin: "0 0 8px" }}>
+        The ten school grades (Pre-N to Grade 7) are always included. Add any extra grade below.
+      </p>
       <ListEditor
-        label="Grade levels, in order"
-        items={settings.grades}
-        onChange={(grades) => update({ grades })}
+        label="Extra grade levels"
+        items={(settings.grades || []).filter((g) => !CORE_GRADES.includes(g))}
+        onChange={(extra) => update({ grades: [...CORE_GRADES, ...extra] })}
         placeholder="e.g. Grade 8"
       />
 
@@ -7502,7 +7637,7 @@ function SettingsModal({ data, persist, onClose }) {
       {profile?.email && <p className="bsf-muted">{t("settings.signedInAs")} {profile.email}</p>}
 
       <Field label="New password">
-        <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 6 characters" />
+        <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 8 characters" />
       </Field>
       <Field label="Confirm new password">
         <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
@@ -7561,7 +7696,7 @@ export default function BrightStepsHub() {
 
 function BrightStepsHubInner() {
   const { profile, signOut } = useAuth();
-  const { data, persist: rawPersist, loaded, saving, loadError } = useSchoolData();
+  const { data, persist: rawPersist, loaded, saving, loadError, saveError, retrySave } = useSchoolData();
   const { t, language, canSwitch, setLanguage } = useLanguage();
   const [tab, setTab] = useState("dashboard");
   const [showSettings, setShowSettings] = useState(false);
@@ -7577,14 +7712,13 @@ function BrightStepsHubInner() {
   // form, or screen they're on. This is enforced once, centrally, rather than
   // trying to individually lock every Add/Edit/Delete control across the app.
   const persist = isViewer
-    ? () => { window.alert("Viewer accounts can see everything, but can't make any changes."); }
+    ? () => { window.alert("Viewer accounts can see everything, but can't make any changes."); return Promise.resolve(false); }
     : (newData) => {
         const changedAreas = Object.keys(newData)
           .filter((key) => key !== "activityLog" && newData[key] !== data[key])
           .map((key) => ACTIVITY_AREA_LABELS[key] || key);
         if (changedAreas.length === 0) {
-          rawPersist(newData);
-          return;
+          return rawPersist(newData);
         }
         const entry = {
           id: uid(),
@@ -7594,7 +7728,7 @@ function BrightStepsHubInner() {
           areas: changedAreas
         };
         const existingLog = newData.activityLog || data.activityLog || [];
-        rawPersist({ ...newData, activityLog: [...existingLog, entry].slice(-500) });
+        return rawPersist({ ...newData, activityLog: [...existingLog, entry].slice(-500) });
       };
   const myLinkedStudent = isStudent ? data.students.find((s) => (profile.student_ids || [])[0] === s.id) : null;
   const isUpperStudent = !!myLinkedStudent && GRADES.indexOf(myLinkedStudent.grade) >= GRADES.indexOf("Grade 3");
@@ -7607,7 +7741,7 @@ function BrightStepsHubInner() {
   const LEARNING_ASSISTANT_ALLOWED_TABS = ["checkin", "leave", "gradebook", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "classes", "calendar", "assignments", "updates", "resources"];
   // An accountant only ever needs billing, nothing about students' academic
   // records, behavior, or staff information.
-  const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "billing", "checkin", "leave", "gradebook"];
+  const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "billing", "checkin", "leave"];
   const RESTRICTED_TEACHER_EMAILS = ["thairy.ekellem@bischoolci.org"];
   const RESTRICTED_TEACHER_TABS = ["checkin", "leave", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "assignments", "reports", "calendar", "incidents", "updates", "resources"];
   const isRestrictedTeacher = profile?.role === "teacher" && RESTRICTED_TEACHER_EMAILS.includes((profile?.email || "").toLowerCase());
@@ -7762,6 +7896,7 @@ function BrightStepsHubInner() {
         .bsf-savestate { font-size: 11px; color: var(--gold-dark); display: flex; align-items: center; gap: 5px; margin-right: 2px; }
         .bsf-savestate::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #2F7A5C; flex-shrink: 0; }
         @media (max-width: 520px) { .bsf-savestate { display: none; } }
+        .bsf-savefail { background: #FCE8E8; color: #A32D2D; border: 1px solid #E8B4B4; border-radius: 999px; font-size: 12px; font-weight: 600; padding: 6px 12px; min-height: 34px; cursor: pointer; font-family: inherit; white-space: nowrap; }
         .bsf-topbar .bsf-settingsbtn { width: 34px; height: 34px; border-radius: 50%; background: var(--white); border: 0.5px solid var(--line); color: var(--teal); display: flex; align-items: center; justify-content: center; padding: 0; font-size: 11px; font-weight: 600; }
         .bsf-topbar .bsf-settingsbtn:hover { background: var(--sand-deep); }
         .bsf-screen { padding: 16px 16px 90px; flex: 1; overflow-y: auto; }
@@ -8410,7 +8545,13 @@ function BrightStepsHubInner() {
           </div>
         </div>
         <div className="bsf-topbar-actions">
-          <span className="bsf-savestate">{saving ? t("top.saving") : loaded ? t("top.saved") : t("top.loading")}</span>
+          {saveError && !saving ? (
+            <button className="bsf-savefail" onClick={retrySave} title={t("top.notSavedHint")}>
+              {t("top.notSaved")}
+            </button>
+          ) : (
+            <span className="bsf-savestate">{saving ? t("top.saving") : loaded ? t("top.saved") : t("top.loading")}</span>
+          )}
           {canSwitch && (
             <button
               className="bsf-iconbtn bsf-settingsbtn"
@@ -8450,6 +8591,7 @@ function BrightStepsHubInner() {
         </div>
       </div>
 
+      <TabErrorBoundary key={tab} language={language}>
       {tab === "dashboard" && !isParent && !isStudent && <CheckinBanner profile={profile} onOpen={() => goTo("checkin")} />}
       {tab === "dashboard" && <Dashboard data={data} profile={profile} persist={persist} onNavigate={goTo} />}
       {tab === "students" && (isParent ? <ParentStudentView data={data} persist={persist} profile={profile} /> : <StudentsTab data={data} persist={persist} profile={profile} />)}
@@ -8484,8 +8626,8 @@ function BrightStepsHubInner() {
       {tab === "resources" && <ResourcesTab data={data} persist={persist} profile={profile} />}
       {tab === "accreditation" && (isAdmin || isViewer) && <AccreditationTab data={data} persist={persist} />}
       {tab === "billing" && BILLING_ALLOWED_ROLES.includes(profile?.role) && <BillingTab data={data} persist={persist} />}
-      {false && tab === "ai" && !isParent && <AIAssistantTab data={data} />}
       {tab === "updates" && <UpdatesTab data={data} persist={persist} />}
+      </TabErrorBoundary>
 
       {showSettings && <SettingsModal data={data} persist={persist} onClose={() => setShowSettings(false)} />}
 

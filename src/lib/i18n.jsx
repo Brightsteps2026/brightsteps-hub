@@ -59,6 +59,8 @@ const translations = {
   "top.saving": { en: "Saving…", fr: "Enregistrement…" },
   "top.saved": { en: "Saved", fr: "Enregistré" },
   "top.loading": { en: "Loading…", fr: "Chargement…" },
+  "top.notSaved": { en: "Not saved – tap to retry", fr: "Non enregistré – réessayer" },
+  "top.notSavedHint": { en: "Your last change did not reach the school's database. Check your connection and tap to try again.", fr: "Votre dernière modification n'a pas été enregistrée. Vérifiez votre connexion et appuyez pour réessayer." },
   "top.menu": { en: "Menu", fr: "Menu" },
   "top.settings": { en: "Settings", fr: "Paramètres" },
   "top.language": { en: "Language", fr: "Langue" },
