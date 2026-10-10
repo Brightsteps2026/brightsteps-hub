@@ -83,6 +83,39 @@ const EVENT_TYPE_COLOR = { Academic: "#2F6B7A", Holiday: "#B8842F", Staff: "#6E4
 // database also removes them before the data reaches a parent's or student's screen.
 const isStaffOnlyEvent = (e) => e?.audience === "staff" || (!e?.audience && e?.type === "Staff");
 
+// Friendly event dates: "Mon 19 Oct", "Mon 19 – Fri 23 Oct", "Fri 30 Oct – Mon 2 Nov".
+function formatEventWhen(e, language = "en") {
+  if (!e?.date) return "";
+  const locale = language === "fr" ? "fr-FR" : "en-GB";
+  const start = new Date(`${e.date}T12:00:00`);
+  const end = e.endDate && e.endDate > e.date ? new Date(`${e.endDate}T12:00:00`) : null;
+  const dayMonth = (d) => d.toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" });
+  const dayOnly = (d) => d.toLocaleDateString(locale, { weekday: "short", day: "numeric" });
+  if (!end) return dayMonth(start);
+  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+  return `${sameMonth ? dayOnly(start) : dayMonth(start)} – ${dayMonth(end)}`;
+}
+
+// One upcoming event: a small date chip, then the title and the dates.
+function EventRow({ event: e }) {
+  const { language } = useLanguage();
+  const locale = language === "fr" ? "fr-FR" : "en-GB";
+  const color = EVENT_TYPE_COLOR[e.type] || "#801524";
+  const start = new Date(`${e.date}T12:00:00`);
+  return (
+    <div className="bsf-eventrow">
+      <div className="bsf-datechip" style={{ background: `${color}14`, color }}>
+        <span className="bsf-datechip-day">{start.getDate()}</span>
+        <span className="bsf-datechip-month">{start.toLocaleDateString(locale, { month: "short" }).replace(".", "")}</span>
+      </div>
+      <div className="bsf-eventrow-text">
+        <strong>{e.title}</strong>
+        <p>{formatEventWhen(e, language)}<span className="bsf-eventrow-type" style={{ color }}> · {e.type}</span></p>
+      </div>
+    </div>
+  );
+}
+
 const ADMISSION_STAGES = ["Inquiry", "Tour Scheduled", "Application Submitted", "Enrolled", "Declined"];
 const ADMISSION_STAGE_COLOR = {
   "Inquiry": "#B8842F",
@@ -847,7 +880,7 @@ const saveLunchMenu = async () => {
                 <div className="bsf-tile">
                   <p className="bsf-tile-label"><CalendarIcon size={14} /> Next event</p>
                   <p className="bsf-tile-value">{nextEvent ? nextEvent.title : "Nothing scheduled"}</p>
-                  {nextEvent && <p className="bsf-tile-sub">{nextEvent.date}</p>}
+                  {nextEvent && <p className="bsf-tile-sub">{formatEventWhen(nextEvent, language)}</p>}
                 </div>
                 <div className="bsf-tile">
                   <p className="bsf-tile-label"><Utensils size={14} /> Today's lunch</p>
@@ -1074,20 +1107,7 @@ const saveLunchMenu = async () => {
         <section className="bsf-card">
           <h2>Next up</h2>
           {nextEvents.length === 0 && <p className="bsf-empty">Nothing scheduled yet.{!isParent && " Add one from the Calendar tab."}</p>}
-          {nextEvents.map((e) => (
-            <div key={e.id} className="bsf-row">
-              <span
-                className="bsf-status-pill"
-                style={{ background: `${EVENT_TYPE_COLOR[e.type]}1A`, color: EVENT_TYPE_COLOR[e.type] }}
-              >
-                {e.type}
-              </span>
-              <div>
-                <strong>{e.title}</strong>
-                <p>{e.date}{e.endDate && e.endDate !== e.date ? ` to ${e.endDate}` : ""}</p>
-              </div>
-            </div>
-          ))}
+          {nextEvents.map((e) => (<EventRow key={e.id} event={e} />))}
         </section>
 
         <section className="bsf-card">
@@ -1382,17 +1402,7 @@ function FamilyViewModal({ student, data, onClose, hideContacts = false }) {
       <section className="bsf-card">
         <h2>Upcoming for {student.grade}</h2>
         {events.length === 0 && <p className="bsf-empty">Nothing scheduled yet.</p>}
-        {events.map((e) => (
-          <div key={e.id} className="bsf-row">
-            <span className="bsf-status-pill" style={{ background: `${EVENT_TYPE_COLOR[e.type]}1A`, color: EVENT_TYPE_COLOR[e.type] }}>
-              {e.type}
-            </span>
-            <div>
-              <strong>{e.title}</strong>
-              <p>{e.date}{e.endDate && e.endDate !== e.date ? ` to ${e.endDate}` : ""}</p>
-            </div>
-          </div>
-        ))}
+        {events.map((e) => (<EventRow key={e.id} event={e} />))}
       </section>
 
       <section className="bsf-card">
@@ -2011,17 +2021,7 @@ function ParentStudentView({ data, persist, profile }) {
           <section className="bsf-card">
             <h2>Upcoming for {activeStudent.grade}</h2>
             {events.length === 0 && <p className="bsf-empty">Nothing scheduled yet.</p>}
-            {events.map((e) => (
-              <div key={e.id} className="bsf-row">
-                <span className="bsf-status-pill" style={{ background: `${EVENT_TYPE_COLOR[e.type]}1A`, color: EVENT_TYPE_COLOR[e.type] }}>
-                  {e.type}
-                </span>
-                <div>
-                  <strong>{e.title}</strong>
-                  <p>{e.date}{e.endDate && e.endDate !== e.date ? ` to ${e.endDate}` : ""}</p>
-                </div>
-              </div>
-            ))}
+            {events.map((e) => (<EventRow key={e.id} event={e} />))}
           </section>
 
           <section className="bsf-card">
@@ -4369,7 +4369,7 @@ function isHolidayDate(events, dateStr) {
 const emptyEventForm = { title: "", type: EVENT_TYPES[0], date: "", endDate: "", grades: [], description: "", audience: "everyone", repeatMonthly: false };
 
 function CalendarTab({ data, persist, profile }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [showAdd, setShowAdd] = useState(false);
   const [showSubscribe, setShowSubscribe] = useState(false);
   const [typeFilter, setTypeFilter] = useState(null);
@@ -4465,7 +4465,7 @@ function CalendarTab({ data, persist, profile }) {
             {e.type}
           </span>
           {!isFamily && isStaffOnlyEvent(e) && <span className="bsf-status-pill bsf-staffonly-pill">Staff only</span>}
-          <span className="bsf-muted">{e.date}{e.endDate && e.endDate !== e.date ? ` to ${e.endDate}` : ""}</span>
+          <span className="bsf-muted">{formatEventWhen(e, language)}</span>
         </div>
         <strong>{e.title}</strong>
         <p className="bsf-muted">{e.grades && e.grades.length > 0 ? e.grades.join(", ") : "Whole school"}</p>
@@ -4480,7 +4480,7 @@ function CalendarTab({ data, persist, profile }) {
       <div className="bsf-hero">
         <p className="bsf-eyebrow">Calendar</p>
         <h1>{upcoming.length} upcoming event{upcoming.length === 1 ? "" : "s"}</h1>
-        {upcoming[0] && <p className="bsf-hero-sub">Next: {upcoming[0].title} · {upcoming[0].date}</p>}
+        {upcoming[0] && <p className="bsf-hero-sub">Next: {upcoming[0].title} · {formatEventWhen(upcoming[0], language)}</p>}
       </div>
 
       <div className="bsf-screen-head" style={{ marginBottom: 0, gap: 8, flexWrap: "wrap" }}>
@@ -7877,6 +7877,15 @@ function BrightStepsHubInner() {
         .bsf-row:first-of-type { border-top: none; padding-top: 0; }
         .bsf-row p { margin: 2px 0 0; font-size: 14px; color: #3B4A4C; }
         .bsf-row-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .bsf-eventrow { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+        .bsf-eventrow:first-of-type { border-top: none; padding-top: 2px; }
+        .bsf-datechip { flex-shrink: 0; width: 46px; height: 50px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
+        .bsf-datechip-day { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 600; }
+        .bsf-datechip-month { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px; }
+        .bsf-eventrow-text { flex: 1; min-width: 0; }
+        .bsf-eventrow-text strong { display: block; font-size: 15px; line-height: 1.3; }
+        .bsf-eventrow-text p { margin: 3px 0 0; font-size: 13px; color: #5A4A4C; }
+        .bsf-eventrow-type { font-weight: 600; }
 
         .bsf-list { display: flex; flex-direction: column; }
         .bsf-student { display: flex; align-items: flex-start; gap: 8px; text-align: left; }
