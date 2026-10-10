@@ -3,7 +3,7 @@ import { supabase } from "./lib/supabaseClient";
 import { useLanguage } from "./lib/i18n";
 
 const PRICES = { day: 2700, week: 13000, month: 50000 };
-// Parents can order by the day or the month only (week passes removed Oct 2026).
+// Passes can be ordered by the day or the month only (week passes removed Oct 2026).
 const PARENT_PASS_TYPES = ["day", "month"];
 const STAFF_MEAL_PRICE = 2500;
 const STAFF_ROLES = ["admin", "teacher", "learning_assistant", "accountant"];
@@ -17,7 +17,6 @@ const T = {
   dayHint: { en: "Pick a day", fr: "Choisissez un jour" },
   weekHint: { en: "Monday to Friday", fr: "Du lundi au vendredi" },
   monthHint: { en: "All school days", fr: "Tous les jours de classe" },
-  weekNudge: { en: "Need the whole week? The week pass is 13 000 and saves 500.", fr: "Toute la semaine ? La formule semaine est à 13 000 et économise 500." },
   order: { en: "Confirm order", fr: "Confirmer la commande" },
   ordering: { en: "Sending…", fr: "Envoi…" },
   myOrders: { en: "Orders", fr: "Commandes" },
@@ -484,7 +483,7 @@ export default function CanteenTab({ profile }) {
               <p style={{ margin: "0 0 10px", fontSize: 14 }}>Selected: <strong>{selected.full_name}</strong></p>
 
               <div style={{ display: "flex", gap: 7, marginBottom: 12, flexWrap: "wrap" }}>
-                {["day", "week", "month"].map((t) => (
+                {PARENT_PASS_TYPES.map((t) => (
                   <button key={t} onClick={() => setPassType(t)} style={passType === t ? chipOn : chip}>
                     {tr(t)} · {money(PRICES[t])}
                   </button>
@@ -566,7 +565,7 @@ function PassesList({ passes, students }) {
       </div>
 
       <div style={{ display: "flex", gap: 7, marginBottom: 10, flexWrap: "wrap" }}>
-        {["all", "day", "week", "month"].map((k) => (
+        {["all", "day", "month"].map((k) => (
           <button key={k} onClick={() => setKind(k)} style={kind === k ? chipOn : chip}>
             {k === "all" ? "All" : kindLabel[k]}
           </button>
