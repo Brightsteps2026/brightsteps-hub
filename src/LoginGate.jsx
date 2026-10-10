@@ -456,7 +456,6 @@ export default function LoginGate({ children }) {
 function BrandStyles() {
   return (
     <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;0,700&family=Work+Sans:wght@400;500;600;700&display=swap');
       .bsh-input:focus {
         outline: none;
         border-color: #801524 !important;

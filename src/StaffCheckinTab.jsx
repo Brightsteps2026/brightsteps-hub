@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { MapPin } from "lucide-react";
 import { supabase } from "./lib/supabaseClient";
+import { COLORS, FONT, RADIUS, TONES, card as cardToken, chip, chipOn, primaryBtn as primaryToken, ghostBtn, input, label, pill } from "./ui/tokens";
 
 export { MapPin as CheckinIcon };
 
@@ -8,42 +9,26 @@ export { MapPin as CheckinIcon };
 // The time always comes from the database (Côte d'Ivoire time), never from the phone.
 // Location is read only when someone taps Check in / Check out.
 
-const BURGUNDY = "#801524";
-const LINE = "#EAD7DA";
-const MUTED = "#6E7B7D";
-const TONES = {
-  ok: { bg: "#E6F2EC", fg: "#2F7A5C" },
-  warn: { bg: "#FBF0DC", fg: "#8A5A0B" },
-  danger: { bg: "#FCE8E8", fg: "#B23A3A" },
-  info: { bg: "#F5E4E6", fg: BURGUNDY },
-  blue: { bg: "#E6F1FB", fg: "#185FA5" },
-  muted: { bg: "#F1EFEF", fg: "#5F5E5A" }
-};
-
 const wrap = { padding: "16px 16px 90px" };
-const card = { background: "#fff", border: `1px solid ${LINE}`, borderRadius: 16, padding: 16, marginBottom: 14, boxShadow: "0 1px 3px rgba(36,16,18,0.06)" };
-const chip = { border: `1px solid ${LINE}`, borderRadius: 100, padding: "7px 13px", background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#3B4A4C", fontFamily: "inherit" };
-const chipOn = { ...chip, background: BURGUNDY, borderColor: BURGUNDY, color: "#fff" };
-const primaryBtn = { background: BURGUNDY, color: "#fff", border: "none", borderRadius: 12, padding: "14px 16px", fontSize: 16, fontWeight: 600, cursor: "pointer", width: "100%", fontFamily: "inherit" };
-const secondaryBtn = { ...chip, borderRadius: 10, padding: "9px 14px" };
-const input = { width: "100%", padding: "9px 10px", border: `1px solid ${LINE}`, borderRadius: 8, fontSize: 14, background: "#FCFAF4", boxSizing: "border-box", fontFamily: "inherit" };
-const label = { display: "block", fontSize: 13, color: MUTED, margin: "12px 0 5px" };
+const card = { ...cardToken, marginBottom: 14 };
+const primaryBtn = { ...primaryToken, borderRadius: RADIUS.md, padding: "14px 16px", fontSize: FONT.lg, width: "100%" };
+const secondaryBtn = ghostBtn;
 const heading = { margin: "0 0 12px", fontSize: 18, fontWeight: 600 };
-const tile = { background: "#FCFAF4", borderRadius: 10, padding: "8px 10px" };
+const tile = { background: COLORS.surface2, borderRadius: 10, padding: "8px 10px" };
 
 const STATUS = {
   present: { label: "On time", tone: TONES.ok },
   late: { label: "Late", tone: TONES.warn },
-  absent: { label: "Absent", tone: TONES.danger },
-  leave: { label: "Leave", tone: TONES.blue },
-  sick: { label: "Sick leave", tone: TONES.blue },
-  authorized: { label: "Authorized absence", tone: TONES.blue },
-  training: { label: "Training", tone: TONES.blue },
-  official: { label: "Official assignment", tone: TONES.blue },
-  holiday: { label: "Holiday / no school", tone: TONES.muted },
-  closure: { label: "School closure", tone: TONES.muted },
-  not_in: { label: "Not in yet", tone: TONES.muted },
-  not_required: { label: "Doesn't check in", tone: TONES.muted }
+  absent: { label: "Absent", tone: TONES.bad },
+  leave: { label: "Leave", tone: TONES.info },
+  sick: { label: "Sick leave", tone: TONES.info },
+  authorized: { label: "Authorized absence", tone: TONES.info },
+  training: { label: "Training", tone: TONES.info },
+  official: { label: "Official assignment", tone: TONES.info },
+  holiday: { label: "Holiday / no school", tone: TONES.neutral },
+  closure: { label: "School closure", tone: TONES.neutral },
+  not_in: { label: "Not in yet", tone: TONES.neutral },
+  not_required: { label: "Doesn't check in", tone: TONES.neutral }
 };
 const EDIT_STATUSES = ["present", "absent", "leave", "sick", "authorized", "training", "official", "holiday", "closure"];
 const ROLE_LABEL = { admin: "Admin", teacher: "Teacher", learning_assistant: "Learning assistant", accountant: "Accountant" };
@@ -55,9 +40,9 @@ const TZ_DEFAULT = "Africa/Abidjan";
 const STAFF_ROLES = ["admin", "teacher", "learning_assistant", "accountant"];
 
 function Pill({ status, text }) {
-  const s = STATUS[status] || { label: status, tone: TONES.muted };
+  const s = STATUS[status] || { label: status, tone: TONES.neutral };
   return (
-    <span style={{ background: s.tone.bg, color: s.tone.fg, padding: "3px 9px", borderRadius: 100, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>
+    <span style={pill(s.tone)}>
       {text || s.label}
     </span>
   );
@@ -102,7 +87,7 @@ export default function StaffCheckinTab({ profile }) {
   const [view, setView] = useState(isStaff ? "mine" : "all");
 
   if (!isStaff && !canSeeAll) {
-    return <div style={wrap}><p style={{ ...card, fontSize: 14, color: MUTED }}>Staff check-in is only available to staff.</p></div>;
+    return <div style={wrap}><p style={{ ...card, fontSize: 14, color: COLORS.muted }}>Staff check-in is only available to staff.</p></div>;
   }
 
   return (
@@ -138,10 +123,10 @@ export function CheckinBanner({ profile, onOpen }) {
   else if (rec.check_in_at && !rec.check_out_at && s.expected_end && nowHM >= s.expected_end) text = "Don't forget to check out before you leave.";
   if (!text) return null;
   return (
-    <div style={{ margin: "12px 16px 0", background: "#F5E4E6", border: `1px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-      <MapPin size={18} color={BURGUNDY} />
-      <span style={{ flex: 1, fontSize: 14, color: BURGUNDY, fontWeight: 600 }}>{text}</span>
-      <button style={{ ...secondaryBtn, background: BURGUNDY, color: "#fff", borderColor: BURGUNDY }} onClick={onOpen}>Open</button>
+    <div style={{ margin: "12px 16px 0", background: COLORS.tint, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+      <MapPin size={18} color={COLORS.brand} />
+      <span style={{ flex: 1, fontSize: 14, color: COLORS.brand, fontWeight: 600 }}>{text}</span>
+      <button style={{ ...secondaryBtn, background: COLORS.brand, color: "#fff", borderColor: COLORS.brand }} onClick={onOpen}>Open</button>
     </div>
   );
 }
@@ -174,8 +159,8 @@ function MyCheckin({ profile }) {
   useEffect(() => { load(); }, []);
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 15000); return () => clearInterval(id); }, []);
 
-  if (error) return <p style={{ ...card, color: TONES.danger.fg }}>Couldn't load check-in: {error}</p>;
-  if (!s) return <p style={{ color: MUTED }}>Loading…</p>;
+  if (error) return <p style={{ ...card, color: TONES.bad.fg }}>Couldn't load check-in: {error}</p>;
+  if (!s) return <p style={{ color: COLORS.muted }}>Loading…</p>;
 
   const tz = s.timezone || TZ_DEFAULT;
   const serverNow = new Date(now + offset);
@@ -201,10 +186,10 @@ function MyCheckin({ profile }) {
       p_device: (navigator.userAgent || "").slice(0, 200)
     });
     setBusy("");
-    if (e) { setMsg({ tone: TONES.danger, text: e.message }); return; }
+    if (e) { setMsg({ tone: TONES.bad, text: e.message }); return; }
     if (!data.ok) {
       const help = loc.error ? LOCATION_HELP[loc.error] : null;
-      setMsg({ tone: TONES.danger, text: help || data.message });
+      setMsg({ tone: TONES.bad, text: help || data.message });
       return;
     }
     setMsg({ tone: TONES.ok, text: kind === "in" ? "Checked in successfully." : "Checked out successfully." });
@@ -216,18 +201,18 @@ function MyCheckin({ profile }) {
   return (
     <>
       <section style={card}>
-        <p style={{ margin: 0, fontSize: 13, color: MUTED }}>My check-in</p>
+        <p style={{ margin: 0, fontSize: 13, color: COLORS.muted }}>My check-in</p>
         <h2 style={{ margin: "2px 0 12px", fontSize: 20, fontWeight: 600 }}>{greeting}{firstName ? `, ${firstName}` : ""}</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginBottom: 12 }}>
-          <div style={tile}><p style={{ margin: 0, fontSize: 12, color: MUTED }}>Today</p><p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{fmtDay(s.today)}</p></div>
-          <div style={tile}><p style={{ margin: 0, fontSize: 12, color: MUTED }}>Time now</p><p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{clock}</p></div>
-          <div style={tile}><p style={{ margin: 0, fontSize: 12, color: MUTED }}>Expected</p><p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{s.expected_start ? `${s.expected_start}–${s.expected_end}` : "—"}</p></div>
+          <div style={tile}><p style={{ margin: 0, fontSize: 12, color: COLORS.muted }}>Today</p><p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{fmtDay(s.today)}</p></div>
+          <div style={tile}><p style={{ margin: 0, fontSize: 12, color: COLORS.muted }}>Time now</p><p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{clock}</p></div>
+          <div style={tile}><p style={{ margin: 0, fontSize: 12, color: COLORS.muted }}>Expected</p><p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{s.expected_start ? `${s.expected_start}–${s.expected_end}` : "—"}</p></div>
         </div>
 
-        {!s.required && <p style={{ fontSize: 14, color: MUTED }}>You don't need to check in. You can still record your arrival if you want.</p>}
-        {s.holiday && <p style={{ fontSize: 14, color: MUTED }}>Today is a school holiday.</p>}
-        {!s.holiday && !s.expected_start && <p style={{ fontSize: 14, color: MUTED }}>Today isn't a working day.</p>}
-        {s.leave && <p style={{ fontSize: 14, color: TONES.blue.fg }}>You have approved {s.leave === "half" ? "half-day " : ""}leave today.</p>}
+        {!s.required && <p style={{ fontSize: 14, color: COLORS.muted }}>You don't need to check in. You can still record your arrival if you want.</p>}
+        {s.holiday && <p style={{ fontSize: 14, color: COLORS.muted }}>Today is a school holiday.</p>}
+        {!s.holiday && !s.expected_start && <p style={{ fontSize: 14, color: COLORS.muted }}>Today isn't a working day.</p>}
+        {s.leave && <p style={{ fontSize: 14, color: TONES.info.fg }}>You have approved {s.leave === "half" ? "half-day " : ""}leave today.</p>}
         {!s.site_ready && <p style={{ fontSize: 14, color: TONES.warn.fg }}>The school's location hasn't been set up yet, so check-in isn't possible. Please tell the office.</p>}
 
         {!checkedIn && (
@@ -237,12 +222,12 @@ function MyCheckin({ profile }) {
         )}
 
         {checkedIn && (
-          <div style={{ borderTop: `1px solid ${LINE}`, paddingTop: 12 }}>
+          <div style={{ borderTop: `1px solid ${COLORS.line}`, paddingTop: 12 }}>
             <p style={{ margin: "0 0 6px", fontSize: 15 }}>
               ✓ Checked in at <strong>{fmtTime(rec.check_in_at, tz)}</strong>{" "}
               <Pill status={rec.status} text={rec.status === "late" ? `Late ${rec.minutes_late} min` : undefined} />
             </p>
-            {rec.check_in_distance != null && <p style={{ margin: "0 0 6px", fontSize: 13, color: MUTED }}>Location verified · {rec.check_in_distance} m from school</p>}
+            {rec.check_in_distance != null && <p style={{ margin: "0 0 6px", fontSize: 13, color: COLORS.muted }}>Location verified · {rec.check_in_distance} m from school</p>}
             {checkedOut ? (
               <p style={{ margin: "6px 0 0", fontSize: 15 }}>
                 ✓ Checked out at <strong>{fmtTime(rec.check_out_at, tz)}</strong>
@@ -257,16 +242,16 @@ function MyCheckin({ profile }) {
         )}
 
         {msg && <p style={{ margin: "12px 0 0", padding: "10px 12px", borderRadius: 10, background: msg.tone.bg, color: msg.tone.fg, fontSize: 14 }}>{msg.text}</p>}
-        {offDay && !checkedIn && <p style={{ margin: "8px 0 0", fontSize: 12, color: MUTED }}>You're not expected today, so you won't be marked absent.</p>}
+        {offDay && !checkedIn && <p style={{ margin: "8px 0 0", fontSize: 12, color: COLORS.muted }}>You're not expected today, so you won't be marked absent.</p>}
 
-        <p style={{ margin: "12px 0 0", fontSize: 12, color: MUTED }}>
+        <p style={{ margin: "12px 0 0", fontSize: 12, color: COLORS.muted }}>
           Your location is read only when you tap Check in or Check out, never during the day.{" "}
-          <button onClick={() => setShowPrivacy((v) => !v)} style={{ background: "none", border: "none", color: BURGUNDY, padding: 0, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+          <button onClick={() => setShowPrivacy((v) => !v)} style={{ background: "none", border: "none", color: COLORS.brand, padding: 0, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
             {showPrivacy ? "Less" : "More"}
           </button>
         </p>
         {showPrivacy && (
-          <p style={{ margin: "6px 0 0", fontSize: 12, color: MUTED, lineHeight: 1.5 }}>
+          <p style={{ margin: "6px 0 0", fontSize: 12, color: COLORS.muted, lineHeight: 1.5 }}>
             Location is used only to confirm you are at school when you check in or out. The exact GPS point is stored with that record
             and kept until the end of the school year; after that only "verified" and the distance are kept. Only the school director
             can see it. The time is taken from the school's server, not from your phone. You can't edit your own records; if something
@@ -278,11 +263,11 @@ function MyCheckin({ profile }) {
       <section style={card}>
         <h3 style={{ margin: "0 0 10px", fontSize: 16, fontWeight: 600 }}>This month</h3>
         <MonthSummary rows={month} />
-        {month.length === 0 && <p style={{ margin: 0, fontSize: 14, color: MUTED }}>Nothing recorded yet this month.</p>}
+        {month.length === 0 && <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>Nothing recorded yet this month.</p>}
         {month.map((r) => (
-          <div key={r.work_date} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 0", borderTop: `1px solid ${LINE}`, fontSize: 14 }}>
+          <div key={r.work_date} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 0", borderTop: `1px solid ${COLORS.line}`, fontSize: 14 }}>
             <span style={{ minWidth: 92 }}>{fmtDay(r.work_date)}</span>
-            <span style={{ color: MUTED, flex: 1 }}>
+            <span style={{ color: COLORS.muted, flex: 1 }}>
               {r.check_in_at ? fmtTime(r.check_in_at, tz) : "—"} – {r.check_out_at ? fmtTime(r.check_out_at, tz) : r.missing_check_out ? "no check-out" : "—"}
             </span>
             <Pill status={r.status} text={r.status === "late" ? `Late ${r.minutes_late} min` : undefined} />
@@ -309,7 +294,7 @@ function MonthSummary({ rows }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: 8, marginBottom: 10 }}>
       {items.map(([k, v]) => (
-        <div key={k} style={tile}><p style={{ margin: 0, fontSize: 12, color: MUTED }}>{k}</p><p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{v}</p></div>
+        <div key={k} style={tile}><p style={{ margin: 0, fontSize: 12, color: COLORS.muted }}>{k}</p><p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{v}</p></div>
       ))}
     </div>
   );
@@ -367,25 +352,25 @@ function AllStaff({ isAdmin }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
           {counts.map(([key, lbl, n]) => (
             <button key={key} onClick={() => setFilter(filter === key ? "all" : key)}
-              style={{ ...tile, border: `1px solid ${filter === key ? BURGUNDY : "transparent"}`, textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>
-              <span style={{ display: "block", fontSize: 12, color: MUTED }}>{lbl}</span>
-              <span style={{ display: "block", fontSize: 20, fontWeight: 600, color: "#241012" }}>{n}</span>
+              style={{ ...tile, border: `1px solid ${filter === key ? COLORS.brand : "transparent"}`, textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>
+              <span style={{ display: "block", fontSize: 12, color: COLORS.muted }}>{lbl}</span>
+              <span style={{ display: "block", fontSize: 20, fontWeight: 600, color: COLORS.ink }}>{n}</span>
             </button>
           ))}
         </div>
-        <p style={{ margin: "8px 0 0", fontSize: 12, color: MUTED }}>{expected.length} staff expected. Tap a number to filter.</p>
+        <p style={{ margin: "8px 0 0", fontSize: 12, color: COLORS.muted }}>{expected.length} staff expected. Tap a number to filter.</p>
       </section>
 
       <section style={card}>
-        {loading && <p style={{ margin: 0, color: MUTED }}>Loading…</p>}
-        {error && <p style={{ margin: 0, color: TONES.danger.fg }}>Couldn't load: {error}</p>}
-        {!loading && !error && shown.length === 0 && <p style={{ margin: 0, fontSize: 14, color: MUTED }}>No one here.</p>}
+        {loading && <p style={{ margin: 0, color: COLORS.muted }}>Loading…</p>}
+        {error && <p style={{ margin: 0, color: TONES.bad.fg }}>Couldn't load: {error}</p>}
+        {!loading && !error && shown.length === 0 && <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>No one here.</p>}
         {!loading && shown.map((r) => (
           <button key={r.staff_id} onClick={() => setOpenId(r.staff_id)}
-            style={{ display: "flex", width: "100%", alignItems: "center", gap: 8, padding: "10px 0", border: "none", borderTop: `1px solid ${LINE}`, background: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+            style={{ display: "flex", width: "100%", alignItems: "center", gap: 8, padding: "10px 0", border: "none", borderTop: `1px solid ${COLORS.line}`, background: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
             <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: "#241012" }}>{r.full_name || "Unnamed"}</span>
-              <span style={{ display: "block", fontSize: 12, color: MUTED }}>
+              <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: COLORS.ink }}>{r.full_name || "Unnamed"}</span>
+              <span style={{ display: "block", fontSize: 12, color: COLORS.muted }}>
                 {ROLE_LABEL[r.role] || r.role}
                 {r.check_in_at ? ` · in ${fmtTime(r.check_in_at)}` : ""}
                 {r.check_out_at ? ` · out ${fmtTime(r.check_out_at)}` : r.missing_check_out ? " · no check-out" : ""}
@@ -393,7 +378,7 @@ function AllStaff({ isAdmin }) {
                 {r.check_in_source === "manual" ? " · entered by office" : ""}
               </span>
               {(r.needs_review || r.refused_attempts > 0) && (
-                <span style={{ display: "block", fontSize: 12, color: TONES.danger.fg }}>
+                <span style={{ display: "block", fontSize: 12, color: TONES.bad.fg }}>
                   {[r.review_reason, r.refused_attempts > 0 ? `${r.refused_attempts} refused attempt${r.refused_attempts > 1 ? "s" : ""}` : null].filter(Boolean).join(" · ")}
                 </span>
               )}
@@ -457,7 +442,7 @@ function StaffDayModal({ row, date, isAdmin, onClose, onSaved }) {
           <h3 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>{row.full_name}</h3>
           <button onClick={onClose} style={{ ...secondaryBtn, padding: "5px 11px" }}>Close</button>
         </div>
-        <p style={{ margin: "0 0 10px", fontSize: 13, color: MUTED }}>{fmtLongDay(date)}</p>
+        <p style={{ margin: "0 0 10px", fontSize: 13, color: COLORS.muted }}>{fmtLongDay(date)}</p>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", fontSize: 14, marginBottom: 6 }}>
           <Pill status={row.live_status} text={row.live_status === "late" ? `Late ${row.minutes_late} min` : undefined} />
@@ -465,14 +450,14 @@ function StaffDayModal({ row, date, isAdmin, onClose, onSaved }) {
           {row.check_out_at && <span>· Out {fmtTime(row.check_out_at)}</span>}
           {row.early_departure_minutes > 0 && <span style={{ color: TONES.warn.fg }}>· left {row.early_departure_minutes} min early</span>}
         </div>
-        {row.review_reason && <p style={{ margin: "0 0 6px", fontSize: 13, color: TONES.danger.fg }}>To review: {row.review_reason}</p>}
-        {row.notes && <p style={{ margin: "0 0 6px", fontSize: 13, color: MUTED }}>Note: {row.notes}</p>}
+        {row.review_reason && <p style={{ margin: "0 0 6px", fontSize: 13, color: TONES.bad.fg }}>To review: {row.review_reason}</p>}
+        {row.notes && <p style={{ margin: "0 0 6px", fontSize: 13, color: COLORS.muted }}>Note: {row.notes}</p>}
 
         {attempts.length > 0 && (
           <div style={{ margin: "10px 0" }}>
             <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 600 }}>Refused attempts</p>
             {attempts.map((a, i) => (
-              <p key={i} style={{ margin: 0, fontSize: 13, color: MUTED }}>
+              <p key={i} style={{ margin: 0, fontSize: 13, color: COLORS.muted }}>
                 {fmtTime(a.attempted_at)} · {a.kind === "check_in" ? "check-in" : "check-out"} · {OUTCOME[a.outcome] || a.outcome}
                 {a.distance_m != null ? ` · ${a.distance_m} m` : ""}{a.accuracy != null ? ` · ± ${Math.round(a.accuracy)} m` : ""}
               </p>
@@ -481,7 +466,7 @@ function StaffDayModal({ row, date, isAdmin, onClose, onSaved }) {
         )}
 
         {isAdmin && (
-          <div style={{ borderTop: `1px solid ${LINE}`, marginTop: 10, paddingTop: 6 }}>
+          <div style={{ borderTop: `1px solid ${COLORS.line}`, marginTop: 10, paddingTop: 6 }}>
             <p style={{ margin: "8px 0 0", fontSize: 14, fontWeight: 600 }}>Correct this day</p>
             <label style={label}>Status</label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -497,12 +482,12 @@ function StaffDayModal({ row, date, isAdmin, onClose, onSaved }) {
                 <div><label style={label}>Left (optional)</label><input type="time" value={outT} onChange={(e) => setOutT(e.target.value)} style={input} /></div>
               </div>
             )}
-            {status === "present" && <p style={{ margin: "6px 0 0", fontSize: 12, color: MUTED }}>On time or late is worked out from the arrival time.</p>}
+            {status === "present" && <p style={{ margin: "6px 0 0", fontSize: 12, color: COLORS.muted }}>On time or late is worked out from the arrival time.</p>}
             <label style={label}>Note (optional)</label>
             <input value={note} onChange={(e) => setNote(e.target.value)} style={input} placeholder="Doctor's certificate received" />
             <label style={label}>Reason for the change (kept in the log)</label>
             <input value={reason} onChange={(e) => setReason(e.target.value)} style={input} placeholder="Phone GPS failed, I saw her arrive" />
-            {err && <p style={{ margin: "8px 0 0", fontSize: 13, color: TONES.danger.fg }}>{err}</p>}
+            {err && <p style={{ margin: "8px 0 0", fontSize: 13, color: TONES.bad.fg }}>{err}</p>}
             <button style={{ ...primaryBtn, marginTop: 12, fontSize: 15, padding: "12px 16px" }} disabled={busy} onClick={save}>{busy ? "Saving…" : "Save correction"}</button>
           </div>
         )}
@@ -511,7 +496,7 @@ function StaffDayModal({ row, date, isAdmin, onClose, onSaved }) {
           <div style={{ marginTop: 14 }}>
             <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 600 }}>Change log</p>
             {history.map((h, i) => (
-              <p key={i} style={{ margin: "0 0 4px", fontSize: 13, color: MUTED }}>
+              <p key={i} style={{ margin: "0 0 4px", fontSize: 13, color: COLORS.muted }}>
                 {new Date(h.changed_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: TZ_DEFAULT })}
                 {" · "}{h.changed_by_name || "Admin"}: {STATUS[h.old_value?.status]?.label || "nothing"} → {STATUS[h.new_value?.status]?.label || h.new_value?.status}
                 {" · "}“{h.reason}”
@@ -544,8 +529,8 @@ function CheckinSettings() {
   }
   useEffect(() => { load(); }, []);
 
-  if (err && !site) return <p style={{ ...card, color: TONES.danger.fg }}>Couldn't load settings: {err}</p>;
-  if (!site) return <p style={{ color: MUTED }}>Loading…</p>;
+  if (err && !site) return <p style={{ ...card, color: TONES.bad.fg }}>Couldn't load settings: {err}</p>;
+  if (!site) return <p style={{ color: COLORS.muted }}>Loading…</p>;
 
   const setHours = (n, patch) => {
     const hours = { ...(site.hours || {}) };
@@ -606,10 +591,10 @@ function CheckinSettings() {
           <div><label style={label}>Longitude</label><input value={site.longitude ?? ""} onChange={(e) => setSite({ ...site, longitude: e.target.value })} style={input} inputMode="decimal" /></div>
         </div>
         <button style={{ ...secondaryBtn, marginTop: 10 }} onClick={useHere} disabled={!!busy}>Use my current location</button>
-        <p style={{ margin: "6px 0 0", fontSize: 12, color: MUTED }}>Do this on your phone, standing in the middle of the school grounds.</p>
+        <p style={{ margin: "6px 0 0", fontSize: 12, color: COLORS.muted }}>Do this on your phone, standing in the middle of the school grounds.</p>
         {site.latitude != null && site.latitude !== "" && (
           <p style={{ margin: "6px 0 0", fontSize: 12 }}>
-            <a href={`https://www.google.com/maps?q=${site.latitude},${site.longitude}`} target="_blank" rel="noreferrer" style={{ color: BURGUNDY }}>Check this point on a map</a>
+            <a href={`https://www.google.com/maps?q=${site.latitude},${site.longitude}`} target="_blank" rel="noreferrer" style={{ color: COLORS.brand }}>Check this point on a map</a>
           </p>
         )}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
@@ -624,36 +609,36 @@ function CheckinSettings() {
         {DAYS.map((d) => {
           const h = (site.hours || {})[d.n];
           return (
-            <div key={d.n} style={{ padding: "8px 0", borderTop: `1px solid ${LINE}` }}>
+            <div key={d.n} style={{ padding: "8px 0", borderTop: `1px solid ${COLORS.line}` }}>
               <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, marginBottom: h ? 6 : 0 }}>
                 <input type="checkbox" checked={!!h} onChange={(e) => setHours(d.n, e.target.checked ? {} : null)} /> {d.label}
-                {!h && <span style={{ fontSize: 13, color: MUTED, marginLeft: "auto" }}>Not a working day</span>}
+                {!h && <span style={{ fontSize: 13, color: COLORS.muted, marginLeft: "auto" }}>Not a working day</span>}
               </label>
               {h && (
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)", gap: 8, alignItems: "center" }}>
                   <input type="time" value={h.start} onChange={(e) => setHours(d.n, { start: e.target.value })} style={{ ...input, minWidth: 0 }} />
-                  <span style={{ color: MUTED }}>to</span>
+                  <span style={{ color: COLORS.muted }}>to</span>
                   <input type="time" value={h.end} onChange={(e) => setHours(d.n, { end: e.target.value })} style={{ ...input, minWidth: 0 }} />
                 </div>
               )}
             </div>
           );
         })}
-        <p style={{ margin: "8px 0 0", fontSize: 12, color: MUTED }}>Holidays on the Hub calendar (type Holiday, all grades) are skipped automatically.</p>
+        <p style={{ margin: "8px 0 0", fontSize: 12, color: COLORS.muted }}>Holidays on the Hub calendar (type Holiday, all grades) are skipped automatically.</p>
       </section>
 
-      {err && <p style={{ ...card, color: TONES.danger.fg, fontSize: 14 }}>{err}</p>}
+      {err && <p style={{ ...card, color: TONES.bad.fg, fontSize: 14 }}>{err}</p>}
       {ok && <p style={{ ...card, color: TONES.ok.fg, fontSize: 14 }}>{ok}</p>}
       <button style={{ ...primaryBtn, marginBottom: 14 }} onClick={save} disabled={!!busy}>{busy || "Save settings"}</button>
 
       <section style={card}>
         <h2 style={heading}>Who checks in</h2>
-        <p style={{ margin: "0 0 8px", fontSize: 13, color: MUTED }}>Everyone with a staff account checks in, unless you switch them off here.</p>
+        <p style={{ margin: "0 0 8px", fontSize: 13, color: COLORS.muted }}>Everyone with a staff account checks in, unless you switch them off here.</p>
         {people.map((p) => (
-          <label key={p.staff_id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${LINE}`, fontSize: 14, cursor: "pointer" }}>
+          <label key={p.staff_id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${COLORS.line}`, fontSize: 14, cursor: "pointer" }}>
             <input type="checkbox" checked={p.required} onChange={() => toggleRequired(p)} />
             <span style={{ flex: 1 }}>{p.full_name || "Unnamed"}</span>
-            <span style={{ fontSize: 12, color: MUTED }}>{ROLE_LABEL[p.role] || p.role}</span>
+            <span style={{ fontSize: 12, color: COLORS.muted }}>{ROLE_LABEL[p.role] || p.role}</span>
           </label>
         ))}
       </section>

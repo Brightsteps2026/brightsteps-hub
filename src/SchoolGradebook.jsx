@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
+import { COLORS, FONT, TONES, card as cardToken, chip, chipOn, primaryBtn, ghostBtn, input, label, pill } from "./ui/tokens";
 
 // Staff screen, English only.
 // Gradebook backed by the gb_* tables (see gradebook-setup.sql).
@@ -13,28 +14,19 @@ const EARLY = ["Pre-N", "PreK", "Kindergarten", "Grade 1", "Grade 2"];
 const ALL_GRADES = [...EARLY, ...UPPER];
 const SUBJECTS = ["English Language Arts", "Math", "French", "Unit of Inquiry", "Art", "Music", "Physical Education"];
 
-const BURGUNDY = "#801524";
-const LINE = "#EAD7DA";
-const MUTED = "#6E7B7D";
-const INK = "#241012";
-
-const card = { background: "#fff", border: `1px solid ${LINE}`, borderRadius: 16, padding: 16, marginBottom: 14, boxShadow: "0 1px 3px rgba(36,16,18,0.06)" };
-const chip = { border: `1px solid ${LINE}`, borderRadius: 100, padding: "7px 13px", background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#3B4A4C", fontFamily: "inherit" };
-const chipOn = { ...chip, background: BURGUNDY, borderColor: BURGUNDY, color: "#fff" };
-const primaryBtn = { background: BURGUNDY, color: "#fff", border: "none", borderRadius: 10, padding: "10px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
-const secondaryBtn = { ...chip, borderRadius: 10, padding: "9px 14px" };
-const dangerBtn = { ...secondaryBtn, borderColor: "#F09595", color: "#A32D2D" };
-const input = { width: "100%", padding: "9px 10px", border: `1px solid ${LINE}`, borderRadius: 8, fontSize: 14, background: "#FCFAF4", boxSizing: "border-box", fontFamily: "inherit" };
-const label = { display: "block", fontSize: 13, color: MUTED, margin: "12px 0 5px" };
-const statLabel = { fontSize: 11, color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em" };
+const card = { ...cardToken, marginBottom: 14 };
+const secondaryBtn = ghostBtn;
+const dangerBtn = { ...ghostBtn, borderColor: "#F09595", color: COLORS.bad };
+const statLabel = { fontSize: FONT.xs, color: COLORS.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em" };
 const statValue = { fontSize: 18, fontWeight: 700, marginTop: 4 };
 
-const TONES = {
-  A: { bg: "#E3F1EA", fg: "#1F6A4C" },
-  B: { bg: "#E4EDF7", fg: "#2F5E8A" },
-  C: { bg: "#FBF0D9", fg: "#7A5410" },
+// Letter-grade badge tones (D keeps its own orange; no shared token for it).
+const LETTER_TONES = {
+  A: TONES.ok,
+  B: TONES.brand,
+  C: TONES.warn,
   D: { bg: "#FCE6D8", fg: "#8E4214" },
-  F: { bg: "#FBE3E3", fg: "#A12E2E" }
+  F: TONES.bad
 };
 
 const SCALE = [
@@ -58,10 +50,10 @@ function todayISO() {
 }
 
 function LetterChip({ letter }) {
-  if (!letter) return <span style={{ color: MUTED }}>—</span>;
-  const tone = TONES[letter.charAt(0)] || TONES.F;
+  if (!letter) return <span style={{ color: COLORS.muted }}>—</span>;
+  const tone = LETTER_TONES[letter.charAt(0)] || LETTER_TONES.F;
   return (
-    <span style={{ display: "inline-block", minWidth: 34, textAlign: "center", padding: "3px 8px", borderRadius: 100, fontSize: 13, fontWeight: 700, background: tone.bg, color: tone.fg }}>
+    <span style={{ ...pill(tone), minWidth: 34, textAlign: "center", padding: "3px 8px", fontSize: 13, fontWeight: 700 }}>
       {letter}
     </span>
   );
@@ -113,7 +105,7 @@ export default function SchoolGradebook({ profile }) {
   ].filter(Boolean);
 
   return (
-    <div style={{ padding: "16px 16px 90px", color: INK }}>
+    <div style={{ padding: "16px 16px 90px", color: COLORS.ink }}>
       <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 14 }}>
         {sections.map((s) => (
           <button key={s.id} onClick={() => setSection(s.id)} style={section === s.id ? chipOn : chip}>{s.label}</button>
@@ -126,7 +118,7 @@ export default function SchoolGradebook({ profile }) {
           <p style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 600 }}>
             {section === "early" ? "Observations (Pre-N to Grade 2)" : "ATL · SEL · Life skills"}
           </p>
-          <p style={{ margin: 0, fontSize: 14, color: MUTED }}>This part of the gradebook is coming next.</p>
+          <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>This part of the gradebook is coming next.</p>
         </div>
       )}
     </div>
@@ -310,14 +302,14 @@ function AcademicGradebook({ grades, editGrades }) {
     URL.revokeObjectURL(url);
   }
 
-  const th = { padding: "10px 8px", fontSize: 12, fontWeight: 600, color: "#3B4A4C", textAlign: "center", background: "#F7EEEF", borderBottom: `1px solid ${LINE}`, whiteSpace: "nowrap" };
+  const th = { padding: "10px 8px", fontSize: 12, fontWeight: 600, color: COLORS.text2, textAlign: "center", background: "#F7EEEF", borderBottom: `1px solid ${COLORS.line}`, whiteSpace: "nowrap" };
   const td = { padding: "6px 8px", fontSize: 14, textAlign: "center", borderBottom: "1px solid #F1E4E6", whiteSpace: "nowrap" };
   const nameCell = { ...td, textAlign: "left", fontWeight: 600, position: "sticky", left: 0, background: "#fff", zIndex: 1, minWidth: 150 };
 
   return (
     <>
       <div style={card}>
-        <p style={{ margin: "0 0 8px", fontSize: 13, color: MUTED }}>{grades.length > 1 ? "My classes" : "My class"}</p>
+        <p style={{ margin: "0 0 8px", fontSize: 13, color: COLORS.muted }}>{grades.length > 1 ? "My classes" : "My class"}</p>
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 12 }}>
           {grades.map((g) => (
             <button key={g} onClick={() => setGrade(g)} style={grade === g ? chipOn : chip}>
@@ -326,14 +318,14 @@ function AcademicGradebook({ grades, editGrades }) {
           ))}
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <label style={{ fontSize: 13, color: MUTED, flex: "1 1 200px" }}>
+          <label style={{ fontSize: 13, color: COLORS.muted, flex: "1 1 200px" }}>
             Subject
             <select value={subject} onChange={(e) => setSubject(e.target.value)} style={{ ...input, marginTop: 5 }}>
               {subjectList.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
           <div>
-            <div style={{ fontSize: 13, color: MUTED, marginBottom: 5 }}>Term</div>
+            <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 5 }}>Term</div>
             <div style={{ display: "flex", gap: 6 }}>
               {[1, 2, 3].map((t) => (
                 <button key={t} onClick={() => setTerm(t)} style={term === t ? chipOn : chip}>Term {t}</button>
@@ -342,7 +334,7 @@ function AcademicGradebook({ grades, editGrades }) {
           </div>
         </div>
         {!canEdit && (
-          <p style={{ margin: "12px 0 0", fontSize: 13, color: "#8A5A0B", background: "#FBF0DC", borderRadius: 8, padding: "8px 10px" }}>
+          <p style={{ margin: "12px 0 0", fontSize: 13, color: COLORS.warn, background: COLORS.warnBg, borderRadius: 8, padding: "8px 10px" }}>
             You can view this class but not change marks.
           </p>
         )}
@@ -359,7 +351,7 @@ function AcademicGradebook({ grades, editGrades }) {
         </div>
         <div style={{ ...card, marginBottom: 0 }}>
           <div style={statLabel}>Below 70%</div>
-          <div style={{ ...statValue, color: below70 ? "#A12E2E" : INK }}>{below70} {below70 === 1 ? "student" : "students"}</div>
+          <div style={{ ...statValue, color: below70 ? COLORS.bad : COLORS.ink }}>{below70} {below70 === 1 ? "student" : "students"}</div>
         </div>
         <div style={{ ...card, marginBottom: 0 }}>
           <div style={statLabel}>Assessments</div>
@@ -370,7 +362,7 @@ function AcademicGradebook({ grades, editGrades }) {
       {formOpen && canEdit && (
         <div style={card}>
           <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 600 }}>{editingId ? "Edit assessment" : "New assessment"}</p>
-          <p style={{ margin: 0, fontSize: 13, color: MUTED }}>{grade} · {subject} · Term {term}</p>
+          <p style={{ margin: 0, fontSize: 13, color: COLORS.muted }}>{grade} · {subject} · Term {term}</p>
           <label style={label}>Name</label>
           <input style={input} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Unit 1 test" />
           <label style={label}>Type</label>
@@ -405,22 +397,22 @@ function AcademicGradebook({ grades, editGrades }) {
           </div>
         </div>
 
-        {status && <p style={{ margin: "0 0 10px", fontSize: 13, color: "#A12E2E" }}>{status}</p>}
+        {status && <p style={{ margin: "0 0 10px", fontSize: 13, color: COLORS.bad }}>{status}</p>}
 
         {loading ? (
-          <p style={{ margin: 0, fontSize: 14, color: MUTED }}>Loading…</p>
+          <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>Loading…</p>
         ) : error ? (
-          <p style={{ margin: 0, fontSize: 14, color: "#A12E2E" }}>Could not load: {error}</p>
+          <p style={{ margin: 0, fontSize: 14, color: COLORS.bad }}>Could not load: {error}</p>
         ) : students.length === 0 ? (
-          <p style={{ margin: 0, fontSize: 14, color: MUTED }}>No students in {grade}.</p>
+          <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>No students in {grade}.</p>
         ) : (
           <>
             {assessments.length === 0 && (
-              <p style={{ margin: "0 0 10px", fontSize: 14, color: MUTED }}>
+              <p style={{ margin: "0 0 10px", fontSize: 14, color: COLORS.muted }}>
                 No assessments yet for this subject and term.{canEdit ? " Add one to start entering marks." : ""}
               </p>
             )}
-            <div style={{ overflowX: "auto", border: `1px solid ${LINE}`, borderRadius: 12 }}>
+            <div style={{ overflowX: "auto", border: `1px solid ${COLORS.line}`, borderRadius: 12 }}>
               <table style={{ borderCollapse: "separate", borderSpacing: 0, width: "100%" }}>
                 <thead>
                   <tr>
@@ -428,11 +420,11 @@ function AcademicGradebook({ grades, editGrades }) {
                     {assessments.map((a) => (
                       <th key={a.id} style={th}>
                         {canEdit ? (
-                          <button onClick={() => openEdit(a)} title="Edit assessment" style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: 600, color: "#3B4A4C", cursor: "pointer", textDecoration: "underline dotted" }}>
+                          <button onClick={() => openEdit(a)} title="Edit assessment" style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: 600, color: COLORS.text2, cursor: "pointer", textDecoration: "underline dotted" }}>
                             {a.title}
                           </button>
                         ) : a.title}
-                        <div style={{ fontWeight: 500, marginTop: 3, color: a.kind === "summative" ? BURGUNDY : "#2F5E8A" }}>
+                        <div style={{ fontWeight: 500, marginTop: 3, color: a.kind === "summative" ? COLORS.brand : COLORS.info }}>
                           {a.kind === "summative" ? "Summative" : "Formative"} · /{Number(a.max_points)}
                         </div>
                       </th>
@@ -462,7 +454,7 @@ function AcademicGradebook({ grades, editGrades }) {
                                   onChange={(e) => setDrafts((d) => ({ ...d, [key]: e.target.value }))}
                                   onBlur={() => saveMark(a, s.id)}
                                   onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                                  style={{ width: 56, padding: "7px 6px", textAlign: "center", border: `1px solid ${LINE}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: "#FCFAF4" }}
+                                  style={{ ...input, width: 56, minHeight: 36, padding: "7px 6px", textAlign: "center" }}
                                 />
                               ) : (
                                 <span>{value || "—"}</span>
@@ -470,8 +462,8 @@ function AcademicGradebook({ grades, editGrades }) {
                             </td>
                           );
                         })}
-                        <td style={{ ...td, color: MUTED }}>{r.f == null ? "—" : `${r.f}%`}</td>
-                        <td style={{ ...td, color: MUTED }}>{r.s == null ? "—" : `${r.s}%`}</td>
+                        <td style={{ ...td, color: COLORS.muted }}>{r.f == null ? "—" : `${r.f}%`}</td>
+                        <td style={{ ...td, color: COLORS.muted }}>{r.s == null ? "—" : `${r.s}%`}</td>
                         <td style={td}>
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                             <strong>{r.term == null ? "" : `${r.term}%`}</strong>
@@ -484,7 +476,7 @@ function AcademicGradebook({ grades, editGrades }) {
                 </tbody>
               </table>
             </div>
-            <p style={{ margin: "10px 0 0", fontSize: 12, color: MUTED }}>
+            <p style={{ margin: "10px 0 0", fontSize: 12, color: COLORS.muted }}>
               Marks save when you leave the box. Leave a box empty if the work was not done yet; it is not counted.
               Scale: A+ 97–100 · A 93–96 · A− 90–92 · B+ 87–89 · B 83–86 · B− 80–82 · C+ 77–79 · C 73–76 · C− 70–72 · D+ 67–69 · D 63–66 · D− 60–62 · F below 60.
             </p>

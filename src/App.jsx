@@ -40,13 +40,18 @@ const PLAN_TEMPLATE = {
 };
 
 let ASSESS_LEVELS = ["Emerging", "Developing", "Proficient", "Confident"];
-const LEVEL_PALETTE = ["#B5473B", "#B8842F", "#2F6B7A", "#2F7A5C", "#6E4E9E", "#3A6EA5"];
+const LEVEL_PALETTE = ["#B5473B", "#8A6420", "#2F6B7A", "#2F7A5C", "#6E4E9E", "#3A6EA5"];
 const getLevelColor = (level) => {
   const idx = ASSESS_LEVELS.indexOf(level);
   return LEVEL_PALETTE[idx >= 0 ? idx % LEVEL_PALETTE.length : 0];
 };
 
-const BRIGHTSTEPS_LOGO_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPAAAADwCAYAAAA+VemSAAAzFElEQVR42u29eZwlVXnw/31O1V17mZ6dAdn3TRTckNVAJPoSY0zA3TeiAoZE4wK+GiOOhoTXn1uimMQdFTHMG6OJiQsuEDdAQVkGZF9n33p6erlbnef3R52aW33ndk/3zAA93c/386nP7Vt1uupU3fOcZznPOQWGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRiGYRjG3obM6rtTlZn/9EVnT1s6I5q51VuisMIDamI/0znvumjvqapGs6Ajdaa07Gb2nNaVVKsdf82j89m6dUZWMyk46Z/XP3bT+QeMzQLh9UcdcNSyUV99Bd4vmGFNXAXUxXrvQ4/+9t9E0NDu1QR4pnG5OpaLP/YTvz7HVfuv8K3Ggb7VcDPOlBZREVGJCmO+UfvXe7520Xvp7VVuvCHZu0zqyx0s9/vu++yXjdbjz22rca9XNoDKzLmP9Lcvxu7o3pIfmucaf/jQujs2ZAdNgGeY8B7/iduP1HLhDomLRd+sE/cMINHMtKhVoTCwGK3XPnzrn/Z84KQL/6Vw62cvau5NbefAA5+7dGg4eeD0w+qf/dZlj92AqBAnfuaYOoCLXH1VMT7xowdcvmbIPTK48baXKedFsCLZ25t9PFvk9wxucDeCT2J5eVzuKSZjww3xSWHzDz5P7fGVqbSgM6fPFUDVi4s18a1LiKIf3/rZi27ITNK94IlHwo2t1ev09087qlX+1sVPvJatxXeATK328hSqD4VST8K//tmawbOu2u/gvme8YMHQEys2zwZTetYIcLtdJD1IpFobdo988o2SjG6l57CTwGcByJlkdGiEi7Q1PFjC6/eAq4B37T1CDM0WfQfM9xGJLNkyqkksqn1lYCdGT6MB9SaIPPkSpArFCJlX1oHeotbWb2j1ACbAMxGftLRU7ZMnPv1BcBFHXvk/UCjN2OpKXHKIrFp56XPPa656+FaIrofke0EE9gITT7SZdjVNgUIhghW3Kau2Kq6LdEjomU47zHHcvqkQu6egTxVBm0kwxMTNmqGkWSfALi6TjAwyfO9N7P+mj+FdRLJ5LcxQP1jiIsnY8LzW+lV3AF8H/zrge3tTfCJUVJxAI4Fv397ilSdFxBF43UGQUIV55dQokqfwLmUWZj3MOgHGObTZQMThimVoNZE4BukyVKlTaUFP7q8uLkKiWD/QqLvlIpuBA/Ze9wWaHvafL5x7vOv6yDPqTWi0ZqdQmQDvka5WJxdQEaRQQZPW5EKqmd315PKhYskHs3mvNu+EVAsPjkHsJr4ZwYTXBHiqxt14iQSJoFVn47c+DnFhUgGdd/LLKSw9FG3Wn4oWN2uSC5ykm07nv8S1bey8zas+dMYuLaeJSe7cEOCJzdZkdAhJGiw49y/RxigT2XtSrKCtpqmLJ/UHicA30PpwKqguagsuIHEVClVojqJJDSn0Mql9bgI8N3DVfqQ6L9XCEzUIP2fz32XHv88TWJ/tj/+U83QFj+y28Gp9C65nGfFhryDa5ySkZ1m6v7YJv+EOWo/fgF99O4Vnvpb4qFdR/8k70NF1EBWfEvfGBHim4pP2tvdOCpK87f3B8P3u8HkesDKdKTTun27I/X0jS8K/rwjZLtu3DtN+Rf4UrfTbc7VrCGLKwjtI4Zg3UDrlQ0jvfl2LFRvbaN72KaQyn/iQc2n87G9QXcMsSmk2Ad7jUiHgdtYSFRTdYahkT3E5ODhju2lwLDfqytBil3cImkzgR6/IiemkPmvYsgSpGhRev/SZxRsK1dKG5lh/lBTmJ04XCW4J+KU4V11E86cbNlLozDipNachvEe9ivI5Xxj/WOuD0NgGUQmpLkGKfRRf8D5I6ulm7owJ8M5UWr2ljLWSCfv4LIpacEI5dkROSPagJB8Dbjm04MZJM7Iu5KTC4UubxYGxzaVy0ZVKEWWaVHBUErTakKjaQHvqSM+IuJ5hjXpHRHqGcb3D0LMN17sN1zOKVEdxPTWkWkcq+0LFQ1majfJidT2lyBdLAhUSKigxnsedY15PsqVXW3iVmBC8OnKp24mMCWgLKc2jdMrfpmawJujIWur/8x6StbegrVHEFZF5B1M46lUUjnsjRCXwTWugJsCTa956SzliYZkTl1VRwHWJZieqDNYSHtta58HNdbaMtegvReOCqLtahfM4L1rBisaVCw48OoriVyosRbXHIb2gPQpVFaoJVLwOlrclUtlcqpRqUKp5KYzFUaGGY0yE9NNRR6jjaAI+m1OnSgwUUUooS/BUNKGKUsVTUaWMp6RKQb0WUY3BOxSnMBhF0dXSP7/QUkQVjxA5eMupjmYyiXErgjZGifc7Fek/IHVhXEz9fy6jsfJaXHUg1cQ6gh9dR/LoT0hW/ZzyOZ+f8z6vCfC4hrRj4MqJMNpMOOPAPi49ddlOT5F45YHNda67axPX3LkJEYid7Go7E0GTFaxI/nrhoWeOuOg76qKeUWAUxyjCMMIIwqgIoyrUEBoILbJMbyVGKaBaUtUKqlVtMh/VHg2CiVIOQlskFeJ0EEe3V8MDPkQGPIKCeETq4EBIBBao5wRX05WDRWnVZXtK5M4TNNKhIKksCgKZDoGrb6Y/SaGaalr1SFSE0jyad32F+OjXEB90jgmxCTCgmg4fdWhX75W+kuM/7h3khw8N8erjFvL6Zy0kUYgEoo7E3cgJRy4q8zdn7sfpB/XzF//1CIlPy06vmQlAU1xxwdJ9nv2pr7Uab4qdVOrqmw4kaEopq1JBqWoi81Gq6qmi0pMTygJIjErUIUdZPD39FHwQzvp251nG16azdrnPCGgC8/CyrhlRTxyuoKhO0UUVh9a3hnHfNGu6dOrfodueIFl7M7hCOlzkghMTxySP/AA3cCia1MwPnrsCLKhPkHIvPc88C03Gj/EqEIuwpdbi7g1NXnRwP5ET1CuRE5b/ZBX3baoxvxJz5MIyrzx+AUt6CjQS5YyD+njvafvy3h8+zkAlnpZPHJrplkp1wVmiwot0dPOAZ99IfVxCpZgKJnEQHofgRBARWihj6rcLpQKNIGraRQgnEsrpioQCVVFqiVBLoFpMc593eh71SFwl2XgnOrYRKS8A9bj5h1N91f/Quvc6mr/7BsnqX6KjG5BCFSkvoLnyaporr06v7Irbx4nnMnNzNFw9UqpQOuLkEBSRHRpm7ITeoqMYjT/26zUj/OihIb57/yB/99PVvPK6B1g33KTghESVVxwzn4MGStRaflpKIghaf7Mx8tDatTeffZRvbNgXL/uI6AIXUXGpTh0WYa0q9/kmtzbHuL62lVsbo6i47WY0uWiy6xJh3lNTcVVTAW60hLGWI5KpzrdWiAroyFoaN/9dyMBy6W/hCsRHv5bKH/8n1Vf/nNJpV+AGDkPHNoFa8rRp4E4TeoIEDiXVJp3uVk/B0V+K6Ck65ldi7ttU44aHh3jl8QvxHsqx48CBEo8NNShFMi0zOpZoQaOx7VaAbeKkDPx0bIuubtUZ8i1GfUJDPUnwdosiFMVxbKmX4+ih9RSPiXqEinhaTWFb07GPTGPGtU+Q8nwav/0MxFVKJ/9NGmUGSBoggltwJMXnvZfiiX9Fc+XV1H/5oXR4KS6b9rUgFruUjicIIqkiaHolURgoj3+M9ZbfJdMm0WQsdvGylm9JDMMe+OHIRo4s9XJsqZceieh3Eb0upuocZXEUQ4y8rv4pnX+YzestiZI0hS1jUaqBp1MLVaTYR+OWK0ke/QGFZ15EfOi5SHVp7qHUIa5QOOFiov1OYexbf4SObbQsLBPgXWNrvcXG0Rb1JEKA1xy/kDMP6aeZKIVIeHSwzsoNY5QLbtrtS6HhongxvqUeHekRx0BU4OTKAM8u9jLskyDoig8JJPWwcMfTYVgqUARcomwadTiXTZifug7HK1JZiN+4ktr1F+Ju2p9ov9OIDzmX6KAXI+X56ZWSJm7R8ZTO+gxj3345EpWwJZ5NgKelcQAues4S/ujIJgOViKMWVThhn+r2MhtHWrz7+48z1vL0FCL89DWEdxIvTpu2DhfFURSnq5s1jogrjGhC1BEpfjo9wjTgp8QeNo5E2UL1UxQsTWPrUZxq2UIVKfaitUGa936D5u+uxfUfSOGEiyk+553gYtCE+OA/IFp6En79b6DQM+dNaRPgafJHR80f973plXrLc+0dm/iHm9Yx3EwYKMc0vU5LuEKzb4mLFoHDKUMRQq+L2OYTIhGczrxlOiKg5JUNIxGITk0nuhgd20jptCspHP0aRq89Ba1tgagALkZK89MR8domaj++DJrDFF+4PPWNowi38FiSNTcjxb45L8A2J2uaNFpKreW3DxEVnFCKHb93yDze8cJ92Ke3wGjTE+2apCVOol6cQ2BIBPpczJBv7Yab73BR1HUTt3s/f2YtV/CpAE/L//VIeT7Sux9SWRwizGE9A03AtyAq4XoGaN73byFbKz0uUdHMZ9PA02+sAO/43qPctX6M+ZWYffsKvPTwAc49coBDF5Q4dMFiTjugj9d/80GG6glxNO2MrEQkgkuaJff1Q4ZQGHAxDzfHdnmJytrWIXySjBPWdEVbxUURxb7e3Q4G9YiycThKreIpC5ZAqwbqKRz7Bmo/eBviiuAK45/72CDRM04D58KsMcGPrE2F3YJYJsDTZfVwkwe31OkZbnD7Wvi3u7fwzpOX8p7T9qXW8hyxqMxfPn8p7/vRE8yPY5LpNbJExMEvLlpQwA8q0O9iRn1CgiLT0HAiQqvR4H99ZDmLjziMZq2WCo2AJglRocC6e+7lRx/+KIVqGd3FiRiq0CuezaPR1JYY6zClEUfhhIvRxjYav/1MOt7r0/FeicvEB51F6cxPbI+OaW0Qv+5XSKFqQ0kmwNOnGAmVWKgUHJWC0FN0XHvXZi44cTGLewp4hZP376WvGO3K7CQVEdiyblFBdMij9LuYMfXU1XddpnVn0rXkmCPY71nPpLpwx1cWJc0m6j27Oq82G0rqFWX1aESz5aaZZxEG2l2B4vPfR+G4C/CbVqK1zeCKuHkH4RafsN3kxkU0fvUR/LZVSGVBqpF30rnM8vdvmgDvKdM6aylOoBg5Yie0VKcrdB6EqDWypJDoUBIp/VEMAg1VKiFVUqYku0pULHLNK9+Ees/FN/wnS489GrwyumULX/rDV7Hh3gco9lSDEO8aHuhxnm1jBUabQiHWqaVTohBX0nu77R8pHH8B0rMPUc8+E5Zv3HIljds+gZQHpiS85QIkPp1cYQI8FyN8XVphvaWMNn3a8BKl0VIuPWUZi3timokSO2HVUINtjYTeotuFyf5Cwbf2KUduyxDKQhdzQf9+FKchvJ1BLO/99sAVEQw+9gRr7rybcl8fupt+pGrqA4/VhOGGY1Ghhfey84qKoLUt6NhGGr/4AK27vkh89GuJ9jsF17sfREU0qaMja/FrbqF577+SrLkFKc3bqe+rCsUCrFwDA1VY2jd7Q14mwJM0gpGm32Es9+D5JUabnvnliP36i7z08Hmcfeg8Wl63Z2hdc8emoIUmME07V13ssEsL+H0qJI8PAoLIYlfYrTTJHaLNIhTKe+ZtFVk6ZaMhDNUdS/vSZWUnlV/fQkoDNH71EZq3fhKiIn7wfuo/fU+6gF1xHuJi1DegsS2d3B+V06SOKaxI6RVKJeE7d7Z4/kHCQQsjxhpqAjyXzOLYwYn7VHnRwf20fDpNruWVj754f2DHaYVx+P5Pt6znv+4bpL8UdQ9gqSJxIbzro9H1eKR+mVfGVBUBaaK758p1qYfugdVDtqdTulw6pZuq45lGoZWxNKIcV9Ppg5pAaxTNBqniMpIlbExnOVmFglPKBcH72RutNgHuIHLC5rEWbz1pCe87Y98p/U+9pfx27QhfvG0D339wiL6i656FpYoUK9QfX4kf3kzlmNMhGbdEjCiKaLJUE21olPeuZ25nNy6dUqYRPJIoF8zy7aiyROM7H23tUsWaHuJgfYgJ8FwxnZVyLNy+bpTP3LKOJMwD7gxaeYXhRsLqoSb3ba7x0OYaLQ/9pclSKBUpFGltXk2yeTXVE85GW+O0cJQkTYrKwg0iPpxnRifbKFDYIZ1y+iHAqe2fpnnvIXIe1b3+hRcmwFP+0TWdEnjb2lF+/vjwTtujc1CKHOWCwyGTj/tq0CgiUKx2M22jxDe3CX7exkJBenXvGAhxdKZTzoDlXjVd7qgQud0O1JkA74UBrHIsVAvxlBqKJ/WRkyk1WkFbTVzUVbHG3ifrBCpPJMXiMdIaU5GqzrwXG4/rkwSo4tkwHD+l1ZxstZG0MxYi8SimgeekECdPRs8tIN7jJerWGGPvWxtBq6vEVY+FMZCq7gWNryrKxhE3zXTK3XiMAkWXWxxbcy5zmiuKqhKbBjb2nMZIG1KSNImiuJtWiNUnWxxSGiLqczCSCAtVZ3gga3fSKXdReOstWDOSzsF2ko6/Ry51aQRIVBhrpcd0FqdjmQA/KS3adzV6RdPUQacJ6rqOwzqvrW0CA0Mumu+8jngEmcFJgbufTjn9zqIYwePbhC/9oplqXMJQkQiqHpEIwbN5WFnQE9MKq4SaABtTatKu0j/+NZmaGnqatHClHlQiXBR3c8siYAxhWwNZGMHw3vAiTQ/0ZumULaEQTTWdcte0byOBA+Yrf/fyIt7rdgH2mgYRvYfERxTjtLz3EMczOJBgAjyD9JFvMXr7D/E+wcUFVBwuKqDO4cTh+hbSWPMAlUOelZrQ29XV9lccNURlc0NY7ISRvaHB+bA65VhN2FZ3LKq2SKaSTrkbtBSaNd3+7CS84k2AyKWbalq3NCKdJud4QRlzagJsdLcnAT82RKs2gqhHkwT1LUQ9PklwKEQxhX2P2P7ScBHJrwabiMiGxLMIdFTGxbimj4siNAR08mosm9Cvye7peA1iU3GeekMYawqVkuKe7lcq555o4qHSl7DywR5qDWl9/13rm+d8LE0fERPgGSdEmVv29ERzXEzvyX+ChBeVSAhebR8ZVUVE8LURtNVA4mJqbbYFTCORtV7ciXhqsjtSIMLY4FbECYVKpa0xWy1GNm+m1NNLoae6yxPjHUJRoKlKWRRtwd3rSlRjZaThZswSzpFT7vpdD3++Yil/cfoWXvzBh4SPMSts6lkjwEuOPTOVD1f8tTjnRByqPtGnfN0GJRkZnIJwOURIonJvKamP/k5bTSQqxJo0vRNZC7rAi1snu9rORNAk4fCzzuDoPzyH+Qfuj28lSOSoLpjPc9/4WkY3bubhn92EKxSm/ZQcwjZN2Jw0OTAqE6lSccrbv7lYK05nzFT77Pm1EvTdZ23hbadtbq6/evEIbDATeiax4nxJuPxyd/eFh33n2I/ffLUrVl4fVfqiuGce3kW7tAb0k27jiYtbteEnpD72jpyIukijNYr0N5XV0S6+eFyAVrPJy/7h71l46MHjji067BDO/+JVrLrtdq469SWUi8VpjZV6oCLCnc0a149u4l0DB1JyHpcIf/WirfL6k4ZkaMw9/ZFfaRtGS3oTqss8W5+Qry5924ZhvY5IhMQEeCaxfLmyfLmuhD8TF/3B6KN3Xx0vO2JNUh9GJJ45gQuHRi7GO7e1tu7e7z60/E/Wc/nlTpcvbwI95bh3jTa39dRBq7tszStRocA33nAxpb4+xDkyc1zVo16pDW6lWKnsUqKDAk4V5xWvihPVauQZaTC0aKA21BPHEkczI4MixBjGBlfJvw+UtnxA09WJZsV6PLPNB05f56uqKrL58a+87wm+8r5PzXy/XWD5cg+cBXyuv9izQWtSHBOJe3bntM6x5o67UZ8wftmc9G8XxcSV8rTN5+1vKBRJ00gFfJNa5HztozfM+9rrjmxd9uW7e+IzjxmZEWthHAR8mUcby5cHob1o9jT42RiFFtIe9zJx0X+KK1SjYul6tmfdyQwaQlBpNkc9zWYFuBSYB3xuS+2BPnB+VF1R07WWdzkeVOyptmU3P2IV9u3qcjoaBDhXM1dS3dpMZMHByx+tgcryGfWsQa8j4ny8zKLE6NkowAnpBJnvqE9eoT65wrdq72TmxhuzdN7fAi8EtvUOb3VSmN8YwVV3aS5s/uT+ybMURQkJFAoiURkdihyLFOR8znfXMbPMVDl/7/d554IAZ3EWB/x72OYxswcMGsBo1s5+veWhof6lJ42NONcTsihnZN0jkdR8To3wuEf8kCgDaQ7Filml6UyAnx4hjsLn1r2gvi73h+9VhsZgQa4zeppMA+26P0FxwYRWQUVFqqrbVHT/0w88sHzjo4/WYCZMDDYB3tvNadg7huuDuXlepKwAYfOol4NEtSUixadDeCviUj+3S0VL4ugRh3qP94o4R4/3o+KkuGmsbx5QM/EyAd6T7XEvYb0EIVlfF9ePin86HlZBhJ/Xt/JEq46q0vQedemkgZZ6nHNsS5qMaRImAAs9ojVAtrnCAmCdaWAT4DmLiKxrqPQpT1/gpaVpgCpGiMQRu3TROqcQR45nxCVOqQxQTCXYV1UTlFYiLAbusV/RBHjOknhd2xJX1KfWFN0+JaqpyhnlAc2Z0DquXJq4SoIypj6JxZWq0rpJ0aNEWRbcAYEV9mM+FYETY6awJBOUtS0RWkJBdhyOyVaR0bBels9tiYYtXY+1+xY0e0I64y4TXJGQpR0j0lB1Y967mveurj5qqI8aqlFTNW6hcQtiFRf3uUJpq2/d/L4ND/1zWbTSgJ68O2CYBp5zVIWhjZ71TaTeI27/EU1fWJJtae+bTr2S8NpCyb7TjtqlB2Sc6GeR5VTyNZV8VRS8qjYRbSjSAOqqWhNkjHSYawT8cARD6QvIGayIDBZF7710w4PfumrZSUcVvB7fdPKL9GI32usDTYDnGisUoOyTzWMSjW0iuqisyT8UxR2paCZoLVWaIlpHqaPUVLQm6WsORkFHvciooCOCjKjqiIZPQUYSdFRURnykIxHRcIIfKTg/PEAyvMQ1hl8TRSPFJ54YS5gsE0NgwTn9REOL0WTZ4qXzLo2UDyh8YtOaW38H50WwIrHf80mOldgjmJG/iS5adNKyyPmV66R81DsKj2/rb5RPQMRDMoqXGonUGkXqvu4bW8rzm7euoXkrtzZ368rHnFdk/UMLqxItKdFcFrloX6e6n4juK7AMWILqAoR+kDKoQ2khjChuvap+bv362z4bXDPTvibAc1eAjznmmOLGjaU1BfF/smrd7Tfsykk+wBnximds6G/UK/Oboos9fmmCLFNhmcIykKXAYtAFIL2qWg4rEbRAxxC2isomj64Ht1aE1SLJmiSJ1kKyLkl0Y6Ggg+vW3THSWX/7GU2A5zCp+blkyYmfF5GTS7XGqY9tvXMLwOXgvjr/pL6k2JpfF1msGi1RZZmDZSosA78PsFhVFgB9QDloxAQYE9EhVdlEWyjXiLA6SVgLybpSqbyx2RztFMqp4ELU2cxmE2D7XQBZuvSZFSj+O+iJ4O9XlT7QfpASaASSF8rNIOtB14rIahHWJAlrwK0vFmVjq1XbsutC2RlNXqLBV2+vKmeYABs7mtIAS5Y852zgOOd0S5LoWkjWFYuljY3G8OCGDXcPm1CaABsz+/dRE0rDBHiv9okz4dwulJhgGoZhGIZhGIZhGIZhGIZhGIbx5GHDSFN7JroHy+/s2lkChz7N9/9U1kOm+fzyzwlsGM2YQoOJp9HhRUxvsYSoy7mzaz6V9xh12e8m2P9k0+15uwme63R+G9PAc+CZlHJC2ADqHcfzPX4xlM2WsB2dpCwTCEg29a4fqAIjwLan8RksCvezreN+niyKQQi3T7ro8gzzz6k3bHVgizVZI+vVDyRdjG1DaEhKuibVXcD7Q6Mhp5E+BzwcGpwCLeBR4Cpg/1CmED6Xh/Mc2kWbvBz4ee6aCXALcAnpovTZ9d4UznFyRz2yz7eH48cGobgHeCzU6RHgTuDesO+h8Hlprp7vCeUy03kMuAF4QxCwX4b/eSSc887cNbLzfSSc7/8LdXkQeDxsj4XPu4CFodwV4Xwj4ZoN4D7gw6TrYufv7zTgh0AzV8cHgU8A+zF+MZI5ga3IMZ4ScBRwP/CpIJADwDmhQb0EeDHtheaOIX131mdIF48vAy8A/hw4l/RVKWtD2YODYFVyjbIJXA58EBgGvhjK7x/+/9PAd4Ch8D/7hnPMm8CSekY43hsa96Phej7se07QWHfQXjB+MPzvPwMXAL8BrgmCdATwinD9rwKrgtbz4V5PDhr6V7nzbQrnOzTU5YbQEeTf0LSN9mqbh4SO88vAGtL1tF4YOsw/Ac4O+08FfhLO8eXQGSwCfg/4q/B7ZZrafOI5qoEPCQ3rC13KfCE0jPNz+34ShLCTD4SyH8rt+1w49zG5fX8Qyv0CWNJxjmroDPId7XvCOc7u0ExxTpsluf/Ls0849rkuxw4M9fheFw02P6ct85TD+f5rgmf61XB80SR+P8CXQrnO+39XqNNV4ft/hu/P7nKug+Z6wzXamswFLVAOWqsvHPtGaGj7dim/NGjvnmCKfiFo78O6lM1HeT8cOoDXA+tzvmAcNNtNHQKVnSOeYOsMnhVDfaKgtV24ryjUtxDOOT+UfywISSGUKwSNvSnXXrLrDITvWbygmPvMuwiLQ5lK+Cx1BJ2ye1oU9pfCvk8Gq+asUG5BeFa/y3UgWdlH5mo8xwS4O6PBTB7OBZPeGhrojV3Kbwqm5UhoZGeGxnjbJIHDQ4JJ++Pgx8XBbG2FbbIg2JZQph4+a+Gzc8J+ktuyAJDm9mXXeSjcw58BF4f7rIV7iXPtxO/kfN3WwVsX6jkWPuu5607WLjMfNzvfz0KHcg1weKhfPWeBzEmz2Xzg7sJ1fPBj46C5Xhz2vS74iHFohJlPd3YQ9J4gvO8NDe6zubKdneZROfNZJjEztUv9LgBOpx2ZjYLwnDnNjjnzGYeAC4Nw/BNwWTCBvxI6l93Rbn8fno2EumbadXVHuc0dndeFQcv/S/j+UeAU4I9D0G9F8IW/G/7H1uIyH5gjQiPTnDbJNMFa4GUdHd8Pc8fz25/Tjj5nn58Px54Zvr8hfL8kZxIC/E0ILK0njXB/IydAfz3B9Tq303IdQHZvh4djX+nSeWdljg71zKLqtRBkk1yZrC5LQpnrJ/DHr8mdIxPMZvg8MXftL4dyHwjP5C+Ab4d9twXzXnLP8hLSyHd2rz/KuSpurjZco21yCnBd0LwLQ/DnHNKhpW8Dr85piUxDvhx4S868PmkCDZonGwqp5LQTwM2kUe1/IY1GH5Y7Rxa5fTVpxPnAjs9Ph+PTfSt4FkG+B3hzuOZlQZA/GITYs2sJHSeFOMI80nHuPtKXmXdaf8uBq0mjyc8DrgReRHucV8Izuyp0gi8J7sfvAT8IPrJiuQ1zWgMfGhrBV7uUOTD4XL/O7bsxCFW+MWaa530dmjXTwMeH76eG71dP4s6sCQKd8X/C/5w5wX18OBx/wTQ1cJaFFXUI6XG5IFa141lNVQMftBP3LdPALwpxgf0mcGuyunU+p2vD/79+LrqFpoEnblwF2pHTmHRMtcaOY7CEfVnDuSQ0+kuD+dfoou0gTYLYQjreOxC0ZpF2dDj7fbr9RsWwvxA+s++72njzgSihHYW+izSpYgHb33c0bQ2XRdbzEfZumvzhEExblfsNpMP6yBJdYtpJNdnowNK5rHmMdkPO0iGbtCOnrWAi9wM/7TC5s8hsKzT8waBtB4JW8DnB9bkGuTWYvAuCuVyhnbbZBF4ZOoDRLvXb2aaTmMra5fc/hjT6LDlftRb2HxMCWVu6BIo8E7+BITuWRczzEfYkd56sXDnXCUkuSJjx9hCjyJ51thrnq0KHcGfuGc0pTWOMfx6OdOzx46HR9QST9DlBG11OO/pbZfyYZhZlvQp4B2kix9eBjUFA8xo1Dn7e6aTJIc8D/iNc8yzSLCaX0zRMQdNmx7tpuCwQVe4QYE+aNHEB8O4QFNoUXIZXhTJ/FoQmyglsdr7qBHXJ7vffQmeQj0IPk6aFbsmVy8cBNGc2J8GP/mTY/gO4O9zH74fn9J1Qb8fT+D5lE+CnnxqwkjT54C9Dg6gF0+6DQWNuygnIymDytjqCQY8G325pzhx+iDSFcTTXSEeBl5JGl/838LZwrh8BrwnXzAvjqnCOwY6Gnn0+Ho4Pd9FGtXDs/g5tLiGA9GgQ2LeEffUQJPpI8HNdzsTOgnB3BGHqVpf7w/F9aCd3ZEGmrbnzPBjKjU0SVLyHdPjowhC0elnumb6fdIipNRcDWBaxm1iT5WcjNTue2VTnq/oplNNcZ5qZzCNP4733h05pJNfZzKSXlZVCHVvYTKRZLcCuI2iU3zfRRHU3wbH8dEHfxdebaBaMy2k6Zfx4aqewNyeITcgEfu1UJv93ewbdYh8up2GTLvv9Tp6ZdLgRfpL6COMzrKZS3+w3EHYcIos7fOrJzmFYx/akEdF9Yv9MvYeJFgCAiaPnpnzsIUyZw0KAZWVOqxwWglJrSDOd8iaskI57jga/bClpgn0+oOIYn0KZkM6vrYZzJx1aKiu3Oph7VdKobl8I3kSkaYwP0B4+yepUBI4M17yP9hTG7LxV0rHdVSFI1s20PzKYnCs7NOsh4fraIYj5HOzh4BfvG2IC9+dM6vy1FpLOEFoW/ufOcD/dTO/DQ71XkybGSIfmPI407fLhLr+NhrosCse7+flxCGptC/6xpVfuxabzzaHR5sdtfxV+0N/QHkPNypeDkPwsfP80U0tbjGknZUy0vS2c88xJylwbhCG/uEAtHPvHDi0N6ZxZJR1eyRpv/v4Py/3/Kxi/RM/DU7ivX4ayHw/fX5i7Tib0H6Kddpnfvh06iU5z/fZw/OZch5gd7wvHvpu717yiKYRgl5JO4O92z0vD8R90OcesZDZHoT07Dilk2uBZpHm3XwgNI9uf5HzRrwfNlfXibwSeSzqMtCHnt+b9028D3+zwy4R2NlWWPvkN0iGRbBrdm0kjwAPA/+pyLxeRphg+0MXn0y4dmA/nLIWyl4R6ZWUvC1rVh/u/kjSy/be5Oq/KPZPO6whpptUrg6B/PNRtgHTs+wLSfOfTSaf6uY7n9Lxwv9d0ef6+i2vhSYfWjg8dxutII/RbJ7Aizf+dBRr4l6QR5LwG/m0QvjWkQy6VDg08QjqE040vhgbYbXL7KeHYX++kbs8P5f62y7Ebw7HDw/eDgkl7V2iQ14X92ZDMyR3aPc4Fk0rBZP8GaZKIZ/KE/01BO3bjI+E6J+f2vTnsWzGBAF0cjv+4I3B3D+n0wvXBxC12aOAW7QUCOpcLuj50BpewY+pkpwb+3lzRwHMtE6sMPEE68+UZoaF5dpw0T9AMcfif7DPz+bLUwFLH+asd/5Pf8ufOUjSrtBMh7sldN9NGUWjQVwPnBQ3U3EkgjKDFB4KW/0y47gW53zzK3V8P4xcJyPaXJoiXFEhzskdIZw4p4xNICqTL81xPmt98ck4jVoIQfpB0iaE37URbZpHxZ5BO2fx6OHeNdJx+zmvbuSbALdKx1i+FQNX7Q0PvFtDztFP/8ml9Scf+PNl0udoE/5sxTJooMRq2o4JZ+ECoV95kjXOa/f/uJCiTmanvDpruVyGo9EjQmuWcmdp5D9qxL5lAgA8nnfRxQ7hGFCwd3+E2fDb8/ZKO5z9AuqzP48Ed6WXyYTiCoEN7mZ4VwZ05nnbyjAnwHKEYGtJ7SPOQs7WXdsfcyjTs20KA6JEgjI+EQE/S8bxfGvzGjwJfI12R8rEQbKp3CPC8ELW9JgjDaXQfwsn8zCOC1vtiznz9fPB5/2A3TMus7geEut0+geBlncjd4dgRHcdLoaN7XzB53z7B88+i/AXS+dW3kkbjY9rrel04QedrAjzLtbCEoM5vgHeGQFJtDzyPDSHwlW13BeGTjud9Ammu9LuA14Yg13FBW8ZdBEKCtdAgXa5VJwheERp7nXQljEybfiKYvG9j4iSK6XZWzZ2Ua3S4BJ3P/9rwjN4TtPJYhyBmc6lfTDp18b056+enQaDfkPOdTYDnCPno7buDD/p+2sn6u9opQDrX9tzgg/5R+Pufc885K/cp0nTAM4Ip+hLSFSW7kZmljwD/EAJhp5AuQdMpML2hUW8ijfJeHLbXBnP3TNqrjrhdfG7Z+PmhE3QkmVbO5guv7nKebPripUEAL+vSgWadzF+Gv48jjcZfEj7XhGf4x9hY76zslLpFoe8iTU7Il/tRKHcUaULEDR1mZucE9UM7gkHQjkJfQXsubX7ua1buBaHc/+0IfGVLxDwrp4X2C/v+KVefBaSJH78kHabJjwMT/GjNCX1+a3Vcu5AzabeEZ5M3R7P7zqLQ2Thwfyi/lvFvsMi7KNBeWje/DO/9tCdTZM/k50H7HhliA9/NlT88WBOTjVf/Ilc+H4XOxr0dO64Iahp4FvHu0Jiv2AOmWH4ubT4Y5CfQUj0hiJUFqd47iTYpBK3796EjeHMXf/ZtpGOjx5MOQx2c244LQve/Qwcz3XvN6jUUgoBLw7NLGJ8P3gj+9iXBpfjeTgTnXaE+Hw7Cmi/7xtAhnBvu59Dc56Gk0whfEFySfHv2uU7LMz4f3dhLOqWfBeHIa+DbaUd5843/uvDjNoH/nkADfyUcP6SLBn5hOPb3wSScHz6zLRuCen4od2VOKLMVNbJ0ySzosz/tNaDyZXuCFZFN/H9Hzq/2wcyeiCvCfb4s15GUgqDdPoEGvjJcJ79MzyLScVwNPmx+zvKJpOPtSjr0lX+W99AeLsvv/3bu+X8z7CuHDufOSe7n7PB/n8xZLQ3SIawlpOmdS3Jbj4nH3iPAK8OPO5A79njQUPkGJMFUy3ron00gwFkjO6KLAJ89gXmXma0XhXJnhu+fzp07O/9F4dhnw/eD2XENq6zsm3PXeH/Y99XwPVsIIDMf838fwfilbCUIioZn002As5TS0zpM7yNJV43M3qG0MpwjE8QLu1gIG8LW+fyPzd3PTzrcgYtCmWLufrJnXwy+vYZOZJ+dmNtXdtzbXs9sz1S5nTQbKG8u/jInpNmY5aagUe4nzaP9Ld3fP/sg6VKyY11My1oQjJvD50257z8mTSDJgk0/zPmCmXmdJfB/KWierG4/pP02gsxUvZP2Ans/IB2C2kQ6dPXNDpMx/3f2hoV/DdfP398N7PgmiOz4qqDVttJeS3pjqOt9YV85lPsK6aIA2QoZne7Dz3N+a3aP68M93At8nzTneSQI57XBN/YdwphNLdwQ/uc22tMhs2f/y/D5s/D3j9lxnN2YBcgcuZc9eZ87i59Ec/T5W8Pdg9ZF5wTwiSaF549lUdyJjid0HzqZrMH63Dk6J/nnJ/tHue/ZEqr5CfL5TKdSTqP7nGnZypmJ3e4l7mJdFMJnfQJBzVIaHTtOAZRcHTtXInEdzyvOBft29vyz55HsRFt2/qbxTn4Hm+hg7HFttatlnwy3SSbY53ZSZ9OipoFnrfB60jHe80iHcyT43D8mzSoaZPxb6CukaZVnkQ7JbAq+3H8FP9ORDtPUc0GvPAXSBIjNpIvrddblQNJ37z6fdBz6YdLo+/dy7aKb1nsuaYLKceH7HcC/k2a0dV7jdNLo/NeC/2+T6429VvP+FePfsbQu9z1L1MgSIE6kndiRhLLZpPk3hDKlYDpvmKBD7qH99vpOE/+ttJMjBkkzpbK6XE869JLXqtkC8v+UK5dNCcy+/2POPcii1NlCAC/aBZ/YMGaM8GavNPkN6dBLxj6k0/FekBOwZ9COQL+V9hBYD+lyqgM5P28V48dU8wJcDcL5qw6/MHuh2v1BsLJOY1/SsdTshWLZFMNM6LKXm3+bNGMtu9bxtF/w9pmOjuhDpMNJp5oAG3sjmdD8adCkbwzfy11cl6xxfzkIw+um4MeuC4LYOTaaLQY/TPv9xEKahrmFdPhn/wnO+4+MH1uG9tj1jyf4nyJwC+PHiqG9usdpJsDG3kjWYLP1sr7P+KSSbPJ8Vm4h6VjyXbnj+SVb8znHmQDfN0nnkRdgSN+ukL3GMzPD8y8Oc6F+W4N2r4RjXw//d0rOv6ZD2/5+KHONCfDTY+YZe55s2OVm0qSGFweBemcIImV509lvcGwQqu8zfo3l/OydzhUvC8EUz7Zl4XP/LkGj08P3/2bHdw9lwzaDpAkd+9J+q+CpYf+v2XEIrhn2ZYG403JCbQFSE+C9niyt8I+DeXoA8LFg+n42+LzZvNpsJs0qdh6tdSGwdRDptLpsWx0+Hwp+cH7O7jLaWU+TTQPMMqsW5ur1ODsuNJD/u0aan72ENPfbeIr9NOPJE2AhXaf47aQTDV5Nmmr4FtJ5wOfQXr0i+01kCufNZid9LFc+07rZMjx5s7U1xd88ymnl7P9KXYS32/91vtnBMPZ6hB3fGNhLOqlfgW91mLhfnETQ8j7reto50t3Y1uEDfyKY5C+m+xsOs/p9P9Tj4PD9rqB9F7DjGxfy0yK3kUbFs+NXmA9sJvRs0cJZmmG22uMw6TTAIdJxX2gn8L80mL+ediCr22tXMk2b37IVJfu7aPHv0l6d0jM+ap2tzbwo+LwrSScXEHzmYnADsnWkM0Eu0h7r7Q3X6PaK0Jjuq3QaxozWvASfcEGX4wtpv4ok4yrGz2+dzFzNhpG6XbPK+Ch0JqS/Ded/+QTnvTocf03ufIcEH3cN7bnQeQaC5m2Qrj2d1SGLQj/LmoKxN5JpzP8XzN23As8kTew4hzQ1UklTIrPy2TuIsrc3nB7KP480CPbWULYYBOreSQR4iHTht7w5/izaUwL/lnQRgENI5zP/N+PnH+fN/reEYxtJ5yIfEYT1VaTZXvk5z6WcACeka0C/hnRs+zVhO5/xLxo3jBnr+76H8amT+Tm6V+TKZe7MQcEU7TYh/VM5Ad5KexJ+NwFuBVM4XxeCyf6LLudOSLOnsrpIh+/6atoT9vPb6nAsby7D+NUzu23LOups7IaZZzy59ALPIU2lzCa+38SOSf75CfDPDltf0OC/ov3WPwlaOSEdn+0W23gB6VBTt4kGkE5MeFYQ9seDUK+dJFaSTbI4hXY65e9oL0rncr6+ho5of7pPHUxCvZrWNIy9wZSezrEne2qe24N1ncoxwzTwrDGn8897Z5PLO4dsOstHTL5I+1SOT6c+3e5jstUedzaH2MaLDcMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMMwDMPYBf5/I9aCSjgeMaoAAAAASUVORK5CYII=";
+// The school logo is a normal file (public/logo.png) instead of a long text
+// copy inside the code and the school data. Older saved data may still hold
+// the old built-in copy; that is swapped for the file when the data loads.
+const BRIGHTSTEPS_LOGO_DATA_URI = "/logo.png";
+const OLD_BUILTIN_LOGO_START = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPAAAADwCAYAAAA+VemSAAAzFElEQVR42u29eZwlVXnw/31O1V17mZ6d";
+const usesOldBuiltinLogo = (url) => typeof url === "string" && url.startsWith(OLD_BUILTIN_LOGO_START);
 
 const DEFAULT_SETTINGS = {
   curriculumFramework: "Inquiry-based learning",
@@ -81,7 +86,7 @@ function nextStudentIdNumber(existingIdNumbers) {
 }
 
 const EVENT_TYPES = ["Academic", "Holiday", "Staff", "Event", "Meeting"];
-const EVENT_TYPE_COLOR = { Academic: "#2F6B7A", Holiday: "#B8842F", Staff: "#6E4E9E", Event: "#2F7A5C", Meeting: "#B5473B" };
+const EVENT_TYPE_COLOR = { Academic: "#2F6B7A", Holiday: "#8A6420", Staff: "#6E4E9E", Event: "#2F7A5C", Meeting: "#B5473B" };
 // A calendar event is staff only when it is marked so, or (older events with no
 // setting) when its type is "Staff". Parents and students never see these; the
 // database also removes them before the data reaches a parent's or student's screen.
@@ -122,7 +127,7 @@ function EventRow({ event: e }) {
 
 const ADMISSION_STAGES = ["Inquiry", "Tour Scheduled", "Application Submitted", "Enrolled", "Declined"];
 const ADMISSION_STAGE_COLOR = {
-  "Inquiry": "#B8842F",
+  "Inquiry": "#8A6420",
   "Tour Scheduled": "#2F6B7A",
   "Application Submitted": "#6E4E9E",
   "Enrolled": "#2F7A5C",
@@ -181,7 +186,7 @@ const letterFromScore = (score) => {
 const LETTER_GRADE_COLOR = {
   "A+": "#2F7A5C", "A": "#2F7A5C",
   "B+": "#2F6B7A", "B": "#2F6B7A",
-  "C+": "#B8842F", "C": "#B8842F",
+  "C+": "#8A6420", "C": "#8A6420",
   "D": "#B5473B"
 };
 
@@ -192,7 +197,7 @@ const RESOURCE_CATEGORIES = ["Policies", "Curriculum", "Staff Resources", "Profe
 const PARENT_RESOURCE_CATEGORIES = ["Policies", "Forms & Templates", "Parent Resources"];
 
 const ACCRED_STATUSES = ["Not Started", "In Progress", "Met"];
-const ACCRED_STATUS_COLOR = { "Not Started": "#8A9698", "In Progress": "#B8842F", "Met": "#2F7A5C" };
+const ACCRED_STATUS_COLOR = { "Not Started": "#6B7578", "In Progress": "#8A6420", "Met": "#2F7A5C" };
 
 const DEFAULT_MILESTONES = [
   "Study the accreditation standards and practices",
@@ -537,7 +542,7 @@ function useSchoolData() {
         const latest = await fetchLatest();
         if (!latest || savingRef.current || unsavedRef.current) return;
         if (!latest.settings.branding) latest.settings.branding = DEFAULT_SETTINGS.branding;
-        if (!latest.settings.branding.logoUrl) {
+        if (!latest.settings.branding.logoUrl || usesOldBuiltinLogo(latest.settings.branding.logoUrl)) {
           latest.settings = { ...latest.settings, branding: { ...latest.settings.branding, logoUrl: BRIGHTSTEPS_LOGO_DATA_URI } };
         }
         syncGlobalsFromSettings(latest.settings);
@@ -567,7 +572,7 @@ function useSchoolData() {
           const parsed = { ...emptyData, ...JSON.parse(res.value) };
           if (!parsed.settings) parsed.settings = DEFAULT_SETTINGS;
           if (!parsed.settings.branding) parsed.settings.branding = DEFAULT_SETTINGS.branding;
-          if (!parsed.settings.branding.logoUrl) {
+          if (!parsed.settings.branding.logoUrl || usesOldBuiltinLogo(parsed.settings.branding.logoUrl)) {
             parsed.settings = { ...parsed.settings, branding: { ...parsed.settings.branding, logoUrl: BRIGHTSTEPS_LOGO_DATA_URI } };
           }
           syncGlobalsFromSettings(parsed.settings);
@@ -1177,7 +1182,7 @@ const saveLunchMenu = async () => {
               ) : (
                 <div className="bsf-invoicelines">
                   {feeItems.map((item) => {
-                    const statusColor = item.status === "Paid in full" ? "#2F7A5C" : item.status === "Waived" ? "#6B5B95" : item.status === "Partially paid" ? "#B8842F" : item.status === "No fee set" ? "#8A9698" : "#B23A3A";
+                    const statusColor = item.status === "Paid in full" ? "#2F7A5C" : item.status === "Waived" ? "#6B5B95" : item.status === "Partially paid" ? "#8A6420" : item.status === "No fee set" ? "#6B7578" : "#B23A3A";
                     const CatIcon = feeCategoryIcon(item.category);
                     return (
                       <div key={item.category} className="bsf-invoiceline">
@@ -1290,20 +1295,20 @@ const saveLunchMenu = async () => {
 )}
           {isAdmin && showAnnForm && (
   <div style={{ borderTop: "1px solid #eee", paddingTop: 12, marginTop: 8 }}>
-    <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>Send to</p>
+    <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 4px" }}>Send to</p>
     <select value={annForm.audience} onChange={(e) => setAnnForm({ ...annForm, audience: e.target.value })} style={{ width: "100%", height: 34, marginBottom: 10 }}>
       <option value="school">Whole school</option>
       <option value="lower">Lower school (Pre-N to Grade 5)</option>
       <option value="upper">Upper school (Grade 6 to Grade 7)</option>
       {GRADES.map((g) => <option key={g} value={g}>{g} only</option>)}
     </select>
-    <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>Title (English)</p>
+    <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 4px" }}>Title (English)</p>
     <input value={annForm.title} onChange={(e) => setAnnForm({ ...annForm, title: e.target.value })} style={{ width: "100%", marginBottom: 10 }} />
-    <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>Titre (Français)</p>
+    <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 4px" }}>Titre (Français)</p>
     <input value={annForm.title_fr} onChange={(e) => setAnnForm({ ...annForm, title_fr: e.target.value })} style={{ width: "100%", marginBottom: 10 }} />
-    <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>Message (English)</p>
+    <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 4px" }}>Message (English)</p>
     <textarea rows={8} value={annForm.body} onChange={(e) => setAnnForm({ ...annForm, body: e.target.value })} style={{ width: "100%", marginBottom: 10 }} />
-    <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>Message (Français)</p>
+    <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 4px" }}>Message (Français)</p>
     <textarea rows={8} value={annForm.body_fr} onChange={(e) => setAnnForm({ ...annForm, body_fr: e.target.value })} style={{ width: "100%", marginBottom: 10 }} />
     <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 12 }}>
       <input type="checkbox" checked={annForm.show_staff} onChange={(e) => setAnnForm({ ...annForm, show_staff: e.target.checked })} />
@@ -1319,11 +1324,11 @@ const saveLunchMenu = async () => {
         {visibleAnnouncements.length === 0 && <p className="bsf-empty">{isParent ? t("dash.noAnnouncements") : "No announcements yet."}</p>}
         {visibleAnnouncements.slice(0, 3).map((a) => (
         <div key={a.id} style={{ borderTop: "1px solid #eee", padding: "12px 0" }}>
-        <p style={{ fontSize: 12, color: "#888", margin: "0 0 4px" }}>{isParent
+        <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 4px" }}>{isParent
           ? `${a.audience === "school" || !a.audience ? t("common.wholeSchool") : a.audience === "lower" ? t("dash.audienceLower") : a.audience === "upper" ? t("dash.audienceUpper") : gradeLabel(a.audience, language)} · ${formatTimestampDate(a.created_at, language)}`
           : `${a.audience === "school" ? "Whole school" : a.audience === "lower" ? "Lower school" : a.audience === "upper" ? "Upper school" : a.audience} · ${formatTimestampDate(a.created_at, "en")}`}</p>
         <p style={{ fontSize: 14, fontWeight: 500, margin: "0 0 2px" }}>{language === "fr" && a.title_fr ? a.title_fr : a.title}</p>
-        <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{language === "fr" && a.body_fr ? a.body_fr : a.body}</p>
+        <p style={{ fontSize: 13, color: "#3B4A4C", margin: 0, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{language === "fr" && a.body_fr ? a.body_fr : a.body}</p>
         {isAdmin && (
   <button className="bsf-textbtn" style={{ fontSize: 12, marginTop: 6 }} onClick={() => deleteAnnouncement(a.id)}>Delete</button>
 )}  
@@ -1340,13 +1345,13 @@ const saveLunchMenu = async () => {
         {lunchMenu.weekOf && <p className="bsf-muted" style={{ marginBottom: 8 }}>{language === "fr" ? "Semaine du" : "Week of"} {lunchWeekLabel(lunchMenu.weekOf, language)}</p>}
         {hasLunchMenu && LUNCH_DAYS.map((day) => (
           <div key={day} style={{ display: "grid", gridTemplateColumns: "56px 1fr", gap: 8, padding: "8px 10px", borderRadius: 8, background: day === todayLunchName ? "#eaf1fb" : "transparent" }}>
-            <p style={{ fontWeight: 500, fontSize: 13, margin: 0, color: day === todayLunchName ? "#185fa5" : "#666" }}>
+            <p style={{ fontWeight: 500, fontSize: 13, margin: 0, color: day === todayLunchName ? "#185fa5" : "#4A5658" }}>
               {LUNCH_DAY_LABELS[language]?.[day] || day}
               {day === todayLunchName && <><br /><span style={{ fontWeight: 400, fontSize: 11 }}>{t("common.today")}</span></>}
             </p>
             <p style={{ fontSize: 13, margin: 0 }}>
               {activeLunchDays[day]?.dish || "—"}
-              {activeLunchDays[day]?.dessert && <span style={{ color: "#888" }}> · {activeLunchDays[day].dessert}</span>}
+              {activeLunchDays[day]?.dessert && <span style={{ color: "#6B7578" }}> · {activeLunchDays[day].dessert}</span>}
             </p>
           </div>
         ))}
@@ -1361,7 +1366,7 @@ const saveLunchMenu = async () => {
               onChange={(e) => setLunchForm({ ...lunchForm, weekOf: e.target.value })}
             />
           </Field>
-          <div style={{ display: "grid", gridTemplateColumns: "56px 1fr 1fr", gap: "6px 8px", fontSize: 12, color: "#888", marginTop: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "56px 1fr 1fr", gap: "6px 8px", fontSize: 12, color: "#6B7578", marginTop: 12 }}>
             <span></span><span>English</span><span>Français</span>
           </div>
           {LUNCH_DAYS.map((day) => (
@@ -3927,7 +3932,7 @@ function UpdatesTab({ data, persist }) {
 
 const STATUS_CYCLE = ["present", "absent", "late"];
 const STATUS_LABEL = { present: "Present", absent: "Absent", late: "Late", excused: "Excused" };
-const STATUS_COLOR = { present: "#2F7A5C", absent: "#B5473B", late: "#B8842F", excused: "#6B5BA6" };
+const STATUS_COLOR = { present: "#2F7A5C", absent: "#B5473B", late: "#8A6420", excused: "#6B5BA6" };
 
 function AttendanceTab({ data, persist, profile }) {
   const { t, language } = useLanguage();
@@ -4059,7 +4064,7 @@ function AttendanceTab({ data, persist, profile }) {
                 className="bsf-status-pill"
                 style={{
                   background: status ? `${STATUS_COLOR[status]}1A` : "#EEE6D2",
-                  color: status ? STATUS_COLOR[status] : "#8A9698"
+                  color: status ? STATUS_COLOR[status] : "#6B7578"
                 }}
               >
                 {status ? t(`attendance.status.${status}`) : t("attendance.notMarked")}
@@ -4075,7 +4080,7 @@ function AttendanceTab({ data, persist, profile }) {
                 className="bsf-status-pill"
                 style={{
                   background: status ? `${STATUS_COLOR[status]}1A` : "#EEE6D2",
-                  color: status ? STATUS_COLOR[status] : "#8A9698"
+                  color: status ? STATUS_COLOR[status] : "#6B7578"
                 }}
               >
                 {status ? STATUS_LABEL[status] + (status === "excused" && reportedReasons[s.id] ? " · " + reportedReasons[s.id] : "") : "Tap to mark"}
@@ -5360,7 +5365,7 @@ function ReportViewModal({ report, data, onClose, onRemove }) {
           {(!report.grades || report.grades.length === 0) && <p className="bsf-empty">{t("reports.noGrades")}</p>}
           {(report.grades || []).map((g, i) => (
             <div key={i} className="bsf-row">
-              <span className="bsf-status-pill" style={{ background: `${LETTER_GRADE_COLOR[g.letter] || "#8A9698"}1A`, color: LETTER_GRADE_COLOR[g.letter] || "#8A9698" }}>
+              <span className="bsf-status-pill" style={{ background: `${LETTER_GRADE_COLOR[g.letter] || "#6B7578"}1A`, color: LETTER_GRADE_COLOR[g.letter] || "#6B7578" }}>
                 {g.scoreType === "Percentage" ? `${g.score}% · ${g.letter}` : g.letter}
               </span>
               <div>
@@ -5553,7 +5558,7 @@ function ReportViewModal({ report, data, onClose, onRemove }) {
             <div key={i} className="bsf-comment">
               <div className="bsf-row-head">
                 <strong>{e.subject}{e.term ? ` · ${e.term}` : ""}</strong>
-                <span className="bsf-status-pill" style={{ background: `${LETTER_GRADE_COLOR[e.letter] || "#8A9698"}1A`, color: LETTER_GRADE_COLOR[e.letter] || "#8A9698" }}>
+                <span className="bsf-status-pill" style={{ background: `${LETTER_GRADE_COLOR[e.letter] || "#6B7578"}1A`, color: LETTER_GRADE_COLOR[e.letter] || "#6B7578" }}>
                   {e.scoreType === "Percentage" ? `${e.score}% · ${e.letter}` : e.letter}
                 </span>
               </div>
@@ -6431,7 +6436,7 @@ function GradebookTab({ data, persist, profile, onNavigate }) {
           <div key={e.id} className={`bsf-card bsf-student ${isStudent ? "" : "bsf-clickable"}`} onClick={() => { if (!isStudent) openEdit(e); }}>
             <div>
               <div className="bsf-row-head">
-                <span className="bsf-status-pill" style={{ background: `${LETTER_GRADE_COLOR[e.letter] || "#8A9698"}1A`, color: LETTER_GRADE_COLOR[e.letter] || "#8A9698" }}>
+                <span className="bsf-status-pill" style={{ background: `${LETTER_GRADE_COLOR[e.letter] || "#6B7578"}1A`, color: LETTER_GRADE_COLOR[e.letter] || "#6B7578" }}>
                   {e.scoreType === "Percentage" ? `${e.score}% · ${e.letter}` : e.letter}
                 </span>
                 <span className="bsf-muted">{e.date}</span>
@@ -7083,7 +7088,7 @@ function BillingTab({ data, persist }) {
               ) : (
                 <div className="bsf-invoicelines">
                   {feeItems.map((item) => {
-                    const statusColor = item.status === "Paid in full" ? "#2F7A5C" : item.status === "Waived" ? "#6B5B95" : item.status === "Partially paid" ? "#B8842F" : item.status === "No fee set" ? "#8A9698" : "#B23A3A";
+                    const statusColor = item.status === "Paid in full" ? "#2F7A5C" : item.status === "Waived" ? "#6B5B95" : item.status === "Partially paid" ? "#8A6420" : item.status === "No fee set" ? "#6B7578" : "#B23A3A";
                     const CatIcon = feeCategoryIcon(item.category);
                     return (
                       <div key={item.category} className="bsf-invoiceline">
@@ -7818,11 +7823,22 @@ function BrightStepsHubInner() {
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", fontFamily: "system-ui, sans-serif" }}>
         <div style={{ maxWidth: 380 }}>
           <h2 style={{ color: "#801524" }}>{t("loadError.title")}</h2>
-          <p style={{ color: "#555" }}>
+          <p style={{ color: "#3B4A4C" }}>
             {t("loadError.body")}
           </p>
           <button className="bsf-btn" onClick={() => window.location.reload()}>{t("loadError.reload")}</button>
         </div>
+      </div>
+    );
+  }
+
+  // While the school data is loading, show a simple loading screen instead of
+  // an empty dashboard that looks like everything is missing.
+  if (!loaded) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, background: "#FBF7F3", fontFamily: "'Work Sans', system-ui, sans-serif" }}>
+        <img src="/logo.png" alt="" style={{ width: 64, height: 64, borderRadius: 14 }} />
+        <p style={{ color: "#5F6B6D", fontSize: 15, margin: 0 }}>{t("top.loading")}</p>
       </div>
     );
   }
@@ -7887,7 +7903,6 @@ function BrightStepsHubInner() {
   return (
     <div className="bsf-app" style={{ "--teal": branding.primaryColor, "--gold": branding.primaryColor }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;0,700;1,500&family=Work+Sans:wght@400;500;600;700&display=swap');
 
         .bsf-app {
           --ink: #241012;
@@ -7997,13 +8012,13 @@ function BrightStepsHubInner() {
           padding: 0 2px;
         }
         .bsf-stair { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
-        .bsf-stair-count { font-size: 10.5px; font-weight: 700; color: #8A9698; margin-bottom: 4px; height: 13px; }
+        .bsf-stair-count { font-size: 10.5px; font-weight: 700; color: #6B7578; margin-bottom: 4px; height: 13px; }
         .bsf-stair-bar {
           width: 100%; max-width: 30px; border-radius: 7px 7px 3px 3px;
           background: linear-gradient(180deg, var(--teal-light) 0%, var(--teal) 100%);
           transition: height 0.4s ease;
         }
-        .bsf-stair-label { font-size: 9.5px; font-weight: 600; color: #8A9698; margin-top: 6px; white-space: nowrap; }
+        .bsf-stair-label { font-size: 9.5px; font-weight: 600; color: #6B7578; margin-top: 6px; white-space: nowrap; }
         .bsf-tiletoggle { display: flex; background: var(--sand-deep); border-radius: 12px; padding: 3px; margin-bottom: 16px; }
         .bsf-tiletoggle-btn {
           flex: 1; padding: 9px 10px; border-radius: 9px; border: none; background: transparent;
@@ -8103,8 +8118,8 @@ function BrightStepsHubInner() {
           font-size: 12px; color: var(--ink); margin-bottom: 14px;
         }
         .bsf-inlinenote code { font-size: 11px; background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px; }
-        .bsf-muted { color: #6E7B7D; font-size: 12px; }
-        .bsf-empty { color: #6E7B7D; font-size: 14px; padding: 8px 2px; }
+        .bsf-muted { color: #5F6B6D; font-size: 12px; }
+        .bsf-empty { color: #5F6B6D; font-size: 14px; padding: 8px 2px; }
 
         .bsf-fr-block { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
 
@@ -8134,7 +8149,11 @@ function BrightStepsHubInner() {
           cursor: pointer;
           padding: 4px;
           border-radius: 8px;
+          min-width: 40px; min-height: 40px;
+          display: inline-flex; align-items: center; justify-content: center;
         }
+        /* Visible keyboard focus everywhere. */
+        .bsf-app :focus-visible, .bsf-modal :focus-visible { outline: 2px solid #801524; outline-offset: 2px; }
         .bsf-iconbtn:hover { background: var(--sand-deep); }
 
         .bsf-ladder { display: flex; flex-direction: column; gap: 9px; }
@@ -8154,12 +8173,14 @@ function BrightStepsHubInner() {
         .bsf-rung-label { font-size: 12px; color: var(--ink); font-weight: 500; }
         .bsf-rung-track { height: 8px; background: var(--sand-deep); border-radius: 6px; overflow: hidden; }
         .bsf-rung-fill { display: block; height: 100%; background: linear-gradient(90deg, var(--teal-light), var(--teal)); border-radius: 6px; }
-        .bsf-rung-count { font-size: 12px; color: #6E7B7D; text-align: right; }
+        .bsf-rung-count { font-size: 12px; color: #5F6B6D; text-align: right; }
 
+        /* On phones the bottom bar already has "More", so the top menu button is hidden to give the name room. */
+        @media (max-width: 520px) { .bsf-topmenu { display: none !important; } }
         .bsf-tabbar {
           position: sticky;
           bottom: 8px;
-          margin: 0 10px calc(8px + env(safe-area-inset-bottom));
+          margin: auto 10px calc(8px + env(safe-area-inset-bottom)); /* "auto" on top keeps it at the bottom of the screen even on short pages */
           background: rgba(255, 255, 255, 0.94);
           backdrop-filter: blur(12px);
           border-radius: 22px;
@@ -8178,7 +8199,7 @@ function BrightStepsHubInner() {
           align-items: center;
           gap: 3px;
           padding: 8px 2px;
-          color: #8A9698;
+          color: #6B7578;
           font-size: 10px;
           font-weight: 600;
           cursor: pointer;
@@ -8226,6 +8247,7 @@ function BrightStepsHubInner() {
         }
         .bsf-field textarea { resize: vertical; }
         .bsf-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        @media (max-width: 520px) { .bsf-two-col { grid-template-columns: 1fr; } }
         .bsf-termrow {
           display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; align-items: center;
           margin-bottom: 8px;
@@ -8378,7 +8400,7 @@ function BrightStepsHubInner() {
           max-height: 420px; overflow-y: auto; padding: 4px 2px;
         }
         .bsf-chatdate {
-          text-align: center; font-size: 11px; font-weight: 600; color: #A69698;
+          text-align: center; font-size: 11px; font-weight: 600; color: #7A6A6C;
           margin: 12px 0 8px; text-transform: uppercase; letter-spacing: 0.04em;
         }
         .bsf-chatdate:first-child { margin-top: 0; }
@@ -8403,10 +8425,12 @@ function BrightStepsHubInner() {
         .bsf-chatbubble p { margin: 0; font-size: 14px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
         .bsf-chatremove {
           position: absolute; top: 6px; right: 6px; background: none; border: none;
-          color: #A69698; opacity: 0.55; transition: opacity 0.15s ease; cursor: pointer;
+          color: #7A6A6C; opacity: 0.55; transition: opacity 0.15s ease; cursor: pointer;
           padding: 2px; border-radius: 50%; display: flex;
         }
         .bsf-chatbubble:hover .bsf-chatremove { opacity: 1; }
+        /* Phones have no hover: keep the remove button visible and easy to tap. */
+        @media (hover: none) { .bsf-chatremove { opacity: 0.9; padding: 8px; top: 2px; right: 2px; } }
         .bsf-chatremove:hover { background: rgba(0,0,0,0.08); }
         .bsf-chatrow.mine .bsf-chatremove { color: rgba(255,255,255,0.8); }
         .bsf-chatinputbar {
@@ -8459,6 +8483,7 @@ function BrightStepsHubInner() {
         .bsf-letterhead-logo { width: 56px; height: 56px; object-fit: contain; margin-bottom: 8px; }
         .bsf-letterhead h2 { font-family: 'Fraunces', serif; font-size: 20px; margin: 0 0 2px; }
         .bsf-letterhead-table { width: 100%; margin-top: 14px; border-collapse: collapse; text-align: left; font-size: 13px; }
+        @media (max-width: 520px) { .bsf-letterhead-table { display: block; overflow-x: auto; white-space: nowrap; } }
         .bsf-letterhead-table td { padding: 5px 8px; border: 1px solid var(--line); }
         .bsf-letterhead-table td:first-child { font-weight: 600; width: 40%; background: var(--sand-deep); }
         .bsf-letterhead-legend {
@@ -8507,21 +8532,21 @@ function BrightStepsHubInner() {
         .bsf-logo-preview { width: 64px; height: 64px; object-fit: contain; border-radius: 10px; border: 1px solid var(--line); margin: -4px 0 12px; background: var(--white); }
         .bsf-listheading { font-family: 'Fraunces', serif; font-size: 15px; font-weight: 600; margin: 4px 4px 8px; }
         .bsf-tilegrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-        .bsf-tile {
+        .bsf-navtile {
           display: flex; flex-direction: column; align-items: center; gap: 8px;
           background: var(--white); border: 1px solid var(--line); border-radius: 14px;
           padding: 14px 8px; cursor: pointer; box-shadow: var(--shadow-sm);
           transition: box-shadow 0.15s ease, transform 0.15s ease;
           font-size: 12px; font-weight: 600; color: var(--ink); text-align: center;
         }
-        .bsf-tile:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
-        .bsf-tile.active { border-color: var(--teal-light); background: var(--sand-deep); }
+        .bsf-navtile:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+        .bsf-navtile.active { border-color: var(--teal-light); background: var(--sand-deep); }
         .bsf-tile-icon {
           width: 40px; height: 40px; border-radius: 12px;
           background: linear-gradient(135deg, var(--teal), var(--teal-light));
           color: #fff; display: flex; align-items: center; justify-content: center;
         }
-        .bsf-tile.active .bsf-tile-icon { background: linear-gradient(135deg, var(--gold-dark), var(--gold)); }
+        .bsf-navtile.active .bsf-tile-icon { background: linear-gradient(135deg, var(--gold-dark), var(--gold)); }
         .bsf-alert-note { color: #B5473B; font-weight: 600; font-size: 12.5px; margin-top: 4px; }
         .bsf-formerror { color: #B5473B; font-weight: 600; font-size: 13px; margin-top: 8px; text-align: center; }
         .bsf-attachments { margin-top: 8px; }
@@ -8582,7 +8607,7 @@ function BrightStepsHubInner() {
             />
           )}
           {!isStudent && (
-            <button className="bsf-iconbtn bsf-settingsbtn" onClick={() => setShowMenu(true)} aria-label={t("top.menu")}>
+            <button className="bsf-iconbtn bsf-settingsbtn bsf-topmenu" onClick={() => setShowMenu(true)} aria-label={t("top.menu")}>
               <MenuIcon size={19} />
             </button>
           )}
@@ -8650,7 +8675,7 @@ function BrightStepsHubInner() {
                 </p>
                 <div className="bsf-tilegrid">
                   {items.map(({ id, navKey, icon: Icon }) => (
-                    <button key={id} className={`bsf-tile ${tab === id ? "active" : ""}`} onClick={() => goTo(id)}>
+                    <button key={id} className={`bsf-navtile ${tab === id ? "active" : ""}`} onClick={() => goTo(id)}>
                       <span className="bsf-tile-icon"><Icon size={19} /></span>
                       <span>{t(navKey)}</span>
                     </button>

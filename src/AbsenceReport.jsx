@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 import { useLanguage } from "./lib/i18n";
+import { COLORS, FONT, input, label } from "./ui/tokens";
 
 // Parents report that one or more of their children will be absent.
 // The database (report_absence) marks the days as "excused" on attendance
@@ -24,10 +25,9 @@ function fmt(s, fr) {
   return new Date(s + "T12:00:00").toLocaleDateString(fr ? "fr-FR" : "en-GB", { weekday: "short", day: "numeric", month: "short" });
 }
 
-const box = { border: "1px solid #E6DDC8", borderRadius: 10, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 14, background: "#fff" };
-const boxOn = { ...box, borderColor: "#801524", background: "#F5E4E6" };
-const fieldLabel = { display: "block", fontSize: 13, color: "#6E7B7D", margin: "14px 0 6px" };
-const input = { width: "100%", padding: "9px 10px", border: "1px solid #E6DDC8", borderRadius: 8, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", background: "#FCFAF4" };
+const box = { minHeight: 40, border: `1px solid ${COLORS.line}`, borderRadius: 10, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: FONT.md, background: COLORS.surface, boxSizing: "border-box" };
+const boxOn = { ...box, borderColor: COLORS.brand, background: COLORS.tint };
+const fieldLabel = { ...label, margin: "14px 0 6px" };
 
 export function ReportAbsenceCard({ students }) {
   const { language } = useLanguage();
@@ -90,10 +90,10 @@ export function ReportAbsenceCard({ students }) {
             <strong style={{ fontSize: 15 }}>{fr ? "Une absence à signaler ?" : "Will your child be absent?"}</strong>
             <button className="bsf-btn" onClick={startForm}>{fr ? "Signaler une absence" : "Report an absence"}</button>
           </div>
-          {done && <p style={{ margin: "10px 0 0", fontSize: 13, color: "#2F7A5C" }}>{done}</p>}
+          {done && <p style={{ margin: "10px 0 0", fontSize: 13, color: COLORS.ok }}>{done}</p>}
           {upcoming.length > 0 && (
-            <div style={{ marginTop: 12, borderTop: "1px solid #EEE6D2", paddingTop: 10 }}>
-              <p style={{ margin: "0 0 6px", fontSize: 13, color: "#6E7B7D" }}>{fr ? "Absences signalées" : "Reported absences"}</p>
+            <div style={{ marginTop: 12, borderTop: `1px solid ${COLORS.line}`, paddingTop: 10 }}>
+              <p style={{ margin: "0 0 6px", fontSize: 13, color: COLORS.muted }}>{fr ? "Absences signalées" : "Reported absences"}</p>
               {upcoming.map((r) => (
                 <p key={r.id} style={{ margin: "4px 0", fontSize: 13 }}>
                   <strong>{r.student_name}</strong> · {r.start_date === r.end_date ? fmt(r.start_date, fr) : `${fmt(r.start_date, fr)} – ${fmt(r.end_date, fr)}`}
@@ -115,7 +115,7 @@ export function ReportAbsenceCard({ students }) {
               <label key={s.id} style={picked.includes(s.id) ? boxOn : box}>
                 <input type="checkbox" checked={picked.includes(s.id)} onChange={() => toggle(s.id)} />
                 <span>{s.name}</span>
-                <span style={{ marginLeft: "auto", fontSize: 12, color: "#6E7B7D" }}>{s.grade}</span>
+                <span style={{ marginLeft: "auto", fontSize: 12, color: COLORS.muted }}>{s.grade}</span>
               </label>
             ))}
           </div>
@@ -145,7 +145,7 @@ export function ReportAbsenceCard({ students }) {
           <textarea rows={2} maxLength={500} style={input} value={note} onChange={(e) => setNote(e.target.value)}
             placeholder={fr ? "Fièvre depuis hier soir, de retour lundi" : "Fever since last night, back on Monday"} />
 
-          {error && <p style={{ margin: "10px 0 0", fontSize: 13, color: "#B23A3A" }}>{error}</p>}
+          {error && <p style={{ margin: "10px 0 0", fontSize: 13, color: COLORS.bad }}>{error}</p>}
 
           <button className="bsf-btn bsf-btn-block" onClick={send} disabled={sending} style={{ marginTop: 14 }}>
             {sending ? (fr ? "Envoi…" : "Sending…") : (fr ? "Envoyer à l'école" : "Send to school")}

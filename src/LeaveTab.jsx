@@ -2,31 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarOff } from "lucide-react";
 import { supabase } from "./lib/supabaseClient";
 import { uploadAttachment, getAttachmentUrl } from "./lib/attachments";
+import { COLORS, TONES, card as cardToken, chip, chipOn, primaryBtn as primaryToken, ghostBtn, input, label, pill } from "./ui/tokens";
 
 export { CalendarOff as LeaveIcon };
 
 // Staff screen, English only.
-const BURGUNDY = "#801524";
-const LINE = "#EAD7DA";
-const MUTED = "#6E7B7D";
-const TONES = {
-  ok: { bg: "#E6F2EC", fg: "#2F7A5C" },
-  warn: { bg: "#FBF0DC", fg: "#8A5A0B" },
-  danger: { bg: "#FCE8E8", fg: "#B23A3A" },
-  info: { bg: "#F5E4E6", fg: BURGUNDY },
-  muted: { bg: "#F1EFEF", fg: "#5F5E5A" }
-};
-
 const wrap = { padding: "16px 16px 90px" };
-const card = { background: "#fff", border: `1px solid ${LINE}`, borderRadius: 16, padding: 16, marginBottom: 14, boxShadow: "0 1px 3px rgba(36,16,18,0.06)" };
-const chip = { border: `1px solid ${LINE}`, borderRadius: 100, padding: "7px 13px", background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#3B4A4C", fontFamily: "inherit" };
-const chipOn = { ...chip, background: BURGUNDY, borderColor: BURGUNDY, color: "#fff" };
-const optBtn = { ...chip, borderRadius: 10, padding: "10px 8px", textAlign: "center" };
-const optOn = { ...optBtn, background: "#F5E4E6", borderColor: BURGUNDY, color: BURGUNDY };
-const primaryBtn = { background: BURGUNDY, color: "#fff", border: "none", borderRadius: 10, padding: "11px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%", fontFamily: "inherit" };
-const secondaryBtn = { ...chip, borderRadius: 10, padding: "9px 14px" };
-const input = { width: "100%", padding: "9px 10px", border: `1px solid ${LINE}`, borderRadius: 8, fontSize: 14, background: "#FCFAF4", boxSizing: "border-box", fontFamily: "inherit" };
-const label = { display: "block", fontSize: 13, color: MUTED, margin: "12px 0 5px" };
+const card = { ...cardToken, marginBottom: 14 };
+const optBtn = { ...chip, minHeight: 40, borderRadius: 10, padding: "10px 8px", textAlign: "center" };
+const optOn = { ...optBtn, background: COLORS.tint, borderColor: COLORS.brand, color: COLORS.brand };
+const primaryBtn = { ...primaryToken, padding: "11px 16px", width: "100%" };
+const secondaryBtn = ghostBtn;
 const heading = { margin: "0 0 12px", fontSize: 18, fontWeight: 600 };
 const grid2 = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 };
 
@@ -40,9 +26,9 @@ const TYPE_LABEL = Object.fromEntries(TYPES.map((t) => [t.id, t.label]));
 
 const STATUS = {
   pending: { label: "Pending", tone: TONES.warn },
-  info_needed: { label: "Info needed", tone: TONES.info },
+  info_needed: { label: "Info needed", tone: TONES.brand },
   approved: { label: "Approved", tone: TONES.ok },
-  denied: { label: "Denied", tone: TONES.danger }
+  denied: { label: "Denied", tone: TONES.bad }
 };
 
 function todayStr() {
@@ -76,7 +62,7 @@ function dayCount(r) {
 
 function Pill({ tone, children }) {
   return (
-    <span style={{ fontSize: 12, fontWeight: 600, padding: "3px 9px", borderRadius: 100, background: tone.bg, color: tone.fg, whiteSpace: "nowrap" }}>
+    <span style={pill(tone)}>
       {children}
     </span>
   );
@@ -104,7 +90,7 @@ export default function LeaveTab({ profile }) {
   if (role === "accountant") return <PayrollView />;
   return (
     <div style={wrap}>
-      <p style={{ ...card, fontSize: 14, color: MUTED }}>Leave requests are only available to staff.</p>
+      <p style={{ ...card, fontSize: 14, color: COLORS.muted }}>Leave requests are only available to staff.</p>
     </div>
   );
 }
@@ -140,8 +126,8 @@ function TeacherView({ profile }) {
 
   const names = useMemo(() => Object.fromEntries(staff.map((x) => [x.id, x.full_name])), [staff]);
 
-  if (loading) return <div style={wrap}><p style={{ color: MUTED }}>Loading…</p></div>;
-  if (error) return <div style={wrap}><p style={{ ...card, color: TONES.danger.fg }}>Couldn't load leave requests: {error}</p></div>;
+  if (loading) return <div style={wrap}><p style={{ color: COLORS.muted }}>Loading…</p></div>;
+  if (error) return <div style={wrap}><p style={{ ...card, color: TONES.bad.fg }}>Couldn't load leave requests: {error}</p></div>;
 
   if (view === "new") {
     return (
@@ -171,18 +157,18 @@ function TeacherView({ profile }) {
           {covers.map((c) => (
             <div key={c.id} style={{ padding: "6px 0", fontSize: 14 }}>
               <strong>{c.teacher_name}</strong> · {TYPE_LABEL[c.leave_type]} · {dateRange(c)}
-              {c.status !== "approved" && <span style={{ color: MUTED }}> (not approved yet)</span>}
+              {c.status !== "approved" && <span style={{ color: COLORS.muted }}> (not approved yet)</span>}
               <div style={{ marginTop: 4 }}>
                 {c.sub_plans_path
                   ? <button style={secondaryBtn} onClick={() => openPlans(c.sub_plans_path)}>Open sub plans</button>
-                  : <span style={{ fontSize: 13, color: MUTED }}>{c.sub_plans_ready ? "Sub plans are ready, ask the teacher where they are." : "Sub plans not ready yet."}</span>}
+                  : <span style={{ fontSize: 13, color: COLORS.muted }}>{c.sub_plans_ready ? "Sub plans are ready, ask the teacher where they are." : "Sub plans not ready yet."}</span>}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {rows.length === 0 && <p style={{ ...card, fontSize: 14, color: MUTED }}>Your leave requests will appear here.</p>}
+      {rows.length === 0 && <p style={{ ...card, fontSize: 14, color: COLORS.muted }}>Your leave requests will appear here.</p>}
       {rows.map((r) => <MyRequestCard key={r.id} r={r} names={names} reload={load} />)}
     </div>
   );
@@ -218,12 +204,12 @@ function MyRequestCard({ r, names, reload }) {
         <span style={{ fontSize: 15, fontWeight: 600 }}>{TYPE_LABEL[r.leave_type]}</span>
         <Pill tone={st.tone}>{st.label}</Pill>
       </div>
-      <p style={{ margin: "4px 0 0", fontSize: 13, color: MUTED }}>{dateRange(r)} · {r.reason}</p>
-      <p style={{ margin: "2px 0 0", fontSize: 13, color: MUTED }}>Cover: {coverLabel(r, names)} · Sub plans: {r.sub_plans_ready ? "ready" : "not yet"}</p>
+      <p style={{ margin: "4px 0 0", fontSize: 13, color: COLORS.muted }}>{dateRange(r)} · {r.reason}</p>
+      <p style={{ margin: "2px 0 0", fontSize: 13, color: COLORS.muted }}>Cover: {coverLabel(r, names)} · Sub plans: {r.sub_plans_ready ? "ready" : "not yet"}</p>
 
       {r.director_comment && (
-        <div style={{ marginTop: 10, background: TONES.info.bg, borderRadius: 10, padding: "8px 12px", fontSize: 14 }}>
-          <span style={{ fontSize: 12, color: BURGUNDY, fontWeight: 600 }}>From the Director</span>
+        <div style={{ marginTop: 10, background: TONES.brand.bg, borderRadius: 10, padding: "8px 12px", fontSize: 14 }}>
+          <span style={{ fontSize: 12, color: COLORS.brand, fontWeight: 600 }}>From the Director</span>
           <p style={{ margin: "2px 0 0" }}>{r.director_comment}</p>
         </div>
       )}
@@ -236,13 +222,13 @@ function MyRequestCard({ r, names, reload }) {
         </div>
       )}
       {r.status !== "info_needed" && r.teacher_reply && (
-        <p style={{ margin: "8px 0 0", fontSize: 13, color: MUTED }}>Your answer: {r.teacher_reply}</p>
+        <p style={{ margin: "8px 0 0", fontSize: 13, color: COLORS.muted }}>Your answer: {r.teacher_reply}</p>
       )}
 
       {r.status === "pending" && (
         <button style={{ ...secondaryBtn, marginTop: 10 }} disabled={busy} onClick={cancel}>Cancel request</button>
       )}
-      {err && <p style={{ margin: "6px 0 0", fontSize: 13, color: TONES.danger.fg }}>{err}</p>}
+      {err && <p style={{ margin: "6px 0 0", fontSize: 13, color: TONES.bad.fg }}>{err}</p>}
     </div>
   );
 }
@@ -330,7 +316,7 @@ function RequestForm({ profile, staff, onCancel, onSaved }) {
       <label style={label}>Note (optional)</label>
       <textarea style={{ ...input, minHeight: 60 }} value={f.note} onChange={(e) => set("note", e.target.value)} />
 
-      <div style={{ borderTop: `1px solid ${LINE}`, marginTop: 16, paddingTop: 4 }}>
+      <div style={{ borderTop: `1px solid ${COLORS.line}`, marginTop: 16, paddingTop: 4 }}>
         <label style={label}>Who will cover your class?</label>
         <select style={input} value={f.cover} onChange={(e) => set("cover", e.target.value)}>
           <option value="">Choose…</option>
@@ -349,10 +335,10 @@ function RequestForm({ profile, staff, onCancel, onSaved }) {
 
         <label style={label}>Attach sub plans (optional)</label>
         <input type="file" style={{ fontSize: 13 }} onChange={(e) => setFile(e.target.files?.[0] || null)} />
-        <p style={{ margin: "4px 0 0", fontSize: 12, color: MUTED }}>The person covering your class will be able to open this file.</p>
+        <p style={{ margin: "4px 0 0", fontSize: 12, color: COLORS.muted }}>The person covering your class will be able to open this file.</p>
       </div>
 
-      {err && <p style={{ margin: "12px 0 0", fontSize: 13, color: TONES.danger.fg }}>{err}</p>}
+      {err && <p style={{ margin: "12px 0 0", fontSize: 13, color: TONES.bad.fg }}>{err}</p>}
       <button style={{ ...primaryBtn, marginTop: 16 }} disabled={busy} onClick={submit}>{busy ? "Sending…" : "Send request"}</button>
       <button style={{ ...secondaryBtn, width: "100%", marginTop: 8 }} onClick={onCancel}>Cancel</button>
     </div>
@@ -386,8 +372,8 @@ function AdminView() {
 
   const names = useMemo(() => Object.fromEntries(staff.map((x) => [x.id, x.full_name])), [staff]);
 
-  if (loading) return <div style={wrap}><p style={{ color: MUTED }}>Loading…</p></div>;
-  if (error) return <div style={wrap}><p style={{ ...card, color: TONES.danger.fg }}>Couldn't load leave requests: {error}</p></div>;
+  if (loading) return <div style={wrap}><p style={{ color: COLORS.muted }}>Loading…</p></div>;
+  if (error) return <div style={wrap}><p style={{ ...card, color: TONES.bad.fg }}>Couldn't load leave requests: {error}</p></div>;
 
   const todo = rows.filter((r) => r.status === "pending" || r.status === "info_needed");
   const shown = filter === "todo" ? todo : rows;
@@ -399,7 +385,7 @@ function AdminView() {
         <button style={filter === "todo" ? chipOn : chip} onClick={() => setFilter("todo")}>To decide ({todo.length})</button>
         <button style={filter === "all" ? chipOn : chip} onClick={() => setFilter("all")}>All</button>
       </div>
-      {shown.length === 0 && <p style={{ ...card, fontSize: 14, color: MUTED }}>{filter === "todo" ? "No requests waiting for you." : "No leave requests yet."}</p>}
+      {shown.length === 0 && <p style={{ ...card, fontSize: 14, color: COLORS.muted }}>{filter === "todo" ? "No requests waiting for you." : "No leave requests yet."}</p>}
       {shown.map((r) => <DecisionCard key={r.id} r={r} names={names} reload={load} />)}
     </div>
   );
@@ -429,9 +415,9 @@ function DecisionCard({ r, names, reload }) {
         <span style={{ fontSize: 15, fontWeight: 600 }}>{names[r.teacher_id] || "Staff member"}</span>
         <Pill tone={st.tone}>{st.label}</Pill>
       </div>
-      <p style={{ margin: "4px 0 0", fontSize: 13, color: MUTED }}>{TYPE_LABEL[r.leave_type]} · {dateRange(r)} · {dayCount(r)} day{dayCount(r) === 1 ? "" : "s"}</p>
+      <p style={{ margin: "4px 0 0", fontSize: 13, color: COLORS.muted }}>{TYPE_LABEL[r.leave_type]} · {dateRange(r)} · {dayCount(r)} day{dayCount(r) === 1 ? "" : "s"}</p>
       <p style={{ margin: "2px 0 0", fontSize: 14 }}>{r.reason}</p>
-      {r.note && <p style={{ margin: "2px 0 0", fontSize: 13, color: MUTED }}>{r.note}</p>}
+      {r.note && <p style={{ margin: "2px 0 0", fontSize: 13, color: COLORS.muted }}>{r.note}</p>}
       <p style={{ margin: "8px 0 0", fontSize: 13 }}>
         Cover: <strong>{coverLabel(r, names)}</strong>
       </p>
@@ -443,25 +429,25 @@ function DecisionCard({ r, names, reload }) {
       </div>
 
       {r.director_comment && (
-        <p style={{ margin: "10px 0 0", fontSize: 13, color: MUTED }}>You wrote: {r.director_comment}</p>
+        <p style={{ margin: "10px 0 0", fontSize: 13, color: COLORS.muted }}>You wrote: {r.director_comment}</p>
       )}
       {r.teacher_reply && (
-        <div style={{ marginTop: 8, background: TONES.info.bg, borderRadius: 10, padding: "8px 12px", fontSize: 14 }}>
-          <span style={{ fontSize: 12, color: BURGUNDY, fontWeight: 600 }}>Teacher's answer</span>
+        <div style={{ marginTop: 8, background: TONES.brand.bg, borderRadius: 10, padding: "8px 12px", fontSize: 14 }}>
+          <span style={{ fontSize: 12, color: COLORS.brand, fontWeight: 600 }}>Teacher's answer</span>
           <p style={{ margin: "2px 0 0" }}>{r.teacher_reply}</p>
         </div>
       )}
 
       {open && (
-        <div style={{ borderTop: `1px solid ${LINE}`, marginTop: 12 }}>
+        <div style={{ borderTop: `1px solid ${COLORS.line}`, marginTop: 12 }}>
           <label style={label}>Comment or question (optional for approve or deny)</label>
           <textarea style={{ ...input, minHeight: 56 }} value={comment} onChange={(e) => { setComment(e.target.value); setErr(""); }} />
           <div style={{ ...grid2, marginTop: 8 }}>
             <button style={{ ...optBtn, background: TONES.ok.bg, color: TONES.ok.fg, borderColor: TONES.ok.bg }} disabled={busy} onClick={() => decide("approved")}>Approve</button>
-            <button style={{ ...optBtn, background: TONES.danger.bg, color: TONES.danger.fg, borderColor: TONES.danger.bg }} disabled={busy} onClick={() => decide("denied")}>Deny</button>
+            <button style={{ ...optBtn, background: TONES.bad.bg, color: TONES.bad.fg, borderColor: TONES.bad.bg }} disabled={busy} onClick={() => decide("denied")}>Deny</button>
           </div>
           <button style={{ ...secondaryBtn, width: "100%", marginTop: 8 }} disabled={busy} onClick={() => decide("info_needed")}>Ask for more info</button>
-          {err && <p style={{ margin: "6px 0 0", fontSize: 13, color: TONES.danger.fg }}>{err}</p>}
+          {err && <p style={{ margin: "6px 0 0", fontSize: 13, color: TONES.bad.fg }}>{err}</p>}
         </div>
       )}
     </div>
@@ -484,8 +470,8 @@ function PayrollView() {
       });
   }, []);
 
-  if (loading) return <div style={wrap}><p style={{ color: MUTED }}>Loading…</p></div>;
-  if (error) return <div style={wrap}><p style={{ ...card, color: TONES.danger.fg }}>Couldn't load approved leave: {error}</p></div>;
+  if (loading) return <div style={wrap}><p style={{ color: COLORS.muted }}>Loading…</p></div>;
+  if (error) return <div style={wrap}><p style={{ ...card, color: TONES.bad.fg }}>Couldn't load approved leave: {error}</p></div>;
 
   const shown = rows.filter((r) => r.start_date.slice(0, 7) === month || r.end_date.slice(0, 7) === month);
   const totals = {};
@@ -509,11 +495,11 @@ function PayrollView() {
       )}
 
       <div style={card}>
-        {shown.length === 0 && <p style={{ margin: 0, fontSize: 14, color: MUTED }}>No approved leave this month.</p>}
+        {shown.length === 0 && <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>No approved leave this month.</p>}
         {shown.map((r, i) => (
-          <div key={r.id} style={{ borderTop: i === 0 ? "none" : `1px solid ${LINE}`, padding: "8px 0" }}>
+          <div key={r.id} style={{ borderTop: i === 0 ? "none" : `1px solid ${COLORS.line}`, padding: "8px 0" }}>
             <p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{r.teacher_name}</p>
-            <p style={{ margin: "2px 0 0", fontSize: 13, color: MUTED }}>{TYPE_LABEL[r.leave_type]} · {dateRange(r)}</p>
+            <p style={{ margin: "2px 0 0", fontSize: 13, color: COLORS.muted }}>{TYPE_LABEL[r.leave_type]} · {dateRange(r)}</p>
           </div>
         ))}
       </div>

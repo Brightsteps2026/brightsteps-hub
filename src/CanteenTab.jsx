@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 import { useLanguage } from "./lib/i18n";
+import { COLORS, RADIUS, card as cardToken, chip, chipOn, primaryBtn as primaryToken, input, pill } from "./ui/tokens";
 
 const PRICES = { day: 2700, week: 13000, month: 50000 };
 // Passes can be ordered by the day or the month only (week passes removed Oct 2026).
@@ -134,39 +135,8 @@ function upcomingOptions(type, locale) {
   return out;
 }
 
-const card = {
-  background: "#fff",
-  border: "1px solid #EAD7DA",
-  borderRadius: 16,
-  padding: 16,
-  marginBottom: 14,
-  boxShadow: "0 1px 3px rgba(36,16,18,0.06)"
-};
-
-const chip = {
-  border: "1px solid #EAD7DA",
-  borderRadius: 100,
-  padding: "7px 13px",
-  background: "#fff",
-  cursor: "pointer",
-  fontSize: 13,
-  fontWeight: 600,
-  color: "#3B4A4C"
-};
-
-const chipOn = { ...chip, background: "#801524", borderColor: "#801524", color: "#fff" };
-
-const primaryBtn = {
-  background: "#801524",
-  color: "#fff",
-  border: "none",
-  borderRadius: 10,
-  padding: "11px 16px",
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: "pointer",
-  width: "100%"
-};
+const card = { ...cardToken, marginBottom: 14 };
+const primaryBtn = { ...primaryToken, padding: "11px 16px", width: "100%" };
 
 export default function CanteenTab({ profile }) {
   const { language } = useLanguage();
@@ -299,26 +269,26 @@ export default function CanteenTab({ profile }) {
         <ParentLunchStatus students={students} passes={passes} tr={tr} locale={locale} />
 
         <div style={card}>
-          <p style={{ margin: 0, fontSize: 13, color: "#6E7B7D" }}>{tr("balance")}</p>
+          <p style={{ margin: 0, fontSize: 13, color: COLORS.muted }}>{tr("balance")}</p>
           <p style={{ margin: "2px 0 6px", fontSize: 24, fontWeight: 600 }}>
             {money(profile?.canteen_balance || 0)} FCFA
           </p>
-          <p style={{ margin: 0, fontSize: 12, color: "#6E7B7D" }}>{tr("payAtOffice")}</p>
+          <p style={{ margin: 0, fontSize: 12, color: COLORS.muted }}>{tr("payAtOffice")}</p>
         </div>
 
         <div style={card}>
           {students.length > 1 && (
             <>
-              <p style={{ fontSize: 13, color: "#6E7B7D", margin: "0 0 8px" }}>{tr("whichChildren")}</p>
+              <p style={{ fontSize: 13, color: COLORS.muted, margin: "0 0 8px" }}>{tr("whichChildren")}</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
                 {students.map((s) => {
                   const covered = coveredIds.includes(s.id);
                   const on = !covered && chosen.includes(s.id);
                   return (
-                    <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 10, fontSize: 14, cursor: covered ? "default" : "pointer", border: `1px solid ${on ? "#801524" : "#EAD7DA"}`, background: on ? "#F5E4E6" : "#fff", color: covered ? "#8A9698" : "inherit" }}>
+                    <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 10, fontSize: 14, cursor: covered ? "default" : "pointer", border: `1px solid ${on ? COLORS.brand : COLORS.line}`, background: on ? COLORS.tint : "#fff", color: covered ? COLORS.faint : "inherit" }}>
                       <input type="checkbox" checked={on} disabled={covered} onChange={() => togglePick(s.id)} />
                       <span>{s.full_name}</span>
-                      <span style={{ marginLeft: "auto", fontSize: 12, color: "#6E7B7D" }}>{covered ? tr("alreadyCovered") : s.grade}</span>
+                      <span style={{ marginLeft: "auto", fontSize: 12, color: COLORS.muted }}>{covered ? tr("alreadyCovered") : s.grade}</span>
                     </label>
                   );
                 })}
@@ -334,12 +304,12 @@ export default function CanteenTab({ profile }) {
             ))}
           </div>
 
-          <p style={{ fontSize: 13, color: "#6E7B7D", margin: "0 0 8px" }}>
+          <p style={{ fontSize: 13, color: COLORS.muted, margin: "0 0 8px" }}>
             {passType === "day" ? tr("dayHint") : passType === "week" ? tr("weekHint") : tr("monthHint")}
           </p>
 
           {options.length === 0 ? (
-            <p style={{ fontSize: 14, color: "#6E7B7D" }}>{tr("noneOpen")}</p>
+            <p style={{ fontSize: 14, color: COLORS.muted }}>{tr("noneOpen")}</p>
           ) : (
             <>
               <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 14 }}>
@@ -359,23 +329,23 @@ export default function CanteenTab({ profile }) {
           )}
 
           {status && <p style={{ fontSize: 13, marginTop: 10 }}>{status}</p>}
-          <p style={{ fontSize: 12, color: "#6E7B7D", marginTop: 12, marginBottom: 0 }}>{tr("deadline")}</p>
+          <p style={{ fontSize: 12, color: COLORS.muted, marginTop: 12, marginBottom: 0 }}>{tr("deadline")}</p>
         </div>
 
         <div style={card}>
           <p style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 600 }}>
             {tr("myOrders")}
           </p>
-          {myPasses.length === 0 && <p style={{ fontSize: 14, color: "#6E7B7D", margin: 0 }}>{tr("noOrders")}</p>}
+          {myPasses.length === 0 && <p style={{ fontSize: 14, color: COLORS.muted, margin: 0 }}>{tr("noOrders")}</p>}
           {myPasses.map((p) => (
-            <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid #EAD7DA", fontSize: 14 }}>
+            <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${COLORS.line}`, fontSize: 14 }}>
               <span>
                 {students.length > 1 && <strong>{nameOf(p.student_id)} · </strong>}
                 {p.pass_type === "month"
                   ? `${tr("month")} · ${parseISO(p.start_date).toLocaleDateString(locale, { month: "long", year: "numeric" })}`
                   : `${tr(p.pass_type)} · ${p.start_date}${p.end_date !== p.start_date ? ` → ${p.end_date}` : ""}`}
               </span>
-              <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", padding: "4px 10px", borderRadius: 100, background: p.paid ? "#E6F2EC" : "#FCE8E8", color: p.paid ? "#2F7A5C" : "#B23A3A" }}>
+              <span style={{ ...pill(p.paid ? "ok" : "bad"), padding: "4px 10px" }}>
                 {p.paid ? tr("paid") : tr("awaiting")}
               </span>
             </div>
@@ -411,13 +381,13 @@ export default function CanteenTab({ profile }) {
       {role === "admin" && (
       <div style={card}>
         <p style={{ margin: "0 0 2px", fontSize: 15, fontWeight: 600 }}>Kitchen count for tomorrow</p>
-        <p style={{ margin: "0 0 8px", fontSize: 13, color: "#6E7B7D" }}>{tomorrow}</p>
+        <p style={{ margin: "0 0 8px", fontSize: 13, color: COLORS.muted }}>{tomorrow}</p>
         <p style={{ margin: "0 0 8px", fontSize: 30, fontWeight: 600 }}>{eatingTomorrow.length}</p>
         {unpaidTomorrow > 0 && (
-          <p style={{ margin: "0 0 8px", fontSize: 13, color: "#B23A3A" }}>{unpaidTomorrow} not yet paid</p>
+          <p style={{ margin: "0 0 8px", fontSize: 13, color: COLORS.bad }}>{unpaidTomorrow} not yet paid</p>
         )}
         {Object.keys(byGrade).length === 0 ? (
-          <p style={{ margin: 0, fontSize: 13, color: "#6E7B7D" }}>No meals booked yet.</p>
+          <p style={{ margin: 0, fontSize: 13, color: COLORS.muted }}>No meals booked yet.</p>
         ) : (
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             {Object.entries(byGrade).sort().map(([g, n]) => (
@@ -434,12 +404,12 @@ export default function CanteenTab({ profile }) {
           {awaiting.map((p) => {
             const st = students.find((s) => s.id === p.student_id);
             return (
-              <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid #EAD7DA", fontSize: 14 }}>
+              <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${COLORS.line}`, fontSize: 14 }}>
                 <span>
                   <strong>{st?.full_name || "—"}</strong>
-                  <span style={{ color: "#6E7B7D" }}> · {tr(p.pass_type)} · {p.start_date} · {money(p.amount)}</span>
+                  <span style={{ color: COLORS.muted }}> · {tr(p.pass_type)} · {p.start_date} · {money(p.amount)}</span>
                 </span>
-                <button onClick={() => setPaid(p.id, true)} style={{ ...chip, borderColor: "#2F7A5C", color: "#2F7A5C" }}>
+                <button onClick={() => setPaid(p.id, true)} style={{ ...chip, borderColor: COLORS.ok, color: COLORS.ok }}>
                   Confirm payment
                 </button>
               </div>
@@ -463,21 +433,21 @@ export default function CanteenTab({ profile }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search a student"
-            style={{ width: "100%", padding: "9px 10px", border: "1px solid #EAD7DA", borderRadius: 8, fontSize: 14, marginBottom: 10, background: "#FCFAF4" }}
+            style={{ ...input, marginBottom: 10 }}
           />
 
-          <div style={{ maxHeight: 160, overflowY: "auto", border: "1px solid #EAD7DA", borderRadius: 8, marginBottom: 14 }}>
+          <div style={{ maxHeight: 160, overflowY: "auto", border: `1px solid ${COLORS.line}`, borderRadius: 8, marginBottom: 14 }}>
             {shown.map((s) => (
               <div
                 key={s.id}
                 onClick={() => { setSelected(s); setStatus(""); }}
-                style={{ padding: "8px 10px", cursor: "pointer", fontSize: 14, background: selected?.id === s.id ? "#F5E4E6" : "transparent", borderBottom: "1px solid #F4EFEF" }}
+                style={{ padding: "8px 10px", cursor: "pointer", fontSize: 14, background: selected?.id === s.id ? COLORS.tint : "transparent", borderBottom: "1px solid #F4EFEF" }}
               >
                 {s.full_name}
-                <span style={{ color: "#8A9698", marginLeft: 8, fontSize: 13 }}>{s.grade}</span>
+                <span style={{ color: COLORS.faint, marginLeft: 8, fontSize: 13 }}>{s.grade}</span>
               </div>
             ))}
-            {shown.length === 0 && <div style={{ padding: 10, color: "#8A9698", fontSize: 14 }}>No student found.</div>}
+            {shown.length === 0 && <div style={{ padding: 10, color: COLORS.faint, fontSize: 14 }}>No student found.</div>}
           </div>
 
           {selected && (
@@ -496,10 +466,10 @@ export default function CanteenTab({ profile }) {
                 type="date"
                 value={staffDate}
                 onChange={(e) => setStaffDate(e.target.value)}
-                style={{ padding: "9px 10px", border: "1px solid #EAD7DA", borderRadius: 8, fontSize: 14, marginBottom: 10, background: "#FCFAF4" }}
+                style={{ ...input, width: "auto", marginBottom: 10 }}
               />
 
-              <p style={{ margin: "0 0 12px", fontSize: 13, color: "#6E7B7D" }}>
+              <p style={{ margin: "0 0 12px", fontSize: 13, color: COLORS.muted }}>
                 Covers {rangeFor(passType, staffDate).start} to {rangeFor(passType, staffDate).end}
               </p>
 
@@ -511,14 +481,14 @@ export default function CanteenTab({ profile }) {
 
               {selectedPasses.length > 0 && (
                 <div style={{ marginTop: 16 }}>
-                  <p style={{ margin: "0 0 6px", fontSize: 13, color: "#6E7B7D" }}>Passes for {selected.full_name}</p>
+                  <p style={{ margin: "0 0 6px", fontSize: 13, color: COLORS.muted }}>Passes for {selected.full_name}</p>
                   {selectedPasses.map((p) => (
-                    <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "6px 0", borderTop: "1px solid #EAD7DA", fontSize: 14 }}>
+                    <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "6px 0", borderTop: `1px solid ${COLORS.line}`, fontSize: 14 }}>
                       <span>
                         {tr(p.pass_type)} · {p.start_date} → {p.end_date} · {money(p.amount)}
-                        {!p.paid && <span style={{ color: "#B23A3A" }}> · unpaid</span>}
+                        {!p.paid && <span style={{ color: COLORS.bad }}> · unpaid</span>}
                       </span>
-                      <button onClick={() => removePass(p.id)} style={{ ...chip, borderColor: "#F09595", color: "#A32D2D", padding: "4px 10px" }}>
+                      <button onClick={() => removePass(p.id)} style={{ ...chip, borderColor: "#F09595", color: COLORS.bad, padding: "4px 10px" }}>
                         Remove
                       </button>
                     </div>
@@ -574,14 +544,14 @@ function PassesList({ passes, students }) {
         ))}
       </div>
 
-      {list.length === 0 && <p style={{ margin: 0, fontSize: 14, color: "#6E7B7D" }}>No passes for this month.</p>}
+      {list.length === 0 && <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>No passes for this month.</p>}
       {list.map((p) => (
-        <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid #EAD7DA", fontSize: 14 }}>
+        <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${COLORS.line}`, fontSize: 14 }}>
           <span>
             <strong>{nameOf(p.student_id)}</strong>
-            <span style={{ color: "#6E7B7D" }}> · {gradeOf(p.student_id)} · {kindLabel[p.pass_type] || p.pass_type} · {p.start_date} → {p.end_date} · {money(p.amount)}</span>
+            <span style={{ color: COLORS.muted }}> · {gradeOf(p.student_id)} · {kindLabel[p.pass_type] || p.pass_type} · {p.start_date} → {p.end_date} · {money(p.amount)}</span>
           </span>
-          <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 8, whiteSpace: "nowrap", background: p.paid ? "#E3F1EA" : "#FBE9E9", color: p.paid ? "#2F7A5C" : "#B23A3A" }}>
+          <span style={{ ...pill(p.paid ? "ok" : "bad"), fontWeight: 400, padding: "3px 10px", borderRadius: RADIUS.sm }}>
             {p.paid ? "Paid" : "Unpaid"}
           </span>
         </div>
@@ -629,10 +599,10 @@ function ParentLunchStatus({ students, passes, tr, locale }) {
         } else {
           ok = null; text = `${tr("lunchNone")} ${monthName}`;
         }
-        const colour = ok === true ? "#2F7A5C" : ok === false ? "#B23A3A" : "#6E7B7D";
-        const bg = ok === true ? "#E6F2EC" : ok === false ? "#FCE8E8" : "#F4EFEF";
+        const colour = ok === true ? COLORS.ok : ok === false ? COLORS.bad : COLORS.muted;
+        const bg = ok === true ? COLORS.okBg : ok === false ? COLORS.badBg : "#F4EFEF";
         return (
-          <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "9px 0", borderTop: "1px solid #EAD7DA", fontSize: 14 }}>
+          <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "9px 0", borderTop: `1px solid ${COLORS.line}`, fontSize: 14 }}>
             <strong>{s.full_name}</strong>
             <span style={{ fontSize: 13, padding: "4px 10px", borderRadius: 100, background: bg, color: colour, textAlign: "right" }}>
               {ok === true ? "✓ " : ""}{text}
@@ -722,10 +692,10 @@ function MyStaffMeals() {
     <>
       <div style={card}>
         <p style={{ margin: "0 0 2px", fontSize: 15, fontWeight: 600 }}>My staff meals</p>
-        <p style={{ margin: "0 0 12px", fontSize: 13, color: "#6E7B7D" }}>{money(STAFF_MEAL_PRICE)} FCFA per meal · order by 18:00 the day before</p>
+        <p style={{ margin: "0 0 12px", fontSize: 13, color: COLORS.muted }}>{money(STAFF_MEAL_PRICE)} FCFA per meal · order by 18:00 the day before</p>
 
         {days.length === 0 ? (
-          <p style={{ fontSize: 14, color: "#6E7B7D", margin: 0 }}>No days open to order right now.</p>
+          <p style={{ fontSize: 14, color: COLORS.muted, margin: 0 }}>No days open to order right now.</p>
         ) : (
           <>
             <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 14 }}>
@@ -747,14 +717,14 @@ function MyStaffMeals() {
         <div style={card}>
           <p style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 600 }}>My upcoming meals</p>
           {orders.map((o) => (
-            <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid #EAD7DA", fontSize: 14 }}>
+            <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${COLORS.line}`, fontSize: 14 }}>
               <span>{parseISO(o.meal_date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · {money(o.amount)}</span>
               <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", padding: "4px 10px", borderRadius: 100, background: o.paid ? "#E6F2EC" : "#FCE8E8", color: o.paid ? "#2F7A5C" : "#B23A3A" }}>
+                <span style={{ ...pill(o.paid ? "ok" : "bad"), padding: "4px 10px" }}>
                   {o.paid ? "Paid" : "Awaiting payment"}
                 </span>
                 {!o.paid && isOpen("day", o.meal_date) && (
-                  <button onClick={() => cancel(o.id)} style={{ ...chip, borderColor: "#F09595", color: "#A32D2D", padding: "4px 10px" }}>Cancel</button>
+                  <button onClick={() => cancel(o.id)} style={{ ...chip, borderColor: "#F09595", color: COLORS.bad, padding: "4px 10px" }}>Cancel</button>
                 )}
               </span>
             </div>
@@ -807,9 +777,9 @@ function StaffMealsOffice() {
   return (
     <div style={card}>
       <p style={{ margin: "0 0 2px", fontSize: 15, fontWeight: 600 }}>Staff meals tomorrow</p>
-      <p style={{ margin: "0 0 8px", fontSize: 13, color: "#6E7B7D" }}>{tomorrow}</p>
+      <p style={{ margin: "0 0 8px", fontSize: 13, color: COLORS.muted }}>{tomorrow}</p>
       {error ? (
-        <p style={{ margin: 0, fontSize: 13, color: "#B23A3A" }}>Could not load staff meals: {error}</p>
+        <p style={{ margin: 0, fontSize: 13, color: COLORS.bad }}>Could not load staff meals: {error}</p>
       ) : (
         <>
           <p style={{ margin: "0 0 8px", fontSize: 30, fontWeight: 600 }}>{eating.length}</p>
@@ -818,14 +788,14 @@ function StaffMealsOffice() {
           )}
           {awaiting.length > 0 && (
             <div style={{ marginTop: 10 }}>
-              <p style={{ margin: "0 0 6px", fontSize: 13, color: "#6E7B7D" }}>Awaiting payment ({awaiting.length})</p>
+              <p style={{ margin: "0 0 6px", fontSize: 13, color: COLORS.muted }}>Awaiting payment ({awaiting.length})</p>
               {awaiting.map((o) => (
-                <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid #EAD7DA", fontSize: 14 }}>
+                <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${COLORS.line}`, fontSize: 14 }}>
                   <span>
                     <strong>{nameOf(o.staff_id)}</strong>
-                    <span style={{ color: "#6E7B7D" }}> · {o.meal_date} · {money(o.amount)}</span>
+                    <span style={{ color: COLORS.muted }}> · {o.meal_date} · {money(o.amount)}</span>
                   </span>
-                  <button onClick={() => confirm(o.id)} style={{ ...chip, borderColor: "#2F7A5C", color: "#2F7A5C" }}>Confirm payment</button>
+                  <button onClick={() => confirm(o.id)} style={{ ...chip, borderColor: COLORS.ok, color: COLORS.ok }}>Confirm payment</button>
                 </div>
               ))}
             </div>

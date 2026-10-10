@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { HeartPulse } from "lucide-react";
 import { supabase } from "./lib/supabaseClient";
 import { useLanguage } from "./lib/i18n";
+import { COLORS, FONT, TONES, card as cardToken, chip, chipOn, primaryBtn as primaryToken, ghostBtn, input, label, pill } from "./ui/tokens";
 
 export { HeartPulse as IncidentsIcon };
 
@@ -129,27 +130,13 @@ const LOCATIONS = ["classroom", "playground", "cafeteria", "school_bus", "pe_are
 const CAUSES = ["self", "other_child", "equipment", "unknown"];
 const METHODS = ["in_person", "phone", "message"];
 
-const BURGUNDY = "#801524";
-const LINE = "#EAD7DA";
-const MUTED = "#6E7B7D";
-const TONES = {
-  ok: { bg: "#E6F2EC", fg: "#2F7A5C" },
-  warn: { bg: "#FBF0DC", fg: "#8A5A0B" },
-  danger: { bg: "#FCE8E8", fg: "#B23A3A" },
-  info: { bg: "#F5E4E6", fg: BURGUNDY },
-  muted: { bg: "#F1EFEF", fg: "#5F5E5A" }
-};
-const LEVEL_TONE = { 1: TONES.ok, 2: TONES.warn, 3: TONES.danger };
+const LEVEL_TONE = { 1: TONES.ok, 2: TONES.warn, 3: TONES.bad };
 
 const wrap = { padding: "16px 16px 90px" };
-const card = { background: "#fff", border: `1px solid ${LINE}`, borderRadius: 16, padding: 16, marginBottom: 14, boxShadow: "0 1px 3px rgba(36,16,18,0.06)" };
-const chip = { border: `1px solid ${LINE}`, borderRadius: 100, padding: "7px 13px", background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#3B4A4C" };
-const chipOn = { ...chip, background: BURGUNDY, borderColor: BURGUNDY, color: "#fff" };
-const primaryBtn = { background: BURGUNDY, color: "#fff", border: "none", borderRadius: 10, padding: "11px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%" };
-const secondaryBtn = { ...chip, borderRadius: 10, padding: "9px 14px" };
-const input = { width: "100%", padding: "9px 10px", border: `1px solid ${LINE}`, borderRadius: 8, fontSize: 14, background: "#FCFAF4", boxSizing: "border-box", fontFamily: "inherit" };
-const label = { display: "block", fontSize: 13, color: MUTED, margin: "12px 0 5px" };
-const meta = { margin: "0 0 8px", fontSize: 13, color: MUTED };
+const card = { ...cardToken, marginBottom: 14 };
+const primaryBtn = { ...primaryToken, padding: "11px 16px", width: "100%" };
+const secondaryBtn = ghostBtn;
+const meta = { margin: "0 0 8px", fontSize: FONT.sm, color: COLORS.muted };
 const heading = { margin: "0 0 12px", fontSize: 18, fontWeight: 600 };
 
 function toLocalInput(value) {
@@ -173,12 +160,12 @@ function hoursLeft(inc) {
 }
 
 function statusOf(inc) {
-  if (inc.entry_type === "arrival") return { key: "statusArrival", tone: TONES.muted };
+  if (inc.entry_type === "arrival") return { key: "statusArrival", tone: TONES.neutral };
   if (!inc.parent_informed_at) return { key: "statusNotInformed", tone: TONES.warn };
   if (inc.level === 3 && !inc.full_report) {
-    return hoursLeft(inc) < 0 ? { key: "statusOverdue", tone: TONES.danger } : { key: "statusReportDue", tone: TONES.warn };
+    return hoursLeft(inc) < 0 ? { key: "statusOverdue", tone: TONES.bad } : { key: "statusReportDue", tone: TONES.warn };
   }
-  if (!inc.parent_signed_at) return { key: "statusAwaitingSig", tone: TONES.info };
+  if (!inc.parent_signed_at) return { key: "statusAwaitingSig", tone: TONES.brand };
   return { key: "statusComplete", tone: TONES.ok };
 }
 
@@ -195,22 +182,22 @@ function placeLabel(inc, tr) {
 
 function Pill({ tone, children }) {
   return (
-    <span style={{ fontSize: 12, fontWeight: 600, padding: "3px 9px", borderRadius: 100, background: tone.bg, color: tone.fg, whiteSpace: "nowrap" }}>
+    <span style={pill(tone)}>
       {children}
     </span>
   );
 }
 
 function LevelPill({ inc, tr }) {
-  if (inc.entry_type === "arrival") return <Pill tone={TONES.muted}>{tr("dropoff")}</Pill>;
-  return <Pill tone={LEVEL_TONE[inc.level] || TONES.muted}>{tr("level")} {inc.level} · {tr(`l${inc.level}`)}</Pill>;
+  if (inc.entry_type === "arrival") return <Pill tone={TONES.neutral}>{tr("dropoff")}</Pill>;
+  return <Pill tone={LEVEL_TONE[inc.level] || TONES.neutral}>{tr("level")} {inc.level} · {tr(`l${inc.level}`)}</Pill>;
 }
 
 function Field({ name, value }) {
   if (!value) return null;
   return (
     <div style={{ marginBottom: 10 }}>
-      <p style={{ margin: "0 0 2px", fontSize: 12, color: MUTED }}>{name}</p>
+      <p style={{ margin: "0 0 2px", fontSize: 12, color: COLORS.muted }}>{name}</p>
       <p style={{ margin: 0, fontSize: 14, whiteSpace: "pre-wrap" }}>{value}</p>
     </div>
   );
@@ -267,7 +254,7 @@ function ParentView({ tr, locale }) {
     <div style={wrap}>
       <h2 style={heading}>{tr("title")}</h2>
       {rows.length === 0 && (
-        <div style={card}><p style={{ margin: 0, fontSize: 14, color: MUTED }}>{tr("parentEmpty")}</p></div>
+        <div style={card}><p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>{tr("parentEmpty")}</p></div>
       )}
       {rows.map((r) => (
         <div key={r.id} style={card}>
@@ -286,10 +273,10 @@ function ParentView({ tr, locale }) {
             <Pill tone={TONES.ok}>{tr("signed")} · {r.parent_signed_name} · {fmt(r.parent_signed_at, locale)}</Pill>
           ) : signingId === r.id ? (
             <div style={{ marginTop: 8 }}>
-              <p style={{ fontSize: 13, color: MUTED, margin: "0 0 8px" }}>{tr("parentSignHint")}</p>
+              <p style={{ fontSize: 13, color: COLORS.muted, margin: "0 0 8px" }}>{tr("parentSignHint")}</p>
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder={tr("typeName")} style={{ ...input, fontFamily: "'Fraunces', serif", fontSize: 20, marginBottom: 10 }} />
               <button style={primaryBtn} disabled={busy} onClick={() => sign(r.id)}>{busy ? tr("saving") : tr("confirmSig")}</button>
-              {status && <p style={{ fontSize: 13, marginTop: 8, color: TONES.danger.fg }}>{status}</p>}
+              {status && <p style={{ fontSize: 13, marginTop: 8, color: TONES.bad.fg }}>{status}</p>}
             </div>
           ) : (
             <button style={{ ...primaryBtn, marginTop: 6 }} onClick={() => { setSigningId(r.id); setName(""); setStatus(""); }}>{tr("sign")}</button>
@@ -407,9 +394,9 @@ function StaffView({ profile, tr, locale }) {
       {isAdmin && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 14 }}>
           {Object.entries(counts).map(([k, n]) => (
-            <div key={k} style={{ background: n > 0 ? TONES.info.bg : "#F7F3F3", borderRadius: 12, padding: "10px 12px" }}>
-              <p style={{ margin: 0, fontSize: 12, color: n > 0 ? BURGUNDY : MUTED }}>{tr(k)}</p>
-              <p style={{ margin: 0, fontSize: 22, fontWeight: 600, color: n > 0 ? BURGUNDY : "#3B4A4C" }}>{n}</p>
+            <div key={k} style={{ background: n > 0 ? TONES.brand.bg : "#F7F3F3", borderRadius: 12, padding: "10px 12px" }}>
+              <p style={{ margin: 0, fontSize: 12, color: n > 0 ? COLORS.brand : COLORS.muted }}>{tr(k)}</p>
+              <p style={{ margin: 0, fontSize: 22, fontWeight: 600, color: n > 0 ? COLORS.brand : COLORS.text2 }}>{n}</p>
             </div>
           ))}
         </div>
@@ -422,7 +409,7 @@ function StaffView({ profile, tr, locale }) {
 
       <div style={card}>
         {shown.length === 0 && (
-          <p style={{ margin: 0, fontSize: 14, color: MUTED }}>{filter === "action" ? tr("emptyAction") : tr("empty")}</p>
+          <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>{filter === "action" ? tr("emptyAction") : tr("empty")}</p>
         )}
         {shown.map((inc, idx) => {
           const st = studentById[inc.student_id];
@@ -431,19 +418,19 @@ function StaffView({ profile, tr, locale }) {
             <button
               key={inc.id}
               onClick={() => { setSelectedId(inc.id); setNotice(""); setView("detail"); }}
-              style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", borderTop: idx === 0 ? "none" : `1px solid ${LINE}`, padding: "10px 0", cursor: "pointer", fontFamily: "inherit", color: "inherit" }}
+              style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", borderTop: idx === 0 ? "none" : `1px solid ${COLORS.line}`, padding: "10px 0", cursor: "pointer", fontFamily: "inherit", color: "inherit" }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 14, fontWeight: 600 }}>
                   {st?.full_name || "—"}
-                  <span style={{ fontWeight: 400, color: MUTED, marginLeft: 6, fontSize: 13 }}>{st?.grade}</span>
+                  <span style={{ fontWeight: 400, color: COLORS.muted, marginLeft: 6, fontSize: 13 }}>{st?.grade}</span>
                 </span>
                 <LevelPill inc={inc} tr={tr} />
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-                <span style={{ fontSize: 13, color: MUTED }}>{fmt(inc.occurred_at, locale)} · {placeLabel(inc, tr)}</span>
+                <span style={{ fontSize: 13, color: COLORS.muted }}>{fmt(inc.occurred_at, locale)} · {placeLabel(inc, tr)}</span>
                 <span style={{ display: "flex", gap: 6 }}>
-                  {isAdmin && !inc.admin_seen_at && <Pill tone={TONES.danger}>{tr("statusNew")}</Pill>}
+                  {isAdmin && !inc.admin_seen_at && <Pill tone={TONES.bad}>{tr("statusNew")}</Pill>}
                   <Pill tone={status.tone}>{tr(status.key)}</Pill>
                 </span>
               </div>
@@ -588,25 +575,25 @@ function EntryForm({ students, profile, initial, startType, tr, onCancel, onSave
         <p style={{ fontSize: 13, background: TONES.warn.bg, color: TONES.warn.fg, borderRadius: 8, padding: "9px 11px", margin: "12px 0 0" }}>{tr("concernHint")}</p>
       )}
       {type === "arrival" && (
-        <p style={{ fontSize: 13, background: TONES.info.bg, color: TONES.info.fg, borderRadius: 8, padding: "9px 11px", margin: "12px 0 0" }}>{tr("arrivalHint")}</p>
+        <p style={{ fontSize: 13, background: TONES.brand.bg, color: TONES.brand.fg, borderRadius: 8, padding: "9px 11px", margin: "12px 0 0" }}>{tr("arrivalHint")}</p>
       )}
 
       <span style={label}>{tr("student")} *</span>
       {picked ? (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "9px 10px", border: `1px solid ${LINE}`, borderRadius: 8 }}>
-          <span style={{ fontSize: 14 }}><strong>{picked.full_name}</strong> <span style={{ color: MUTED }}>{picked.grade}</span></span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "9px 10px", border: `1px solid ${COLORS.line}`, borderRadius: 8 }}>
+          <span style={{ fontSize: 14 }}><strong>{picked.full_name}</strong> <span style={{ color: COLORS.muted }}>{picked.grade}</span></span>
           {!editing && <button style={{ ...chip, padding: "4px 10px" }} onClick={() => setStudentId(null)}>{tr("change")}</button>}
         </div>
       ) : (
         <>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tr("searchStudent")} style={{ ...input, marginBottom: 8 }} />
-          <div style={{ maxHeight: 180, overflowY: "auto", border: `1px solid ${LINE}`, borderRadius: 8 }}>
+          <div style={{ maxHeight: 180, overflowY: "auto", border: `1px solid ${COLORS.line}`, borderRadius: 8 }}>
             {pool.slice(0, 60).map((s) => (
               <div key={s.id} onClick={() => { setStudentId(s.id); setErr(""); }} style={{ padding: "8px 10px", cursor: "pointer", fontSize: 14, borderBottom: "1px solid #F4EFEF" }}>
-                {s.full_name}<span style={{ color: "#8A9698", marginLeft: 8, fontSize: 13 }}>{s.grade}</span>
+                {s.full_name}<span style={{ color: COLORS.faint, marginLeft: 8, fontSize: 13 }}>{s.grade}</span>
               </div>
             ))}
-            {pool.length === 0 && <div style={{ padding: 10, color: "#8A9698", fontSize: 14 }}>{tr("noStudent")}</div>}
+            {pool.length === 0 && <div style={{ padding: 10, color: COLORS.faint, fontSize: 14 }}>{tr("noStudent")}</div>}
           </div>
         </>
       )}
@@ -661,10 +648,10 @@ function EntryForm({ students, profile, initial, startType, tr, onCancel, onSave
                   key={n}
                   disabled={locked}
                   onClick={() => set("level", n)}
-                  style={{ textAlign: "left", padding: 10, borderRadius: 10, cursor: locked ? "not-allowed" : "pointer", opacity: locked ? 0.4 : 1, background: "#fff", border: on ? `2px solid ${BURGUNDY}` : `1px solid ${LINE}`, fontFamily: "inherit" }}
+                  style={{ textAlign: "left", padding: 10, borderRadius: 10, cursor: locked ? "not-allowed" : "pointer", opacity: locked ? 0.4 : 1, background: "#fff", border: on ? `2px solid ${COLORS.brand}` : `1px solid ${COLORS.line}`, fontFamily: "inherit" }}
                 >
                   <Pill tone={LEVEL_TONE[n]}>{tr("level")} {n}</Pill>
-                  <span style={{ display: "block", fontSize: 14, marginTop: 6, color: "#241012" }}>{tr(`l${n}`)}</span>
+                  <span style={{ display: "block", fontSize: 14, marginTop: 6, color: COLORS.ink }}>{tr(`l${n}`)}</span>
                 </button>
               );
             })}
@@ -677,7 +664,7 @@ function EntryForm({ students, profile, initial, startType, tr, onCancel, onSave
       )}
 
       <span style={label}>{type === "concern" ? tr("concernText") : type === "arrival" ? tr("markNoticed") : tr("description")} *</span>
-      {type === "incident" && <p style={{ fontSize: 12, color: MUTED, margin: "0 0 6px" }}>{tr("parentReads")}</p>}
+      {type === "incident" && <p style={{ fontSize: 12, color: COLORS.muted, margin: "0 0 6px" }}>{tr("parentReads")}</p>}
       <textarea rows={3} value={f.description} onChange={(e) => set("description", e.target.value)} style={input} />
 
       {(type === "arrival" || type === "concern") && (
@@ -720,7 +707,7 @@ function EntryForm({ students, profile, initial, startType, tr, onCancel, onSave
         </>
       )}
 
-      {err && <p style={{ fontSize: 13, color: TONES.danger.fg, margin: "12px 0 0" }}>{err}</p>}
+      {err && <p style={{ fontSize: 13, color: TONES.bad.fg, margin: "12px 0 0" }}>{err}</p>}
       <button style={{ ...primaryBtn, marginTop: 16 }} disabled={busy} onClick={save}>
         {busy ? tr("saving") : type === "concern" ? tr("sendConcern") : tr("save")}
       </button>
@@ -775,7 +762,7 @@ function IncidentDetail({ inc, student, names, isAdmin, profile, tr, locale, onB
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
           <div>
             <p style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>{student?.full_name || "—"}</p>
-            <p style={{ margin: 0, fontSize: 13, color: MUTED }}>{student?.grade}</p>
+            <p style={{ margin: 0, fontSize: 13, color: COLORS.muted }}>{student?.grade}</p>
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <LevelPill inc={inc} tr={tr} />
@@ -823,7 +810,7 @@ function IncidentDetail({ inc, student, names, isAdmin, profile, tr, locale, onB
             <button style={primaryBtn} onClick={() => { setSigning(true); setSigName(""); setMsg(""); }}>{tr("signNow")}</button>
           ) : (
             <>
-              <p style={{ fontSize: 13, color: MUTED, margin: "0 0 8px" }}>{tr("signHint")}</p>
+              <p style={{ fontSize: 13, color: COLORS.muted, margin: "0 0 8px" }}>{tr("signHint")}</p>
               <input value={sigName} onChange={(e) => setSigName(e.target.value)} placeholder={tr("typeName")} style={{ ...input, fontFamily: "'Fraunces', serif", fontSize: 20, marginBottom: 10 }} />
               <button style={primaryBtn} disabled={busy} onClick={saveSig}>{busy ? tr("saving") : tr("confirmSig")}</button>
             </>
@@ -835,7 +822,7 @@ function IncidentDetail({ inc, student, names, isAdmin, profile, tr, locale, onB
         <div style={card}>
           <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 600 }}>{tr("fullReport")}</p>
           {!inc.full_report && (
-            <p style={{ ...meta, color: hoursLeft(inc) < 0 ? TONES.danger.fg : TONES.warn.fg }}>
+            <p style={{ ...meta, color: hoursLeft(inc) < 0 ? TONES.bad.fg : TONES.warn.fg }}>
               {hoursLeft(inc) < 0 ? tr("statusOverdue") : `${tr("statusReportDue")} · ${hoursLeft(inc)} h`}
             </p>
           )}
@@ -845,7 +832,7 @@ function IncidentDetail({ inc, student, names, isAdmin, profile, tr, locale, onB
         </div>
       )}
 
-      {msg && <p style={{ fontSize: 13, color: TONES.danger.fg }}>{msg}</p>}
+      {msg && <p style={{ fontSize: 13, color: TONES.bad.fg }}>{msg}</p>}
     </>
   );
 }
@@ -874,21 +861,21 @@ function ConcernsCard({ concerns, studentById, names, tr, locale, reload }) {
         <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{tr("concerns")}</p>
         <button style={showClosed ? chipOn : chip} onClick={() => setShowClosed(!showClosed)}>{tr("showClosed")}</button>
       </div>
-      {list.length === 0 && <p style={{ margin: 0, fontSize: 14, color: MUTED }}>{tr("concernsEmpty")}</p>}
+      {list.length === 0 && <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>{tr("concernsEmpty")}</p>}
       {list.map((c, idx) => {
         const st = studentById[c.student_id];
         const isOpen = openId === c.id;
         return (
-          <div key={c.id} style={{ borderTop: idx === 0 ? "none" : `1px solid ${LINE}`, padding: "10px 0" }}>
+          <div key={c.id} style={{ borderTop: idx === 0 ? "none" : `1px solid ${COLORS.line}`, padding: "10px 0" }}>
             <button
               onClick={() => { setOpenId(isOpen ? null : c.id); setNotes(c.dsl_notes || ""); setMsg(""); }}
               style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: "inherit", color: "inherit" }}
             >
               <span style={{ fontSize: 14 }}>
                 <strong>{st?.full_name || "—"}</strong>
-                <span style={{ color: MUTED, marginLeft: 6, fontSize: 13 }}>{fmt(c.observed_at, locale)}</span>
+                <span style={{ color: COLORS.muted, marginLeft: 6, fontSize: 13 }}>{fmt(c.observed_at, locale)}</span>
               </span>
-              <Pill tone={c.status === "open" ? TONES.warn : TONES.muted}>{c.status === "open" ? tr("open") : tr("closed")}</Pill>
+              <Pill tone={c.status === "open" ? TONES.warn : TONES.neutral}>{c.status === "open" ? tr("open") : tr("closed")}</Pill>
             </button>
             {isOpen && (
               <div style={{ marginTop: 10 }}>
@@ -903,7 +890,7 @@ function ConcernsCard({ concerns, studentById, names, tr, locale, reload }) {
                     {c.status === "open" ? tr("closeConcern") : tr("reopen")}
                   </button>
                 </div>
-                {msg && <p style={{ fontSize: 13, color: TONES.danger.fg }}>{msg}</p>}
+                {msg && <p style={{ fontSize: 13, color: TONES.bad.fg }}>{msg}</p>}
               </div>
             )}
           </div>
