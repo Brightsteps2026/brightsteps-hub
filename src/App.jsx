@@ -78,6 +78,10 @@ function nextStudentIdNumber(existingIdNumbers) {
 
 const EVENT_TYPES = ["Academic", "Holiday", "Staff", "Event", "Meeting"];
 const EVENT_TYPE_COLOR = { Academic: "#2F6B7A", Holiday: "#B8842F", Staff: "#6E4E9E", Event: "#2F7A5C", Meeting: "#B5473B" };
+// A calendar event is staff only when it is marked so, or (older events with no
+// setting) when its type is "Staff". Parents and students never see these; the
+// database also removes them before the data reaches a parent's or student's screen.
+const isStaffOnlyEvent = (e) => e?.audience === "staff" || (!e?.audience && e?.type === "Staff");
 
 const ADMISSION_STAGES = ["Inquiry", "Tour Scheduled", "Application Submitted", "Enrolled", "Declined"];
 const ADMISSION_STAGE_COLOR = {
@@ -789,6 +793,7 @@ const saveLunchMenu = async () => {
   const today = todayStr();
   const nextEvents = [...(data.events || [])]
     .filter((e) => (e.endDate || e.date) >= today)
+    .filter((e) => !isParent || !isStaffOnlyEvent(e))
     .filter((e) => !isParent || !e.grades || e.grades.length === 0 || myStudents.some((s) => e.grades.includes(s.grade)))
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 2);
@@ -1280,6 +1285,7 @@ function FamilyViewModal({ student, data, onClose, hideContacts = false }) {
 
   const events = [...(data.events || [])]
     .filter((e) => (e.endDate || e.date) >= today)
+    .filter((e) => !isStaffOnlyEvent(e))
     .filter((e) => !e.grades || e.grades.length === 0 || e.grades.includes(student.grade))
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 4);
@@ -1908,6 +1914,7 @@ function ParentStudentView({ data, persist, profile }) {
   const events = activeStudent
     ? [...(data.events || [])]
         .filter((e) => (e.endDate || e.date) >= today)
+        .filter((e) => !isStaffOnlyEvent(e))
         .filter((e) => !e.grades || e.grades.length === 0 || e.grades.includes(activeStudent.grade))
         .sort((a, b) => a.date.localeCompare(b.date))
         .slice(0, 4)
@@ -4344,21 +4351,45 @@ const OFFICIAL_CALENDAR_2026_27 = [
   { title: "Last Day of School", type: "Academic", date: "2027-06-08" }
 ];
 
+// The nth weekday of a month (e.g. the 2nd Friday), as "YYYY-MM-DD", or null if that month has none.
+function nthWeekdayOfMonth(year, monthIndex, weekday, nth) {
+  const first = new Date(year, monthIndex, 1); // monthIndex may run past 11; Date rolls it into the next year
+  const offset = (weekday - first.getDay() + 7) % 7;
+  const day = 1 + offset + (nth - 1) * 7;
+  const d = new Date(first.getFullYear(), first.getMonth(), day);
+  if (d.getMonth() !== first.getMonth()) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Is a date inside a school holiday on the calendar?
+function isHolidayDate(events, dateStr) {
+  return (events || []).some((e) => e.type === "Holiday" && dateStr >= e.date && dateStr <= (e.endDate || e.date));
+}
+
+const emptyEventForm = { title: "", type: EVENT_TYPES[0], date: "", endDate: "", grades: [], description: "", audience: "everyone", repeatMonthly: false };
+
 function CalendarTab({ data, persist, profile }) {
+  const { t } = useLanguage();
   const [showAdd, setShowAdd] = useState(false);
+  const [showSubscribe, setShowSubscribe] = useState(false);
   const [typeFilter, setTypeFilter] = useState(null);
+  const [audienceFilter, setAudienceFilter] = useState(null);
   const [formError, setFormError] = useState("");
-  const [form, setForm] = useState({ title: "", type: EVENT_TYPES[0], date: "", endDate: "", grades: [], description: "" });
+  const [form, setForm] = useState(emptyEventForm);
 
   const isParent = profile?.role === "parent";
+  const isFamily = isParent || profile?.role === "student";
   const linkedIds = profile?.student_ids || [];
   const myGrades = isParent ? [...new Set(data.students.filter((s) => linkedIds.includes(s.id)).map((s) => s.grade))] : [];
 
   const events = [...(data.events || [])]
+    .filter((e) => !isFamily || !isStaffOnlyEvent(e))
     .filter((e) => !isParent || !e.grades || e.grades.length === 0 || e.grades.some((g) => myGrades.includes(g)))
     .sort((a, b) => a.date.localeCompare(b.date));
   const today = todayStr();
-  const filtered = typeFilter ? events.filter((e) => e.type === typeFilter) : events;
+  const filtered = events
+    .filter((e) => !typeFilter || e.type === typeFilter)
+    .filter((e) => !audienceFilter || (audienceFilter === "staff" ? isStaffOnlyEvent(e) : !isStaffOnlyEvent(e)));
   const upcoming = filtered.filter((e) => (e.endDate || e.date) >= today);
   const past = filtered.filter((e) => (e.endDate || e.date) < today);
 
@@ -4366,15 +4397,41 @@ function CalendarTab({ data, persist, profile }) {
     setForm((f) => ({ ...f, grades: f.grades.includes(g) ? f.grades.filter((x) => x !== g) : [...f.grades, g] }));
   };
 
+  // Choosing the "Staff" type also makes the event staff only (it can be switched back).
+  const pickType = (type) => setForm((f) => ({ ...f, type, audience: type === "Staff" ? "staff" : f.audience }));
+
   const addEvent = () => {
     if (!form.title.trim() || !form.date) {
       setFormError("Please add a title and a date.");
       return;
     }
-    persist({ ...data, events: [...(data.events || []), { id: uid(), ...form }] });
-    setForm({ title: "", type: EVENT_TYPES[0], date: "", endDate: "", grades: [], description: "" });
+    const { repeatMonthly, ...base } = form;
+    const first = { id: uid(), ...base, title: base.title.trim() };
+    const toAdd = [first];
+
+    // Repeat on the same weekday of each following month (e.g. every 2nd Friday),
+    // until the end of the school year, skipping dates that fall in a holiday.
+    if (repeatMonthly) {
+      const start = new Date(`${form.date}T12:00:00`);
+      const weekday = start.getDay();
+      const nth = Math.ceil(start.getDate() / 7);
+      const yearEnd = (data.settings || DEFAULT_SETTINGS).academicYear?.endDate || `${start.getFullYear() + 1}-06-30`;
+      const seriesId = uid();
+      first.seriesId = seriesId;
+      for (let i = 1; i <= 12; i++) {
+        const d = nthWeekdayOfMonth(start.getFullYear(), start.getMonth() + i, weekday, nth);
+        if (!d) continue;
+        if (d > yearEnd) break;
+        if (isHolidayDate(data.events, d)) continue;
+        toAdd.push({ ...first, id: uid(), date: d, endDate: "" });
+      }
+    }
+
+    persist({ ...data, events: [...(data.events || []), ...toAdd] });
+    setForm(emptyEventForm);
     setFormError("");
     setTypeFilter(null);
+    setAudienceFilter(null);
     setShowAdd(false);
   };
 
@@ -4388,7 +4445,7 @@ function CalendarTab({ data, persist, profile }) {
     const existing = data.events || [];
     const toAdd = OFFICIAL_CALENDAR_2026_27.filter(
       (oe) => !existing.some((e) => e.title === oe.title && e.date === oe.date)
-    ).map((oe) => ({ id: uid(), grades: [], description: "", ...oe }));
+    ).map((oe) => ({ id: uid(), grades: [], description: "", audience: oe.type === "Staff" ? "staff" : "everyone", ...oe }));
     if (toAdd.length === 0) return;
 
     const settings = data.settings || DEFAULT_SETTINGS;
@@ -4407,13 +4464,14 @@ function CalendarTab({ data, persist, profile }) {
           <span className="bsf-status-pill" style={{ background: `${EVENT_TYPE_COLOR[e.type]}1A`, color: EVENT_TYPE_COLOR[e.type] }}>
             {e.type}
           </span>
+          {!isFamily && isStaffOnlyEvent(e) && <span className="bsf-status-pill bsf-staffonly-pill">Staff only</span>}
           <span className="bsf-muted">{e.date}{e.endDate && e.endDate !== e.date ? ` to ${e.endDate}` : ""}</span>
         </div>
         <strong>{e.title}</strong>
         <p className="bsf-muted">{e.grades && e.grades.length > 0 ? e.grades.join(", ") : "Whole school"}</p>
         {e.description && <p>{e.description}</p>}
       </div>
-      {!isParent && <button className="bsf-iconbtn" onClick={() => removeEvent(e.id)} aria-label="Remove"><Trash2 size={16} /></button>}
+      {!isFamily && <button className="bsf-iconbtn" onClick={() => removeEvent(e.id)} aria-label="Remove"><Trash2 size={16} /></button>}
     </div>
   );
 
@@ -4425,12 +4483,14 @@ function CalendarTab({ data, persist, profile }) {
         {upcoming[0] && <p className="bsf-hero-sub">Next: {upcoming[0].title} · {upcoming[0].date}</p>}
       </div>
 
-      <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
-        <span />
-        {!isParent && <button className="bsf-btn" onClick={() => setShowAdd(true)}><Plus size={16} /> Add</button>}
+      <div className="bsf-screen-head" style={{ marginBottom: 0, gap: 8, flexWrap: "wrap" }}>
+        <button className="bsf-btn bsf-btn-ghost" onClick={() => setShowSubscribe(true)}>
+          <CalendarIcon size={16} /> {t("calendar.subscribe")}
+        </button>
+        {!isFamily && <button className="bsf-btn" onClick={() => setShowAdd(true)}><Plus size={16} /> Add</button>}
       </div>
 
-      {!isParent && !alreadyLoaded && (
+      {!isFamily && !alreadyLoaded && (
         <button type="button" className="bsf-templatebtn" onClick={importOfficialCalendar}>
           Load the 2026–27 academic calendar
         </button>
@@ -4440,10 +4500,17 @@ function CalendarTab({ data, persist, profile }) {
         <h2>Filter by type</h2>
         <div className="bsf-chiprow">
           <button className={`bsf-chip ${typeFilter === null ? "active" : ""}`} onClick={() => setTypeFilter(null)}>All</button>
-          {EVENT_TYPES.map((t) => (
-            <button key={t} className={`bsf-chip ${typeFilter === t ? "active" : ""}`} onClick={() => setTypeFilter(t)}>{t}</button>
+          {EVENT_TYPES.map((tp) => (
+            <button key={tp} className={`bsf-chip ${typeFilter === tp ? "active" : ""}`} onClick={() => setTypeFilter(tp)}>{tp}</button>
           ))}
         </div>
+        {!isFamily && (
+          <div className="bsf-chiprow" style={{ marginTop: 10 }}>
+            <button className={`bsf-chip ${audienceFilter === null ? "active" : ""}`} onClick={() => setAudienceFilter(null)}>Everyone + staff</button>
+            <button className={`bsf-chip ${audienceFilter === "everyone" ? "active" : ""}`} onClick={() => setAudienceFilter("everyone")}>Seen by families</button>
+            <button className={`bsf-chip ${audienceFilter === "staff" ? "active" : ""}`} onClick={() => setAudienceFilter("staff")}>Staff only</button>
+          </div>
+        )}
       </section>
 
       <section className="bsf-list">
@@ -4459,15 +4526,29 @@ function CalendarTab({ data, persist, profile }) {
         </section>
       )}
 
+      {showSubscribe && <CalendarSubscribeModal isFamily={isFamily} onClose={() => setShowSubscribe(false)} />}
+
       {showAdd && (
         <Modal title="New calendar event" onClose={() => setShowAdd(false)}>
           <Field label="Title">
             <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Welcome Coffee" />
           </Field>
+          <Field label="Who can see it?">
+            <div className="bsf-two-col">
+              <button type="button" className={`bsf-audience-btn ${form.audience !== "staff" ? "active" : ""}`} onClick={() => setForm({ ...form, audience: "everyone" })}>
+                <strong>Everyone</strong>
+                <span>Staff and families</span>
+              </button>
+              <button type="button" className={`bsf-audience-btn ${form.audience === "staff" ? "active" : ""}`} onClick={() => setForm({ ...form, audience: "staff" })}>
+                <strong>Staff only</strong>
+                <span>Hidden from families</span>
+              </button>
+            </div>
+          </Field>
           <Field label="Type">
             <div className="bsf-chiprow">
-              {EVENT_TYPES.map((t) => (
-                <button key={t} type="button" className={`bsf-chip ${form.type === t ? "active" : ""}`} onClick={() => setForm({ ...form, type: t })}>{t}</button>
+              {EVENT_TYPES.map((tp) => (
+                <button key={tp} type="button" className={`bsf-chip ${form.type === tp ? "active" : ""}`} onClick={() => pickType(tp)}>{tp}</button>
               ))}
             </div>
           </Field>
@@ -4476,9 +4557,21 @@ function CalendarTab({ data, persist, profile }) {
               <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
             </Field>
             <Field label="End date (optional)">
-              <input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} />
+              <input type="date" value={form.endDate} disabled={form.repeatMonthly} onChange={(e) => setForm({ ...form, endDate: e.target.value })} />
             </Field>
           </div>
+          <label className="bsf-checkline">
+            <input type="checkbox" checked={form.repeatMonthly} onChange={(e) => setForm({ ...form, repeatMonthly: e.target.checked, endDate: e.target.checked ? "" : form.endDate })} />
+            <span>
+              Repeat every month on the same day
+              {form.date && form.repeatMonthly && (() => {
+                const d = new Date(`${form.date}T12:00:00`);
+                const nth = ["1st", "2nd", "3rd", "4th", "5th"][Math.ceil(d.getDate() / 7) - 1];
+                const day = d.toLocaleDateString("en-GB", { weekday: "long" });
+                return ` (${nth} ${day} of each month, until the end of the school year, skipping holidays)`;
+              })()}
+            </span>
+          </label>
           <Field label="Grades (optional, leave blank for whole school)">
             <div className="bsf-chiprow">
               {GRADES.map((g) => (
@@ -4494,6 +4587,52 @@ function CalendarTab({ data, persist, profile }) {
         </Modal>
       )}
     </div>
+  );
+}
+
+// "Add to my phone calendar": gives the person a private link that Google Calendar
+// or a phone calendar can follow. Staff get every event; families get only the
+// events marked "Everyone". The link comes from the calendar_feeds table, which only
+// hands each person the link they are allowed to have.
+function CalendarSubscribeModal({ isFamily, onClose }) {
+  const { t } = useLanguage();
+  const [feedUrl, setFeedUrl] = useState("");
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.from("calendar_feeds").select("audience, token").then(({ data: rows, error: e }) => {
+      if (cancelled) return;
+      const row = (rows || []).find((r) => r.audience === (isFamily ? "everyone" : "staff")) || (rows || []).find((r) => r.audience === "everyone");
+      if (e || !row) { setError(t("calendar.subscribeError")); return; }
+      const base = import.meta.env.VITE_SUPABASE_URL;
+      setFeedUrl(`${base}/functions/v1/calendar-feed?t=${row.token}`);
+    });
+    return () => { cancelled = true; };
+  }, [isFamily]);
+
+  const webcalUrl = feedUrl.replace(/^https?:\/\//, "webcal://");
+  const googleUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcalUrl)}`;
+
+  const copy = () => {
+    navigator.clipboard?.writeText(feedUrl).then(() => setCopied(true)).catch(() => {});
+  };
+
+  return (
+    <Modal title={t("calendar.subscribe")} onClose={onClose}>
+      <p>{isFamily ? t("calendar.subscribeIntroFamily") : t("calendar.subscribeIntroStaff")}</p>
+      {error && <p className="bsf-formerror">{error}</p>}
+      {!error && !feedUrl && <p className="bsf-muted">{t("top.loading")}</p>}
+      {feedUrl && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <a className="bsf-btn bsf-btn-block" href={googleUrl} target="_blank" rel="noopener noreferrer">{t("calendar.subscribeGoogle")}</a>
+          <a className="bsf-btn bsf-btn-ghost bsf-btn-block" href={webcalUrl}>{t("calendar.subscribePhone")}</a>
+          <button type="button" className="bsf-btn bsf-btn-ghost bsf-btn-block" onClick={copy}>{copied ? t("calendar.subscribeCopied") : t("calendar.subscribeCopy")}</button>
+          <p className="bsf-muted" style={{ fontSize: 13 }}>{t("calendar.subscribeNote")}</p>
+        </div>
+      )}
+    </Modal>
   );
 }
 
@@ -7985,6 +8124,18 @@ function BrightStepsHubInner() {
           border-radius: 100px;
           white-space: nowrap;
         }
+        .bsf-staffonly-pill { background: var(--ink); color: var(--white); }
+        a.bsf-btn { text-decoration: none; text-align: center; }
+        .bsf-audience-btn {
+          display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+          min-height: 60px; padding: 8px 12px; border-radius: 12px;
+          border: 2px solid var(--line); background: var(--white); color: var(--ink);
+          font-family: inherit; text-align: left; cursor: pointer;
+        }
+        .bsf-audience-btn span { font-size: 12px; opacity: 0.85; }
+        .bsf-audience-btn.active { background: var(--teal); border-color: var(--teal); color: var(--white); }
+        .bsf-checkline { display: flex; align-items: flex-start; gap: 10px; margin: 4px 0 12px; font-size: 14px; cursor: pointer; }
+        .bsf-checkline input { width: 18px; height: 18px; margin-top: 1px; accent-color: var(--teal); flex-shrink: 0; }
         .bsf-templatebtn {
           width: 100%;
           background: var(--sand-deep);

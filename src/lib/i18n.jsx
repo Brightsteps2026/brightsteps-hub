@@ -14,6 +14,27 @@ const translations = {
   "nav.gradebook": { en: "Gradebook", fr: "Carnet de notes" },
   "nav.planning": { en: "Curriculum", fr: "Curriculum" },
   "nav.calendar": { en: "Calendar", fr: "Calendrier" },
+  "calendar.subscribe": { en: "Add to my phone calendar", fr: "Ajouter à mon calendrier" },
+  "calendar.subscribeIntroStaff": {
+    en: "Link the school calendar to Google Calendar or your phone. You will see every event, including staff only dates, and new dates appear on their own.",
+    fr: "Reliez le calendrier de l'école à Google Agenda ou à votre téléphone. Vous verrez tous les événements, y compris ceux réservés au personnel, et les nouvelles dates s'ajouteront automatiquement."
+  },
+  "calendar.subscribeIntroFamily": {
+    en: "Link the school calendar to Google Calendar or your phone. New school dates will appear there on their own.",
+    fr: "Reliez le calendrier de l'école à Google Agenda ou à votre téléphone. Les nouvelles dates de l'école s'y ajouteront automatiquement."
+  },
+  "calendar.subscribeGoogle": { en: "Add to Google Calendar", fr: "Ajouter à Google Agenda" },
+  "calendar.subscribePhone": { en: "Add to iPhone or other calendar app", fr: "Ajouter à l'iPhone ou à une autre application" },
+  "calendar.subscribeCopy": { en: "Copy the link", fr: "Copier le lien" },
+  "calendar.subscribeCopied": { en: "Link copied", fr: "Lien copié" },
+  "calendar.subscribeNote": {
+    en: "This link is private to the school. Please do not share it. Google Calendar can take a few hours to show changes.",
+    fr: "Ce lien est réservé à l'école. Merci de ne pas le partager. Google Agenda peut mettre quelques heures à afficher les modifications."
+  },
+  "calendar.subscribeError": {
+    en: "The calendar link is not available yet. Please try again later.",
+    fr: "Le lien du calendrier n'est pas encore disponible. Merci de réessayer plus tard."
+  },
   "nav.canteen": { en: "Canteen", fr: "Cantine" },
   "nav.checkin": { en: "Staff check-in", fr: "Pointage du personnel" },
   "nav.incidents": { en: "Incidents", fr: "Incidents" },
