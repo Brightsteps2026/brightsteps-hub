@@ -11,7 +11,6 @@ const OFFICIAL_CALENDAR_2026_27 = [
   { title: "Prophet's Birthday", type: "Holiday", date: "2026-08-26" },
   { title: "First Day of School", type: "Academic", date: "2026-08-27" },
   { title: "Welcome Coffee", type: "Event", date: "2026-09-04" },
-  { title: "Halloween / Culture Day", type: "Event", date: "2026-10-16" },
   { title: "October Break", type: "Holiday", date: "2026-10-19", endDate: "2026-10-23" },
   { title: "All Saint Day", type: "Holiday", date: "2026-11-01" },
   { title: "Student Led Conferences", type: "Academic", date: "2026-11-09", endDate: "2026-11-13" },
@@ -122,7 +121,9 @@ function CalendarTab({ data, persist, profile }) {
 
   const removeEvent = (id) => persist({ ...data, events: (data.events || []).filter((e) => e.id !== id) });
 
-  const alreadyLoaded = OFFICIAL_CALENDAR_2026_27.every((oe) =>
+  // Offer the official list only while none of it is on the calendar, so removing
+  // one event doesn't bring the button (and that event) back.
+  const alreadyLoaded = OFFICIAL_CALENDAR_2026_27.some((oe) =>
     (data.events || []).some((e) => e.title === oe.title && e.date === oe.date)
   );
 

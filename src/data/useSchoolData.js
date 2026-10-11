@@ -37,7 +37,10 @@ function mergeSchoolValue(base, mine, theirs) {
     const mineIds = new Set(mine.map((x) => x.id));
     const out = [];
     mine.forEach((x) => {
-      const v = mergeSchoolValue(baseById.get(x.id), x, theirsById.get(x.id));
+      const b = baseById.get(x.id);
+      // Someone else deleted it and we didn't change it: keep it deleted.
+      if (b !== undefined && !theirsById.has(x.id) && (x === b || JSON.stringify(x) === JSON.stringify(b))) return;
+      const v = mergeSchoolValue(b, x, theirsById.get(x.id));
       if (v !== undefined) out.push(v);
     });
     theirs.forEach((x) => {
