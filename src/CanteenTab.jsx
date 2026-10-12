@@ -165,6 +165,7 @@ export default function CanteenTab({ profile }) {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(null);
   const [staffDate, setStaffDate] = useState(toISO(new Date()));
+  const [showPaidMonth, setShowPaidMonth] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -213,7 +214,15 @@ export default function CanteenTab({ profile }) {
     });
     setSaving(false);
     if (err) { setStatus(err.message); return; }
-    setStatus(markPaid ? `Saved. ${start} to ${end}.` : tr("saved"));
+    if (markPaid) {
+      const who = students.find((x) => x.id === studentId)?.full_name || "";
+      setStatus(`Saved for ${who}. ${start} to ${end}.`);
+      // Paid: close this student so the name leaves the list.
+      setSelected(null);
+      setSearch("");
+    } else {
+      setStatus(tr("saved"));
+    }
     load();
   }
 
@@ -372,7 +381,18 @@ export default function CanteenTab({ profile }) {
   });
 
   const term = search.trim().toLowerCase();
-  const shown = term ? students.filter((s) => (s.full_name || "").toLowerCase().includes(term)) : students;
+  // Students whose month is already paid are hidden from "Record a pass",
+  // so the same name is not recorded twice. The month follows the chosen date.
+  const monthRange = rangeFor("month", staffDate);
+  const monthName = parseISO(monthRange.start).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const paidMonthIds = new Set(
+    passes
+      .filter((p) => p.paid && p.pass_type === "month" && p.start_date <= monthRange.end && p.end_date >= monthRange.start)
+      .map((p) => p.student_id)
+  );
+  const matching = term ? students.filter((s) => (s.full_name || "").toLowerCase().includes(term)) : students;
+  const hiddenPaid = matching.filter((s) => paidMonthIds.has(s.id));
+  const shown = showPaidMonth ? matching : matching.filter((s) => !paidMonthIds.has(s.id));
   const selectedPasses = selected ? passes.filter((p) => p.student_id === selected.id) : [];
   const awaiting = passes.filter((p) => !p.paid);
 
@@ -436,6 +456,24 @@ export default function CanteenTab({ profile }) {
             style={{ ...input, marginBottom: 10 }}
           />
 
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 13, color: COLORS.muted }}>
+            <span>Month:</span>
+            <input
+              type="month"
+              value={staffDate.slice(0, 7)}
+              onChange={(e) => e.target.value && setStaffDate(e.target.value + "-01")}
+              style={{ ...input, width: "auto", padding: "4px 8px" }}
+            />
+            <span>
+              {paidMonthIds.size} paid for {monthName}{!showPaidMonth && paidMonthIds.size > 0 ? " (hidden)" : ""}
+            </span>
+            {hiddenPaid.length > 0 || showPaidMonth ? (
+              <button onClick={() => setShowPaidMonth(!showPaidMonth)} style={{ ...chip, padding: "4px 10px" }}>
+                {showPaidMonth ? "Hide paid" : "Show paid"}
+              </button>
+            ) : null}
+          </div>
+
           <div style={{ maxHeight: 160, overflowY: "auto", border: `1px solid ${COLORS.line}`, borderRadius: 8, marginBottom: 14 }}>
             {shown.map((s) => (
               <div
@@ -445,10 +483,17 @@ export default function CanteenTab({ profile }) {
               >
                 {s.full_name}
                 <span style={{ color: COLORS.faint, marginLeft: 8, fontSize: 13 }}>{s.grade}</span>
+                {paidMonthIds.has(s.id) && <span style={{ color: COLORS.ok, marginLeft: 8, fontSize: 13 }}>· paid for {monthName}</span>}
               </div>
             ))}
-            {shown.length === 0 && <div style={{ padding: 10, color: COLORS.faint, fontSize: 14 }}>No student found.</div>}
+            {shown.length === 0 && (
+              <div style={{ padding: 10, color: COLORS.faint, fontSize: 14 }}>
+                {hiddenPaid.length > 0 ? `Everyone here has paid for ${monthName}.` : "No student found."}
+              </div>
+            )}
           </div>
+
+          {!selected && status && <p style={{ fontSize: 13, margin: "0 0 10px", color: COLORS.ok }}>{status}</p>}
 
           {selected && (
             <>
