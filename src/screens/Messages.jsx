@@ -227,22 +227,29 @@ function useUnreadNoticeCount(profile) {
   return count;
 }
 
-function AbsenceNotices({ profile }) {
+// Only notices about this child (absence alerts and reports). School-wide
+// notices such as the lunch menu stay in the bell.
+function AbsenceNotices({ profile, studentId }) {
   const { language } = useLanguage();
   const [notices, setNotices] = useState([]);
   useEffect(() => {
     if (!profile?.id) return;
-    const load = () => supabase
-      .from("notifications")
-      .select("id, title, title_fr, body, body_fr, created_at")
-      .eq("user_id", profile.id)
-      .is("read_at", null)
-      .order("created_at", { ascending: false })
-      .then(({ data: rows, error }) => { if (!error) setNotices(rows || []); });
+    const load = () => {
+      let q = supabase
+        .from("notifications")
+        .select("id, title, title_fr, body, body_fr, created_at")
+        .eq("user_id", profile.id)
+        .is("read_at", null);
+      q = studentId
+        ? q.or(`student_id.eq.${studentId},and(student_id.is.null,kind.ilike.*absence*)`)
+        : q.ilike("kind", "*absence*");
+      return q.order("created_at", { ascending: false })
+        .then(({ data: rows, error }) => { if (!error) setNotices(rows || []); });
+    };
     load();
     window.addEventListener("bs-notices-changed", load);
     return () => window.removeEventListener("bs-notices-changed", load);
-  }, [profile?.id]);
+  }, [profile?.id, studentId]);
 
   const markRead = async (id) => {
     setNotices((list) => list.filter((n) => n.id !== id));
