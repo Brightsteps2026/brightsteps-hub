@@ -331,7 +331,13 @@ function RequestForm({ profile, staff, onCancel, onSaved }) {
       after_the_fact: past,
       ...(proof_path ? { proof_path, proof_name: proof.name, proof_added_at: new Date().toISOString() } : {})
     };
-    const { data: saved, error } = await supabase.from("leave_requests").insert(row).select("id").single();
+    let { data: saved, error } = await supabase.from("leave_requests").insert(row).select("id").single();
+    // Until the proof columns exist in the database, save the request the old way.
+    if (error && /after_the_fact|proof_/.test(error.message || "")) {
+      if (proof_path) { setBusy(false); return setErr("Proof files aren't switched on yet. Send the request without the file, or try again later."); }
+      const { after_the_fact, ...oldRow } = row;
+      ({ data: saved, error } = await supabase.from("leave_requests").insert(oldRow).select("id").single());
+    }
     setBusy(false);
     if (error) return setErr("Couldn't send: " + error.message);
     // Email the Director. The bell notice comes from the database, so a failed email doesn't block the request.
