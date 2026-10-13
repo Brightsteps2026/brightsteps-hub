@@ -31,7 +31,7 @@ export const GLOBAL_CONTEXTS = [
 
 export const UNIT_SUBJECTS = [
   "Literacy", "Math", "Science", "Social studies", "French", "Art", "Music",
-  "PE & health", "Life skills", "Whole school"
+  "PE & health", "SEL", "Life skills", "Whole school"
 ];
 
 const MIDDLE_GRADES = ["Grade 6", "Grade 7"];
