@@ -239,7 +239,8 @@ function AbsenceNotices({ profile, studentId }) {
         .from("notifications")
         .select("id, title, title_fr, body, body_fr, created_at")
         .eq("user_id", profile.id)
-        .is("read_at", null);
+        .is("read_at", null)
+        .gte("created_at", new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString());
       q = studentId
         ? q.or(`student_id.eq.${studentId},and(student_id.is.null,kind.ilike.*absence*)`)
         : q.ilike("kind", "*absence*");
