@@ -11,13 +11,14 @@ let GRADES = [...CORE_GRADES];
 
 const TAGS = ["Inquiry", "Literacy", "Numeracy", "Social Emotional", "Creative Arts", "Physical"];
 
+// Unit themes, named as in the school's curriculum documents (staff screens only).
 const THEMES = [
-  "Identity and relationships",
-  "Time, place and change",
-  "Expression and creativity",
-  "How the world works",
-  "Systems and communities",
-  "Our planet and its future"
+  "Who We Are",
+  "Where We Are in Place and Time",
+  "How We Express Ourselves",
+  "How the World Works",
+  "How We Organize Ourselves",
+  "Sharing the Planet"
 ];
 
 const PLAN_TEMPLATE = {

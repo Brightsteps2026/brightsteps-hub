@@ -472,6 +472,7 @@ function PlanningTab({ data, persist }) {
             <select value={form.theme} onChange={(e) => setForm({ ...form, theme: e.target.value })}>
               <option value="">No theme</option>
               {THEMES.map((t) => <option key={t} value={t}>{t}</option>)}
+              {form.theme && !THEMES.includes(form.theme) && <option value={form.theme}>{form.theme}</option>}
             </select>
           </Field>
           <Field label="Subject">
