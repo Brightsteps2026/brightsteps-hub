@@ -68,14 +68,20 @@ function Pill({ tone, children }) {
   );
 }
 
-async function openPlans(path) {
+async function openPlans(path, what = "the sub plans") {
   try {
     const url = await getAttachmentUrl(path);
     window.open(url, "_blank", "noopener");
   } catch (e) {
-    alert("Couldn't open the sub plans: " + e.message);
+    alert(`Couldn't open ${what}: ` + e.message);
   }
 }
+
+const openProof = (path) => openPlans(path, "the proof file");
+
+// Proof files (doctor's note, etc.) go in their own folder, which only the
+// uploader and admins can open.
+const proofFolder = (profile) => `leave-proof/${profile.id}`;
 
 function coverLabel(r, names) {
   if (r.cover_teacher_id) return names[r.cover_teacher_id] || "Staff member";
@@ -169,12 +175,12 @@ function TeacherView({ profile }) {
       )}
 
       {rows.length === 0 && <p style={{ ...card, fontSize: 14, color: COLORS.muted }}>Your leave requests will appear here.</p>}
-      {rows.map((r) => <MyRequestCard key={r.id} r={r} names={names} reload={load} />)}
+      {rows.map((r) => <MyRequestCard key={r.id} r={r} names={names} profile={profile} reload={load} />)}
     </div>
   );
 }
 
-function MyRequestCard({ r, names, reload }) {
+function MyRequestCard({ r, names, profile, reload }) {
   const [reply, setReply] = useState(r.teacher_reply || "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -187,6 +193,22 @@ function MyRequestCard({ r, names, reload }) {
     setBusy(false);
     if (error) { setErr(error.message); return; }
     reload();
+  }
+
+  async function addProof(file) {
+    if (!file) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const up = await uploadAttachment(file, proofFolder(profile));
+      const { error } = await supabase.rpc("leave_add_proof", { p_id: r.id, p_path: up.path, p_name: file.name });
+      if (error) throw error;
+      reload();
+    } catch (e) {
+      setErr("Couldn't add the proof file: " + e.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function cancel() {
@@ -206,6 +228,21 @@ function MyRequestCard({ r, names, reload }) {
       </div>
       <p style={{ margin: "4px 0 0", fontSize: 13, color: COLORS.muted }}>{dateRange(r)} · {r.reason}</p>
       <p style={{ margin: "2px 0 0", fontSize: 13, color: COLORS.muted }}>Cover: {coverLabel(r, names)} · Sub plans: {r.sub_plans_ready ? "ready" : "not yet"}</p>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+        {r.proof_path ? (
+          <>
+            <Pill tone={TONES.ok}>Proof attached</Pill>
+            <button style={secondaryBtn} onClick={() => openProof(r.proof_path)}>Open</button>
+          </>
+        ) : (
+          <label style={{ ...secondaryBtn, display: "inline-flex", alignItems: "center", cursor: busy ? "default" : "pointer" }}>
+            {busy ? "Uploading…" : "Add proof (doctor's note…)"}
+            <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} disabled={busy}
+              onChange={(e) => { addProof(e.target.files?.[0]); e.target.value = ""; }} />
+          </label>
+        )}
+      </div>
 
       {r.director_comment && (
         <div style={{ marginTop: 10, background: TONES.brand.bg, borderRadius: 10, padding: "8px 12px", fontSize: 14 }}>
@@ -245,10 +282,12 @@ function RequestForm({ profile, staff, onCancel, onSaved }) {
     sub_plans_ready: null
   });
   const [file, setFile] = useState(null);
+  const [proof, setProof] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const set = (k, v) => { setF((x) => ({ ...x, [k]: v })); setErr(""); };
   const multi = f.leave_type === "multi_day";
+  const past = !!f.start_date && f.start_date < todayStr();
 
   async function submit() {
     if (!f.start_date) return setErr("Choose a date.");
@@ -269,6 +308,16 @@ function RequestForm({ profile, staff, onCancel, onSaved }) {
         return setErr("Couldn't upload the sub plans: " + e.message);
       }
     }
+    let proof_path = null;
+    if (proof) {
+      try {
+        const up = await uploadAttachment(proof, proofFolder(profile));
+        proof_path = up.path;
+      } catch (e) {
+        setBusy(false);
+        return setErr("Couldn't upload the proof file: " + e.message);
+      }
+    }
     const row = {
       leave_type: f.leave_type,
       start_date: f.start_date,
@@ -278,11 +327,16 @@ function RequestForm({ profile, staff, onCancel, onSaved }) {
       cover_teacher_id: f.cover === "other" ? null : f.cover,
       cover_other: f.cover === "other" ? f.cover_other.trim() : null,
       sub_plans_ready: f.sub_plans_ready || !!sub_plans_path,
-      sub_plans_path
+      sub_plans_path,
+      after_the_fact: past,
+      ...(proof_path ? { proof_path, proof_name: proof.name, proof_added_at: new Date().toISOString() } : {})
     };
-    const { error } = await supabase.from("leave_requests").insert(row);
+    const { data: saved, error } = await supabase.from("leave_requests").insert(row).select("id").single();
     setBusy(false);
     if (error) return setErr("Couldn't send: " + error.message);
+    // Email the Director. The bell notice comes from the database, so a failed email doesn't block the request.
+    supabase.functions.invoke("notify-leave-request", { body: { id: saved.id } })
+      .catch((e) => console.error("Leave email failed", e));
     onSaved();
   }
 
@@ -310,6 +364,12 @@ function RequestForm({ profile, staff, onCancel, onSaved }) {
         )}
       </div>
 
+      {past && (
+        <p style={{ margin: "10px 0 0", fontSize: 13, color: TONES.info.fg, background: TONES.info.bg, borderRadius: 10, padding: "8px 12px" }}>
+          This absence has already happened. Please attach proof below if you have it (doctor's note, etc.).
+        </p>
+      )}
+
       <label style={label}>Reason</label>
       <input style={input} value={f.reason} placeholder="Medical appointment" onChange={(e) => set("reason", e.target.value)} />
 
@@ -336,6 +396,12 @@ function RequestForm({ profile, staff, onCancel, onSaved }) {
         <label style={label}>Attach sub plans (optional)</label>
         <input type="file" style={{ fontSize: 13 }} onChange={(e) => setFile(e.target.files?.[0] || null)} />
         <p style={{ margin: "4px 0 0", fontSize: 12, color: COLORS.muted }}>The person covering your class will be able to open this file.</p>
+      </div>
+
+      <div style={{ borderTop: `1px solid ${COLORS.line}`, marginTop: 16, paddingTop: 4 }}>
+        <label style={label}>Proof (doctor's note, etc.){past ? "" : " — optional"}</label>
+        <input type="file" accept="image/*,application/pdf" style={{ fontSize: 13 }} onChange={(e) => { setProof(e.target.files?.[0] || null); setErr(""); }} />
+        <p style={{ margin: "4px 0 0", fontSize: 12, color: COLORS.muted }}>A photo or PDF. Only the Director can open it. You can also add it later.</p>
       </div>
 
       {err && <p style={{ margin: "12px 0 0", fontSize: 13, color: TONES.bad.fg }}>{err}</p>}
@@ -416,6 +482,14 @@ function DecisionCard({ r, names, reload }) {
         <Pill tone={st.tone}>{st.label}</Pill>
       </div>
       <p style={{ margin: "4px 0 0", fontSize: 13, color: COLORS.muted }}>{TYPE_LABEL[r.leave_type]} · {dateRange(r)} · {dayCount(r)} day{dayCount(r) === 1 ? "" : "s"}</p>
+      {(r.after_the_fact || r.proof_path) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+          {r.after_the_fact && <Pill tone={TONES.info}>Entered after the absence</Pill>}
+          {r.proof_path
+            ? <button style={secondaryBtn} onClick={() => openProof(r.proof_path)}>Open proof{r.proof_name ? ` (${r.proof_name})` : ""}</button>
+            : <span style={{ fontSize: 13, color: COLORS.muted }}>No proof attached</span>}
+        </div>
+      )}
       <p style={{ margin: "2px 0 0", fontSize: 14 }}>{r.reason}</p>
       {r.note && <p style={{ margin: "2px 0 0", fontSize: 13, color: COLORS.muted }}>{r.note}</p>}
       <p style={{ margin: "8px 0 0", fontSize: 13 }}>
