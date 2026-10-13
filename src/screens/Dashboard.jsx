@@ -198,7 +198,7 @@ const saveLunchMenu = async () => {
     .filter((e) => !isParent || !isStaffOnlyEvent(e))
     .filter((e) => !isParent || !e.grades || e.grades.length === 0 || myStudents.some((s) => e.grades.includes(s.grade)))
     .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(0, 2);
+    .slice(0, 4);
 
   const openChildProfile = (studentId) => {
     pending.childProfileId = studentId;
