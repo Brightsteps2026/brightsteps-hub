@@ -39,7 +39,10 @@ function StudentMessages({ student, data, persist }) {
   const isStudentUser = role === "student";
   const isParentUser = role === "parent";
   const isStaffUser = !isStudentUser && !isParentUser;
-  const hasStudentThread = GRADES.indexOf(student.grade) >= GRADES.indexOf("Grade 3");
+  const isAssistantUser = role === "learning_assistant";
+  // Learning assistants can read the parents' thread but never write in it,
+  // and never see a Grade 3+ student's private thread.
+  const hasStudentThread = !isAssistantUser && GRADES.indexOf(student.grade) >= GRADES.indexOf("Grade 3");
   const [messageText, setMessageText] = useState("");
   const [sending, setSending] = useState(false);
   const [staffThread, setStaffThread] = useState(() =>
@@ -53,7 +56,7 @@ function StudentMessages({ student, data, persist }) {
 
   useEffect(() => {
     if (!profile?.id || !student?.id) return;
-    if (role === "viewer") return;
+    if (role === "viewer" || role === "learning_assistant") return;
     // Only save "last read" when there is actually something new to mark as read.
     const seen = (student[F.read] || {})[profile.id] || "";
     const hasNew = (student[F.msgs] || []).some((m) => (m.createdAt || m.date || "") > seen);
@@ -123,6 +126,8 @@ function StudentMessages({ student, data, persist }) {
     ? "A private thread between you and your teachers."
     : isParentUser
       ? (fr ? `Échanges privés entre les parents et les enseignants au sujet de ${student.name}.` : `A private thread between parents and teachers about ${student.name}.`)
+      : isAssistantUser
+        ? `The parents' thread about ${student.name}. You can read it; only teachers reply.`
       : thread === "student"
         ? `A private thread between ${student.name} and teachers. Parents don't see it.`
         : `A private thread between parents and teachers about ${student.name}. ${student.name} doesn't see it.`;

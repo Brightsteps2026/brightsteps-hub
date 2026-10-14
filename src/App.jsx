@@ -93,7 +93,7 @@ function BrightStepsHubInner() {
   // An accountant only ever needs billing, nothing about students' academic
   // records, behavior, or staff information.
   const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "billing", "checkin", "leave"];
-  const RESTRICTED_TEACHER_TABS = ["checkin", "leave", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "assignments", "reports", "calendar", "incidents", "updates", "resources"];
+  const RESTRICTED_TEACHER_TABS = ["checkin", "leave", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "planning", "assignments", "reports", "calendar", "incidents", "updates", "resources"];
   // Set per teacher by the admin in the database (profiles.limited_access).
   const isRestrictedTeacher = profile?.role === "teacher" && profile?.limited_access === true;
   // Pre-N through Grade 2: reflections only. Grade 3 and up: can also see (not edit)

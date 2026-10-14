@@ -435,7 +435,7 @@ function StudentsTab({ data, persist, profile }) {
       )}
 
       {familyViewStudent && (
-        <FamilyViewModal student={familyViewStudent} data={data} onClose={() => setFamilyViewId(null)} hideContacts={isTeacherRole} />
+        <FamilyViewModal student={familyViewStudent} data={data} onClose={() => setFamilyViewId(null)} hideContacts={isTeacherRole} showMessages={isLearningAssistant} />
       )}
 
       {showBulkAdd && canEditStudents && (

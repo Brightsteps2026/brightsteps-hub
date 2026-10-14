@@ -6,7 +6,7 @@ import { EventRow, Modal, StudentThumb } from "../ui/common";
 import { StudentMessages, AbsenceNotices } from "./Messages";
 import { pending } from "../data/pending";
 
-function FamilyViewModal({ student, data, onClose, hideContacts = false }) {
+function FamilyViewModal({ student, data, onClose, hideContacts = false, showMessages = false }) {
   const today = todayStr();
   const settings = data.settings || DEFAULT_SETTINGS;
   const terms = settings.terms || DEFAULT_SETTINGS.terms;
@@ -211,6 +211,12 @@ function FamilyViewModal({ student, data, onClose, hideContacts = false }) {
           </div>
         ))}
       </section>
+      {showMessages && (
+        <section className="bsf-section">
+          {/* Read-only for learning assistants: they can't post, so persist is never needed. */}
+          <StudentMessages student={student} data={data} persist={() => Promise.resolve(false)} />
+        </section>
+      )}
     </Modal>
   );
 }
