@@ -4,6 +4,7 @@ import { useLanguage, pluralKey } from "../lib/i18n";
 import { GRADES, ASSESS_LEVELS, getLevelColor, DEFAULT_SETTINGS, LETTER_GRADE_MEANING, LEARNING_PROGRESS_BAND, LETTER_GRADE_COLOR } from "../data/constants";
 import { uid, todayStr, formatDateLong, gradeLabel, tLabel, attendanceCountsForRange } from "../lib/format";
 import { Field, Modal } from "../ui/common";
+import { TermReportsStaff, TermReportsFamily } from "../TermReports";
 
 function ReportViewModal({ report, data, onClose, onRemove }) {
   const { t, language } = useLanguage();
@@ -630,7 +631,16 @@ function ReportsTab({ data, persist, profile }) {
         <h1>{isParent ? t("reports.parentTitle") : "Reports"}</h1>
         {!isParent && <button className="bsf-btn" onClick={() => openForm("student")} disabled={data.students.length === 0}><Plus size={16} /> Generate</button>}
       </div>
+      {!isParent && <TermReportsStaff profile={profile} data={data} />}
+      {!isParent && <h2 style={{ margin: "8px 0 10px" }}>Other reports</h2>}
       {!isParent && data.students.length === 0 && <p className="bsf-empty">Add students first, then generate reports here.</p>}
+      {isParent && (
+        <section className="bsf-list">
+          {(data.students || []).filter((s) => linkedIds.includes(s.id)).map((s) => (
+            <TermReportsFamily key={s.id} hubStudentId={s.id} data={data} />
+          ))}
+        </section>
+      )}
       {isParent && reports.length === 0 && <p className="bsf-empty">{t("reports.emptyChild")}</p>}
 
       <section className="bsf-list">

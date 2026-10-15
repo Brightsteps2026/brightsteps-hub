@@ -197,7 +197,10 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
   // "early" below means: graded with levels (Pre-N to Grade 2, and specials in every grade).
   const isSpecial = SPECIALS.includes(subject);
   const early = earlySection || isSpecial;
-  const commentMode = earlySection && isSpecial && COMMENT_GRADES.includes(grade);
+  const appreciationOnly = earlySection && isSpecial && COMMENT_GRADES.includes(grade);
+  // "marks" (the grid) or "comments" (one report-card line per child).
+  const [view, setView] = useState("marks");
+  const commentMode = appreciationOnly || view === "comments";
 
   const [counts, setCounts] = useState({});
   const [usedSubjects, setUsedSubjects] = useState([]);
@@ -522,6 +525,12 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
             </div>
           </div>
         </div>
+        {!appreciationOnly && (
+          <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+            <button onClick={() => setView("marks")} style={view === "marks" ? chipOn : chip}>{early ? "Levels" : "Marks"}</button>
+            <button onClick={() => setView("comments")} style={view === "comments" ? chipOn : chip}>Report comments</button>
+          </div>
+        )}
         {!canEdit && (
           <p style={{ margin: "12px 0 0", fontSize: 13, color: COLORS.warn, background: COLORS.warnBg, borderRadius: 8, padding: "8px 10px" }}>
             You can view this class but not change marks.
@@ -530,7 +539,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
       </div>
 
       {commentMode ? (
-        <SubjectComments grade={grade} subject={subject} term={term} canEdit={canEdit} />
+        <SubjectComments grade={grade} subject={subject} term={term} canEdit={canEdit} oneLine={!appreciationOnly} />
       ) : (<>
       {early ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 14 }}>
@@ -732,7 +741,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
 
 // Pre-N, PreK and Kindergarten specials: one written appreciation per child,
 // per subject and term (no levels).
-function SubjectComments({ grade, subject, term, canEdit }) {
+function SubjectComments({ grade, subject, term, canEdit, oneLine = false }) {
   const [students, setStudents] = useState([]);
   const [comments, setComments] = useState({});
   const [drafts, setDrafts] = useState({});
@@ -789,11 +798,13 @@ function SubjectComments({ grade, subject, term, canEdit }) {
   return (
     <div style={card}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
-        <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{grade} · {subject} · Term {term} · Appreciation</p>
+        <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{grade} · {subject} · Term {term} · {oneLine ? "Report comment" : "Appreciation"}</p>
         {!loading && !error && <span style={{ fontSize: 13, color: COLORS.muted }}>{done} of {students.length} written</span>}
       </div>
       <p style={{ margin: "0 0 12px", fontSize: 13, color: COLORS.muted }}>
-        2–3 sentences per child: what they enjoy, a skill they have shown, and one thing to work on next. It saves when you leave the box.
+        {oneLine
+          ? "One sentence per child for the report card: what they do well in this subject, or what comes next. It saves when you leave the box."
+          : "2–3 sentences per child: what they enjoy, a skill they have shown, and one thing to work on next. It saves when you leave the box."}
       </p>
       {status && <p style={{ margin: "0 0 10px", fontSize: 13, color: COLORS.bad }}>{status}</p>}
       {loading ? (
@@ -811,11 +822,11 @@ function SubjectComments({ grade, subject, term, canEdit }) {
               {canEdit ? (
                 <textarea
                   id={`cm-${s.id}`}
-                  rows={3}
+                  rows={oneLine ? 2 : 3}
                   value={value}
                   onChange={(e) => setDrafts((d) => ({ ...d, [s.id]: e.target.value }))}
                   onBlur={() => save(s.id)}
-                  placeholder="e.g. Ama loves singing and now keeps the beat with the class. Next, she will work on singing in a small group."
+                  placeholder={oneLine ? "e.g. Explains her reasoning clearly in multi-step problems." : "e.g. Ama loves singing and now keeps the beat with the class. Next, she will work on singing in a small group."}
                   style={{ ...input, resize: "vertical", lineHeight: 1.5 }}
                 />
               ) : (
@@ -1045,3 +1056,6 @@ function SkillsGradebook({ grades, editGrades }) {
     </>
   );
 }
+
+// Shared with the term report cards (TermReports.jsx).
+export { SCHOOL_YEAR, EARLY, SUBJECTS, SPECIALS, COMMENT_GRADES, termFor, termLevelFor };

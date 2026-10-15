@@ -5,6 +5,7 @@ import { todayStr, formatDateLong, gradeLabel, tLabel, attendanceCountsForRange 
 import { EventRow, Modal, StudentThumb } from "../ui/common";
 import { StudentMessages, AbsenceNotices } from "./Messages";
 import { pending } from "../data/pending";
+import { TermReportsFamily } from "../TermReports";
 
 function FamilyViewModal({ student, data, onClose, hideContacts = false, showMessages = false }) {
   const today = todayStr();
@@ -452,7 +453,7 @@ function ParentStudentView({ data, persist, profile }) {
 
           <section className="bsf-card">
             <h2>{t("nav.reports")}</h2>
-            {reports.length === 0 && <p className="bsf-empty">{t("child.noReports")}</p>}
+            <TermReportsFamily hubStudentId={activeStudent.id} data={data} otherCount={reports.length} emptyText={t("child.noReports")} />
             {reports.map((r) => (
               <div key={r.id} className="bsf-row">
                 <span className="bsf-tag">{r.template}</span>

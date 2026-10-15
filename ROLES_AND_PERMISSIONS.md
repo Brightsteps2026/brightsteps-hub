@@ -59,3 +59,12 @@ Same as Teacher, but typically without permission to finalize grades or generate
 - This maps directly onto Supabase Auth plus Row Level Security policies, one policy per table per role
 - The current hub stores everything as a single JSON document per data type; a real backend should normalize this into proper relational tables (students, staff, attendance, portfolio_entries, assessments, etc.) with foreign keys, rather than keeping the single blob structure
 - Grade level assignment for Teachers and Learning Assistants should live on their user profile so Row Level Security can filter automatically, rather than being checked in application code
+
+## Term report cards (October 2026)
+
+Built from the Gradebook and saved in `term_reports` (see `supabase/term-reports.sql`).
+
+- **Admin:** makes, refreshes, publishes and unpublishes report cards for every grade; adds the optional principal's comment on Term 3.
+- **Teacher:** makes and refreshes drafts for their own grades (not assistant grades) and picks portfolio photos for early years. Cannot publish, and cannot change a published report card.
+- **Learning assistant / viewer:** can look, cannot change.
+- **Parent / student:** only published report cards of their own children. Each parent gets a bell notice when one is published.

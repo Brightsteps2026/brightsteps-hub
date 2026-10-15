@@ -16,7 +16,9 @@ src/
   LoginGate.jsx           sign-in, first password, sign-out
   screens/                one file per screen (Dashboard, Students, Messages, Attendance, Calendar, ...)
   CanteenTab.jsx, IncidentsTab.jsx, LeaveTab.jsx, StaffCheckinTab.jsx,
-  SchoolGradebook.jsx, AbsenceReport.jsx   newer screens with their own database tables
+  SchoolGradebook.jsx, AbsenceReport.jsx,
+  TermReports.jsx                        newer screens with their own database tables
+                                         (TermReports: term report cards built from the Gradebook)
   data/                   constants (grades, defaults), loading/saving the school data, country list
   lib/                    Supabase connection, translations (i18n.jsx), small helpers (format.js), attachments
   ui/                     shared pieces (common.jsx) and shared colours/styles (tokens.js)
