@@ -17,7 +17,11 @@ const SCHOOL_YEAR = "2026-2027";
 const UPPER = ["Grade 3", "Grade 4", "Grade 5", "Grade 6", "Grade 7"];
 const EARLY = ["Pre-N", "PreK", "Kindergarten", "Grade 1", "Grade 2"];
 const ALL_GRADES = [...EARLY, ...UPPER];
-const SUBJECTS = ["English Language Arts", "Math", "French", "Unit of Inquiry", "Art", "Music", "Physical Education"];
+const SUBJECTS = ["English Language Arts", "Math", "French", "Unit of Inquiry", "Art", "Music", "Physical Education", "Swimming", "Technology"];
+// Specials: graded with levels in every grade, and with a written appreciation
+// (no levels) in Pre-N, PreK and Kindergarten.
+const SPECIALS = ["Art", "Music", "Physical Education", "Swimming", "Technology"];
+const COMMENT_GRADES = ["Pre-N", "PreK", "Kindergarten"];
 
 const card = { ...cardToken, marginBottom: 14 };
 const secondaryBtn = ghostBtn;
@@ -184,10 +188,15 @@ export default function SchoolGradebook({ profile }) {
   );
 }
 
-function ClassGradebook({ grades, editGrades, early }) {
+function ClassGradebook({ grades, editGrades, early: earlySection }) {
   const [grade, setGrade] = useState(grades[0]);
   const [subject, setSubject] = useState(SUBJECTS[0]);
   const [term, setTerm] = useState(1);
+
+  // "early" below means: graded with levels (Pre-N to Grade 2, and specials in every grade).
+  const isSpecial = SPECIALS.includes(subject);
+  const early = earlySection || isSpecial;
+  const commentMode = earlySection && isSpecial && COMMENT_GRADES.includes(grade);
 
   const [counts, setCounts] = useState({});
   const [usedSubjects, setUsedSubjects] = useState([]);
@@ -519,6 +528,9 @@ function ClassGradebook({ grades, editGrades, early }) {
         )}
       </div>
 
+      {commentMode ? (
+        <SubjectComments grade={grade} subject={subject} term={term} canEdit={canEdit} />
+      ) : (<>
       {early ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 14 }}>
           <div style={{ ...card, marginBottom: 0 }}>
@@ -712,6 +724,106 @@ function ClassGradebook({ grades, editGrades, early }) {
           </>
         )}
       </div>
+      </>)}
     </>
+  );
+}
+
+// Pre-N, PreK and Kindergarten specials: one written appreciation per child,
+// per subject and term (no levels).
+function SubjectComments({ grade, subject, term, canEdit }) {
+  const [students, setStudents] = useState([]);
+  const [comments, setComments] = useState({});
+  const [drafts, setDrafts] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [status, setStatus] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setLoading(true); setError(""); setStatus(""); setDrafts({});
+      const st = await supabase.from("students").select("id, full_name").eq("grade", grade).order("full_name");
+      if (st.error) { if (alive) { setError(st.error.message); setLoading(false); } return; }
+      const ids = (st.data || []).map((x) => x.id);
+      let c = {};
+      if (ids.length) {
+        const cm = await supabase.from("gb_subject_comments").select("student_id, comment")
+          .in("student_id", ids).eq("subject", subject).eq("term", term).eq("school_year", SCHOOL_YEAR);
+        if (cm.error) {
+          if (alive) {
+            setError(/gb_subject_comments/.test(cm.error.message)
+              ? "Appreciations aren't switched on yet. Please ask the office to run the latest gradebook script."
+              : cm.error.message);
+            setLoading(false);
+          }
+          return;
+        }
+        (cm.data || []).forEach((r) => { c[r.student_id] = r.comment || ""; });
+      }
+      if (alive) { setStudents(st.data || []); setComments(c); setLoading(false); }
+    })();
+    return () => { alive = false; };
+  }, [grade, subject, term]);
+
+  async function save(studentId) {
+    if (!(studentId in drafts)) return;
+    const text = drafts[studentId].trim();
+    if (text === (comments[studentId] || "")) {
+      setDrafts((d) => { const n = { ...d }; delete n[studentId]; return n; });
+      return;
+    }
+    const { error: err } = await supabase.from("gb_subject_comments").upsert(
+      { student_id: studentId, school_year: SCHOOL_YEAR, term, subject, comment: text || null },
+      { onConflict: "student_id,school_year,term,subject" }
+    );
+    if (err) { setStatus(`Not saved: ${err.message}`); return; }
+    setComments((c) => ({ ...c, [studentId]: text }));
+    setDrafts((d) => { const n = { ...d }; delete n[studentId]; return n; });
+    setStatus("");
+  }
+
+  const done = students.filter((s) => (comments[s.id] || "").trim()).length;
+
+  return (
+    <div style={card}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+        <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{grade} · {subject} · Term {term} · Appreciation</p>
+        {!loading && !error && <span style={{ fontSize: 13, color: COLORS.muted }}>{done} of {students.length} written</span>}
+      </div>
+      <p style={{ margin: "0 0 12px", fontSize: 13, color: COLORS.muted }}>
+        2–3 sentences per child: what they enjoy, a skill they have shown, and one thing to work on next. It saves when you leave the box.
+      </p>
+      {status && <p style={{ margin: "0 0 10px", fontSize: 13, color: COLORS.bad }}>{status}</p>}
+      {loading ? (
+        <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>Loading…</p>
+      ) : error ? (
+        <p style={{ margin: 0, fontSize: 14, color: COLORS.bad }}>Could not load: {error}</p>
+      ) : students.length === 0 ? (
+        <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>No students in {grade}.</p>
+      ) : (
+        students.map((s) => {
+          const value = s.id in drafts ? drafts[s.id] : comments[s.id] || "";
+          return (
+            <div key={s.id} style={{ borderTop: `1px solid ${COLORS.line}`, padding: "10px 0" }}>
+              <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 6 }} htmlFor={`cm-${s.id}`}>{s.full_name}</label>
+              {canEdit ? (
+                <textarea
+                  id={`cm-${s.id}`}
+                  rows={3}
+                  value={value}
+                  onChange={(e) => setDrafts((d) => ({ ...d, [s.id]: e.target.value }))}
+                  onBlur={() => save(s.id)}
+                  placeholder="e.g. Ama loves singing and now keeps the beat with the class. Next, she will work on singing in a small group."
+                  style={{ ...input, resize: "vertical", lineHeight: 1.5 }}
+                />
+              ) : (
+                <p style={{ margin: 0, fontSize: 14, color: value ? COLORS.ink : COLORS.muted }}>{value || "Not written yet."}</p>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
   );
 }
