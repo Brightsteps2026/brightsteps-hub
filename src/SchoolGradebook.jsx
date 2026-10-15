@@ -3,8 +3,13 @@ import { supabase } from "./lib/supabaseClient";
 import { COLORS, FONT, TONES, card as cardToken, chip, chipOn, primaryBtn, ghostBtn, input, label, pill } from "./ui/tokens";
 
 // Staff screen, English only.
-// Gradebook backed by the gb_* tables (see gradebook-setup.sql).
-//   Grade 3 to Grade 7: marks, term % (70% summative + 30% formative) and letter.
+// Gradebook backed by the gb_* tables (see gradebook-setup.sql and
+// gradebook-types-letters-levels.sql).
+//   Grade 3 to Grade 7: each assessment is graded with marks (e.g. 14/20) or a
+//   letter (A+ ... F). Term % = 70% summative + 30% formative, then a letter.
+//   A letter counts at the middle of its band (B+ = 88%).
+//   Pre-N to Grade 2: the same grid with levels (Emerging, Developing,
+//   Meeting, Exceeding); the term level is the one the child got most often.
 //   Admin sees and edits everything; teachers edit their own grades;
 //   assistants (and a teacher's assistant grades) can only view.
 
@@ -38,6 +43,61 @@ function letterFor(pct) {
   if (pct == null) return null;
   for (const [min, l] of SCALE) if (pct >= min) return l;
   return "F";
+}
+
+// Assessment types, and what each counts as by default (the teacher can change it).
+const TYPES = [
+  { id: "quiz", label: "Quiz", kind: "formative" },
+  { id: "test", label: "Test", kind: "summative" },
+  { id: "informal", label: "Informal assessment", kind: "formative" },
+  { id: "project", label: "Project", kind: "summative" },
+  { id: "presentation", label: "Presentation", kind: "summative" },
+  { id: "homework", label: "Homework", kind: "formative" }
+];
+const typeLabel = (id) => TYPES.find((t) => t.id === id)?.label || "";
+
+// Letters a teacher can give, and the % each one counts as (same as the database).
+const LETTERS = ["A+", "A", "A−", "B+", "B", "B−", "C+", "C", "C−", "D+", "D", "D−", "F"];
+const LETTER_POINTS = { "A+": 98, "A": 95, "A−": 91, "B+": 88, "B": 85, "B−": 81, "C+": 78, "C": 75, "C−": 71, "D+": 68, "D": 65, "D−": 61, "F": 55 };
+
+// Early-years levels (Pre-N to Grade 2).
+const LEVELS = [
+  { id: "emerging", short: "E", label: "Emerging", tone: TONES.bad },
+  { id: "developing", short: "D", label: "Developing", tone: TONES.warn },
+  { id: "meeting", short: "M", label: "Meeting", tone: TONES.ok },
+  { id: "exceeding", short: "Ex", label: "Exceeding", tone: TONES.info }
+];
+const levelOf = (id) => LEVELS.find((l) => l.id === id);
+
+function shortDate(d) {
+  if (!d) return "";
+  return new Date(d + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+function LevelChip({ level }) {
+  const l = levelOf(level);
+  if (!l) return <span style={{ color: COLORS.muted }}>—</span>;
+  return (
+    <span title={l.label} style={{ ...pill(l.tone), minWidth: 30, textAlign: "center", padding: "3px 8px", fontSize: 13, fontWeight: 700 }}>
+      {l.short}
+    </span>
+  );
+}
+
+// The level a child got most often this term. A tie goes to the most recent one.
+function termLevelFor(studentId, assessments, marks) {
+  const count = {}, last = {};
+  assessments.forEach((a, i) => {
+    const lv = marks[`${a.id}:${studentId}`]?.level;
+    if (!lv) return;
+    count[lv] = (count[lv] || 0) + 1;
+    last[lv] = i;
+  });
+  let best = null;
+  Object.keys(count).forEach((lv) => {
+    if (!best || count[lv] > count[best] || (count[lv] === count[best] && last[lv] > last[best])) best = lv;
+  });
+  return best;
 }
 
 function listOf(v) {
@@ -100,7 +160,7 @@ export default function SchoolGradebook({ profile }) {
 
   const sections = [
     myUpper.length > 0 && { id: "academic", label: "Academic · Grade 3–7" },
-    myEarly.length > 0 && { id: "early", label: "Observations · Pre-N–Grade 2" },
+    myEarly.length > 0 && { id: "early", label: "Levels · Pre-N–Grade 2" },
     { id: "skills", label: "ATL · SEL · Life skills" }
   ].filter(Boolean);
 
@@ -112,12 +172,11 @@ export default function SchoolGradebook({ profile }) {
         ))}
       </div>
 
-      {section === "academic" && <AcademicGradebook grades={myUpper} editGrades={editGrades} />}
-      {section !== "academic" && (
+      {section === "academic" && <ClassGradebook key="academic" grades={myUpper} editGrades={editGrades} early={false} />}
+      {section === "early" && <ClassGradebook key="early" grades={myEarly} editGrades={editGrades} early />}
+      {section === "skills" && (
         <div style={card}>
-          <p style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 600 }}>
-            {section === "early" ? "Observations (Pre-N to Grade 2)" : "ATL · SEL · Life skills"}
-          </p>
+          <p style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 600 }}>ATL · SEL · Life skills</p>
           <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>This part of the gradebook is coming next.</p>
         </div>
       )}
@@ -125,7 +184,7 @@ export default function SchoolGradebook({ profile }) {
   );
 }
 
-function AcademicGradebook({ grades, editGrades }) {
+function ClassGradebook({ grades, editGrades, early }) {
   const [grade, setGrade] = useState(grades[0]);
   const [subject, setSubject] = useState(SUBJECTS[0]);
   const [term, setTerm] = useState(1);
@@ -140,9 +199,10 @@ function AcademicGradebook({ grades, editGrades }) {
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
 
+  const blankForm = () => ({ title: "", assess_type: "quiz", kind: "formative", grading: early ? "level" : "marks", max_points: "", assessed_on: todayISO() });
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ title: "", kind: "formative", max_points: "", assessed_on: todayISO() });
+  const [form, setForm] = useState(blankForm());
   const [saving, setSaving] = useState(false);
 
   const canEdit = editGrades.includes(grade);
@@ -170,15 +230,21 @@ function AcademicGradebook({ grades, editGrades }) {
     if (st.error) { setError(st.error.message); setLoading(false); return; }
     const as = await supabase
       .from("gb_assessments")
-      .select("id, title, kind, max_points, assessed_on, created_at")
+      .select("id, title, kind, max_points, assessed_on, created_at, assess_type, grading")
       .eq("grade", grade).eq("subject", subject).eq("term", term).eq("school_year", SCHOOL_YEAR)
       .order("assessed_on", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true });
-    if (as.error) { setError(as.error.message); setLoading(false); return; }
+    if (as.error) {
+      setError(/assess_type|grading/.test(as.error.message)
+        ? "The gradebook update hasn't been switched on yet. Please ask the office to run the latest gradebook script."
+        : as.error.message);
+      setLoading(false);
+      return;
+    }
     let m = {};
     const ids = (as.data || []).map((a) => a.id);
     if (ids.length) {
-      const mk = await supabase.from("gb_marks").select("assessment_id, student_id, points, excused").in("assessment_id", ids);
+      const mk = await supabase.from("gb_marks").select("assessment_id, student_id, points, excused, letter, level").in("assessment_id", ids);
       if (mk.error) { setError(mk.error.message); setLoading(false); return; }
       (mk.data || []).forEach((r) => { m[`${r.assessment_id}:${r.student_id}`] = r; });
     }
@@ -198,16 +264,26 @@ function AcademicGradebook({ grades, editGrades }) {
 
   const results = useMemo(() => {
     const r = {};
-    students.forEach((s) => { r[s.id] = termFor(s.id, assessments, marks); });
+    students.forEach((s) => {
+      r[s.id] = early ? { level: termLevelFor(s.id, assessments, marks) } : termFor(s.id, assessments, marks);
+    });
     return r;
-  }, [students, assessments, marks]);
+  }, [students, assessments, marks, early]);
 
+  // Summary numbers
   const withTerm = students.filter((s) => results[s.id]?.term != null);
   const classAvg = withTerm.length ? Math.round(withTerm.reduce((n, s) => n + results[s.id].term, 0) / withTerm.length) : null;
   const below70 = withTerm.filter((s) => results[s.id].term < 70).length;
   const nF = assessments.filter((a) => a.kind === "formative").length;
   const nS = assessments.length - nF;
+  const nEmerging = early ? students.filter((s) => results[s.id]?.level === "emerging").length : 0;
+  const nMeetingUp = early ? students.filter((s) => ["meeting", "exceeding"].includes(results[s.id]?.level)).length : 0;
 
+  function dropDraft(key) {
+    setDrafts((d) => { const n = { ...d }; delete n[key]; return n; });
+  }
+
+  // Marks typed into a box (saved when the teacher leaves the box).
   async function saveMark(a, studentId) {
     const key = `${a.id}:${studentId}`;
     if (!(key in drafts)) return;
@@ -217,27 +293,39 @@ function AcademicGradebook({ grades, editGrades }) {
     if (raw !== "") {
       points = Number(raw);
       if (Number.isNaN(points) || points < 0 || points > Number(a.max_points)) {
-        setStatus(`Marks for "${a.title}" must be between 0 and ${a.max_points}.`);
-        setDrafts((d) => { const n = { ...d }; delete n[key]; return n; });
+        setStatus(`Marks for "${a.title}" must be between 0 and ${Number(a.max_points)}.`);
+        dropDraft(key);
         return;
       }
     }
-    if (points === (before == null ? null : Number(before))) {
-      setDrafts((d) => { const n = { ...d }; delete n[key]; return n; });
-      return;
-    }
+    if (points === (before == null ? null : Number(before))) { dropDraft(key); return; }
     const { error: err } = await supabase
       .from("gb_marks")
       .upsert({ assessment_id: a.id, student_id: studentId, points, excused: false }, { onConflict: "assessment_id,student_id" });
     if (err) { setStatus(`Not saved: ${err.message}`); return; }
     setMarks((m) => ({ ...m, [key]: { assessment_id: a.id, student_id: studentId, points, excused: false } }));
-    setDrafts((d) => { const n = { ...d }; delete n[key]; return n; });
+    dropDraft(key);
     setStatus("");
   }
 
+  // A letter or a level picked from a list (saved straight away).
+  async function savePick(a, studentId, value) {
+    const key = `${a.id}:${studentId}`;
+    const field = a.grading === "letter" ? "letter" : "level";
+    const v = value || null;
+    const row = { assessment_id: a.id, student_id: studentId, excused: false, [field]: v };
+    const { error: err } = await supabase.from("gb_marks").upsert(row, { onConflict: "assessment_id,student_id" });
+    if (err) { setStatus(`Not saved: ${err.message}`); return; }
+    const points = field === "letter" && v ? LETTER_POINTS[v] : null;
+    setMarks((m) => ({ ...m, [key]: { ...row, points } }));
+    setStatus("");
+  }
+
+  const hasMarks = (id) => Object.values(marks).some((m) => m.assessment_id === id && (m.points != null || m.letter || m.level));
+
   function openNew() {
     setEditingId(null);
-    setForm({ title: "", kind: "formative", max_points: "", assessed_on: todayISO() });
+    setForm(blankForm());
     setFormOpen(true);
     setStatus("");
   }
@@ -245,22 +333,45 @@ function AcademicGradebook({ grades, editGrades }) {
   function openEdit(a) {
     if (!canEdit) return;
     setEditingId(a.id);
-    setForm({ title: a.title, kind: a.kind, max_points: String(a.max_points), assessed_on: a.assessed_on || "" });
+    setForm({
+      title: a.title,
+      assess_type: a.assess_type || "",
+      kind: a.kind,
+      grading: a.grading || (early ? "level" : "marks"),
+      max_points: a.grading === "marks" || !a.grading ? String(Number(a.max_points)) : "",
+      assessed_on: a.assessed_on || ""
+    });
     setFormOpen(true);
     setStatus("");
   }
 
+  function pickType(id) {
+    const t = TYPES.find((x) => x.id === id);
+    setForm((f) => ({ ...f, assess_type: id, kind: early ? "formative" : t.kind }));
+  }
+
   async function saveAssessment() {
     const title = form.title.trim();
-    const max = Number(String(form.max_points).replace(",", "."));
     if (!title) { setStatus("Give the assessment a name."); return; }
-    if (!(max > 0)) { setStatus("Enter the total marks (for example 20)."); return; }
-    if (editingId) {
-      const highest = Object.values(marks).filter((m) => m.assessment_id === editingId && m.points != null).reduce((n, m) => Math.max(n, Number(m.points)), 0);
-      if (max < highest) { setStatus(`Some marks are already higher than ${max}. Change those first.`); return; }
+    if (!form.assess_type) { setStatus("Choose the type of assessment."); return; }
+    let max = 100;
+    if (form.grading === "marks") {
+      max = Number(String(form.max_points).replace(",", "."));
+      if (!(max > 0)) { setStatus("Enter the total marks (for example 20)."); return; }
+      if (editingId) {
+        const highest = Object.values(marks).filter((m) => m.assessment_id === editingId && m.points != null).reduce((n, m) => Math.max(n, Number(m.points)), 0);
+        if (max < highest) { setStatus(`Some marks are already higher than ${max}. Change those first.`); return; }
+      }
     }
     setSaving(true);
-    const row = { title, kind: form.kind, max_points: max, assessed_on: form.assessed_on || null };
+    const row = {
+      title,
+      assess_type: form.assess_type,
+      kind: early ? "formative" : form.kind,
+      grading: form.grading,
+      max_points: max,
+      assessed_on: form.assessed_on || null
+    };
     const { error: err } = editingId
       ? await supabase.from("gb_assessments").update(row).eq("id", editingId)
       : await supabase.from("gb_assessments").insert({ ...row, grade, subject, term, school_year: SCHOOL_YEAR });
@@ -281,16 +392,35 @@ function AcademicGradebook({ grades, editGrades }) {
     load();
   }
 
+  // What a cell shows as text (for viewers and the download).
+  function cellText(a, studentId) {
+    const m = marks[`${a.id}:${studentId}`];
+    if (!m) return "";
+    if (a.grading === "letter") return m.letter || "";
+    if (a.grading === "level") return levelOf(m.level)?.label || "";
+    return m.points == null ? "" : String(Number(m.points));
+  }
+
+  function columnSub(a) {
+    const parts = [];
+    if (a.assess_type) parts.push(typeLabel(a.assess_type));
+    if (!early) parts.push(a.kind === "summative" ? "Summative" : "Formative");
+    if (a.assessed_on) parts.push(shortDate(a.assessed_on));
+    if (!early) parts.push(a.grading === "letter" ? "Letter" : `/${Number(a.max_points)}`);
+    return parts.join(" · ");
+  }
+
   function downloadCsv() {
     const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const head = ["Student", ...assessments.map((a) => `${a.title} (${a.kind}, /${a.max_points})`), "Formative %", "Summative %", "Term %", "Letter"];
+    const head = ["Student", ...assessments.map((a) => `${a.title} (${columnSub(a)})`),
+      ...(early ? ["Term level"] : ["Formative %", "Summative %", "Term %", "Letter"])];
     const lines = [head.map(q).join(",")];
     students.forEach((s) => {
       const r = results[s.id];
       lines.push([
         s.full_name,
-        ...assessments.map((a) => marks[`${a.id}:${s.id}`]?.points ?? ""),
-        r.f ?? "", r.s ?? "", r.term ?? "", r.letter ?? ""
+        ...assessments.map((a) => cellText(a, s.id)),
+        ...(early ? [levelOf(r.level)?.label || ""] : [r.f ?? "", r.s ?? "", r.term ?? "", r.letter ?? ""])
       ].map(q).join(","));
     });
     const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
@@ -305,6 +435,55 @@ function AcademicGradebook({ grades, editGrades }) {
   const th = { padding: "10px 8px", fontSize: 12, fontWeight: 600, color: COLORS.text2, textAlign: "center", background: "#F7EEEF", borderBottom: `1px solid ${COLORS.line}`, whiteSpace: "nowrap" };
   const td = { padding: "6px 8px", fontSize: 14, textAlign: "center", borderBottom: "1px solid #F1E4E6", whiteSpace: "nowrap" };
   const nameCell = { ...td, textAlign: "left", fontWeight: 600, position: "sticky", left: 0, background: "#fff", zIndex: 1, minWidth: 150 };
+  const pickStyle = { ...input, width: 74, minHeight: 36, padding: "6px 4px", textAlign: "center" };
+  const editing = editingId ? assessments.find((x) => x.id === editingId) : null;
+  const gradingLocked = !!editing && hasMarks(editing.id);
+
+  function renderCell(a, s) {
+    const key = `${a.id}:${s.id}`;
+    const m = marks[key];
+
+    if (a.grading === "letter") {
+      if (!canEdit) return m?.letter ? <LetterChip letter={m.letter} /> : <span style={{ color: COLORS.muted }}>—</span>;
+      return (
+        <select aria-label={`${s.full_name}, ${a.title}`} value={m?.letter || ""} onChange={(e) => savePick(a, s.id, e.target.value)} style={pickStyle}>
+          <option value="">—</option>
+          {LETTERS.map((l) => <option key={l} value={l}>{l}</option>)}
+        </select>
+      );
+    }
+
+    if (a.grading === "level") {
+      if (!canEdit) return <LevelChip level={m?.level} />;
+      const lv = levelOf(m?.level);
+      return (
+        <select
+          aria-label={`${s.full_name}, ${a.title}`}
+          value={m?.level || ""}
+          onChange={(e) => savePick(a, s.id, e.target.value)}
+          style={{ ...pickStyle, fontWeight: 700, ...(lv ? { background: lv.tone.bg, color: lv.tone.fg, borderColor: lv.tone.bg } : {}) }}
+        >
+          <option value="">—</option>
+          {LEVELS.map((l) => <option key={l.id} value={l.id}>{l.short} · {l.label}</option>)}
+        </select>
+      );
+    }
+
+    const saved = m?.points;
+    const value = key in drafts ? drafts[key] : saved == null ? "" : String(Number(saved));
+    if (!canEdit) return <span>{value || "—"}</span>;
+    return (
+      <input
+        aria-label={`${s.full_name}, ${a.title}`}
+        inputMode="decimal"
+        value={value}
+        onChange={(e) => setDrafts((d) => ({ ...d, [key]: e.target.value }))}
+        onBlur={() => saveMark(a, s.id)}
+        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+        style={{ ...input, width: 56, minHeight: 36, padding: "7px 6px", textAlign: "center" }}
+      />
+    );
+  }
 
   return (
     <>
@@ -340,49 +519,98 @@ function AcademicGradebook({ grades, editGrades }) {
         )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 14 }}>
-        <div style={{ ...card, marginBottom: 0 }}>
-          <div style={statLabel}>Weighting</div>
-          <div style={{ ...statValue, fontSize: 15 }}>Summative 70% · Formative 30%</div>
+      {early ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 14 }}>
+          <div style={{ ...card, marginBottom: 0 }}>
+            <div style={statLabel}>Levels</div>
+            <div style={{ ...statValue, fontSize: 14, fontWeight: 600 }}>E Emerging · D Developing · M Meeting · Ex Exceeding</div>
+          </div>
+          <div style={{ ...card, marginBottom: 0 }}>
+            <div style={statLabel}>Meeting or above</div>
+            <div style={statValue}>{nMeetingUp} {nMeetingUp === 1 ? "student" : "students"}</div>
+          </div>
+          <div style={{ ...card, marginBottom: 0 }}>
+            <div style={statLabel}>Emerging</div>
+            <div style={{ ...statValue, color: nEmerging ? COLORS.bad : COLORS.ink }}>{nEmerging} {nEmerging === 1 ? "student" : "students"}</div>
+          </div>
+          <div style={{ ...card, marginBottom: 0 }}>
+            <div style={statLabel}>Assessments</div>
+            <div style={statValue}>{assessments.length}</div>
+          </div>
         </div>
-        <div style={{ ...card, marginBottom: 0 }}>
-          <div style={statLabel}>Class average</div>
-          <div style={statValue}>{classAvg == null ? "—" : `${classAvg}% · ${letterFor(classAvg)}`}</div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 14 }}>
+          <div style={{ ...card, marginBottom: 0 }}>
+            <div style={statLabel}>Weighting</div>
+            <div style={{ ...statValue, fontSize: 15 }}>Summative 70% · Formative 30%</div>
+          </div>
+          <div style={{ ...card, marginBottom: 0 }}>
+            <div style={statLabel}>Class average</div>
+            <div style={statValue}>{classAvg == null ? "—" : `${classAvg}% · ${letterFor(classAvg)}`}</div>
+          </div>
+          <div style={{ ...card, marginBottom: 0 }}>
+            <div style={statLabel}>Below 70%</div>
+            <div style={{ ...statValue, color: below70 ? COLORS.bad : COLORS.ink }}>{below70} {below70 === 1 ? "student" : "students"}</div>
+          </div>
+          <div style={{ ...card, marginBottom: 0 }}>
+            <div style={statLabel}>Assessments</div>
+            <div style={statValue}>{nF} formative · {nS} summative</div>
+          </div>
         </div>
-        <div style={{ ...card, marginBottom: 0 }}>
-          <div style={statLabel}>Below 70%</div>
-          <div style={{ ...statValue, color: below70 ? COLORS.bad : COLORS.ink }}>{below70} {below70 === 1 ? "student" : "students"}</div>
-        </div>
-        <div style={{ ...card, marginBottom: 0 }}>
-          <div style={statLabel}>Assessments</div>
-          <div style={statValue}>{nF} formative · {nS} summative</div>
-        </div>
-      </div>
+      )}
 
       {formOpen && canEdit && (
         <div style={card}>
           <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 600 }}>{editingId ? "Edit assessment" : "New assessment"}</p>
           <p style={{ margin: 0, fontSize: 13, color: COLORS.muted }}>{grade} · {subject} · Term {term}</p>
+
           <label style={label}>Name</label>
-          <input style={input} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Unit 1 test" />
+          <input style={input} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder={early ? "e.g. Letter sounds check" : "e.g. Fractions quiz"} />
+
           <label style={label}>Type</label>
           <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-            <button onClick={() => setForm({ ...form, kind: "formative" })} style={form.kind === "formative" ? chipOn : chip}>Formative (30%)</button>
-            <button onClick={() => setForm({ ...form, kind: "summative" })} style={form.kind === "summative" ? chipOn : chip}>Summative (70%)</button>
+            {TYPES.map((t) => (
+              <button key={t.id} onClick={() => pickType(t.id)} style={form.assess_type === t.id ? chipOn : chip}>{t.label}</button>
+            ))}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
-            <div>
-              <label style={label}>Out of</label>
-              <input style={input} inputMode="decimal" value={form.max_points} onChange={(e) => setForm({ ...form, max_points: e.target.value })} placeholder="20" />
-            </div>
+
+          {!early && (
+            <>
+              <label style={label}>Counts as</label>
+              <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+                <button onClick={() => setForm({ ...form, kind: "formative" })} style={form.kind === "formative" ? chipOn : chip}>Formative (30%)</button>
+                <button onClick={() => setForm({ ...form, kind: "summative" })} style={form.kind === "summative" ? chipOn : chip}>Summative (70%)</button>
+              </div>
+
+              <label style={label}>How will you grade it?</label>
+              <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+                <button disabled={gradingLocked} onClick={() => setForm({ ...form, grading: "marks" })} style={form.grading === "marks" ? chipOn : chip}>Marks (e.g. 14/20)</button>
+                <button disabled={gradingLocked} onClick={() => setForm({ ...form, grading: "letter" })} style={form.grading === "letter" ? chipOn : chip}>Letter grade (A+ to F)</button>
+              </div>
+              {gradingLocked && (
+                <p style={{ margin: "6px 0 0", fontSize: 12, color: COLORS.muted }}>Marks are already entered, so this can't change. Make a new assessment instead.</p>
+              )}
+            </>
+          )}
+
+          <div style={{ display: "grid", gridTemplateColumns: !early && form.grading === "marks" ? "repeat(2, minmax(0, 1fr))" : "minmax(0, 1fr)", gap: 10 }}>
+            {!early && form.grading === "marks" && (
+              <div>
+                <label style={label}>Out of</label>
+                <input style={input} inputMode="decimal" value={form.max_points} onChange={(e) => setForm({ ...form, max_points: e.target.value })} placeholder="20" />
+              </div>
+            )}
             <div>
               <label style={label}>Date</label>
               <input style={input} type="date" value={form.assessed_on} onChange={(e) => setForm({ ...form, assessed_on: e.target.value })} />
             </div>
           </div>
+
+          {status && <p style={{ margin: "10px 0 0", fontSize: 13, color: COLORS.bad }}>{status}</p>}
+
           <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
             <button style={primaryBtn} disabled={saving} onClick={saveAssessment}>{saving ? "Saving…" : "Save"}</button>
-            <button style={secondaryBtn} onClick={() => setFormOpen(false)}>Cancel</button>
+            <button style={secondaryBtn} onClick={() => { setFormOpen(false); setStatus(""); }}>Cancel</button>
             {editingId && <button style={{ ...dangerBtn, marginLeft: "auto" }} onClick={deleteAssessment}>Delete</button>}
           </div>
         </div>
@@ -397,7 +625,7 @@ function AcademicGradebook({ grades, editGrades }) {
           </div>
         </div>
 
-        {status && <p style={{ margin: "0 0 10px", fontSize: 13, color: COLORS.bad }}>{status}</p>}
+        {status && !formOpen && <p style={{ margin: "0 0 10px", fontSize: 13, color: COLORS.bad }}>{status}</p>}
 
         {loading ? (
           <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>Loading…</p>
@@ -424,14 +652,20 @@ function AcademicGradebook({ grades, editGrades }) {
                             {a.title}
                           </button>
                         ) : a.title}
-                        <div style={{ fontWeight: 500, marginTop: 3, color: a.kind === "summative" ? COLORS.brand : COLORS.info }}>
-                          {a.kind === "summative" ? "Summative" : "Formative"} · /{Number(a.max_points)}
+                        <div style={{ fontWeight: 500, marginTop: 3, color: !early && a.kind === "summative" ? COLORS.brand : COLORS.info }}>
+                          {columnSub(a)}
                         </div>
                       </th>
                     ))}
-                    <th style={th}>Formative</th>
-                    <th style={th}>Summative</th>
-                    <th style={th}>Term</th>
+                    {early ? (
+                      <th style={th}>Term level</th>
+                    ) : (
+                      <>
+                        <th style={th}>Formative</th>
+                        <th style={th}>Summative</th>
+                        <th style={th}>Term</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -440,46 +674,41 @@ function AcademicGradebook({ grades, editGrades }) {
                     return (
                       <tr key={s.id}>
                         <td style={nameCell}>{s.full_name}</td>
-                        {assessments.map((a) => {
-                          const key = `${a.id}:${s.id}`;
-                          const saved = marks[key]?.points;
-                          const value = key in drafts ? drafts[key] : saved == null ? "" : String(Number(saved));
-                          return (
-                            <td key={a.id} style={td}>
-                              {canEdit ? (
-                                <input
-                                  aria-label={`${s.full_name}, ${a.title}`}
-                                  inputMode="decimal"
-                                  value={value}
-                                  onChange={(e) => setDrafts((d) => ({ ...d, [key]: e.target.value }))}
-                                  onBlur={() => saveMark(a, s.id)}
-                                  onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                                  style={{ ...input, width: 56, minHeight: 36, padding: "7px 6px", textAlign: "center" }}
-                                />
-                              ) : (
-                                <span>{value || "—"}</span>
-                              )}
+                        {assessments.map((a) => (
+                          <td key={a.id} style={td}>{renderCell(a, s)}</td>
+                        ))}
+                        {early ? (
+                          <td style={td}><LevelChip level={r.level} /></td>
+                        ) : (
+                          <>
+                            <td style={{ ...td, color: COLORS.muted }}>{r.f == null ? "—" : `${r.f}%`}</td>
+                            <td style={{ ...td, color: COLORS.muted }}>{r.s == null ? "—" : `${r.s}%`}</td>
+                            <td style={td}>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                                <strong>{r.term == null ? "" : `${r.term}%`}</strong>
+                                <LetterChip letter={r.letter} />
+                              </span>
                             </td>
-                          );
-                        })}
-                        <td style={{ ...td, color: COLORS.muted }}>{r.f == null ? "—" : `${r.f}%`}</td>
-                        <td style={{ ...td, color: COLORS.muted }}>{r.s == null ? "—" : `${r.s}%`}</td>
-                        <td style={td}>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                            <strong>{r.term == null ? "" : `${r.term}%`}</strong>
-                            <LetterChip letter={r.letter} />
-                          </span>
-                        </td>
+                          </>
+                        )}
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-            <p style={{ margin: "10px 0 0", fontSize: 12, color: COLORS.muted }}>
-              Marks save when you leave the box. Leave a box empty if the work was not done yet; it is not counted.
-              Scale: A+ 97–100 · A 93–96 · A− 90–92 · B+ 87–89 · B 83–86 · B− 80–82 · C+ 77–79 · C 73–76 · C− 70–72 · D+ 67–69 · D 63–66 · D− 60–62 · F below 60.
-            </p>
+            {early ? (
+              <p style={{ margin: "10px 0 0", fontSize: 12, color: COLORS.muted }}>
+                Pick a level in each box; it saves straight away. Leave it empty if the child wasn't assessed yet.
+                The term level is the level the child got most often this term (a tie goes to the most recent).
+              </p>
+            ) : (
+              <p style={{ margin: "10px 0 0", fontSize: 12, color: COLORS.muted }}>
+                Marks save when you leave the box; letters save as soon as you pick one. Leave a box empty if the work was not done yet; it is not counted.
+                A letter counts as the middle of its band (A+ 98 · A 95 · A− 91 · B+ 88 · B 85 · B− 81 · C+ 78 · C 75 · C− 71 · D+ 68 · D 65 · D− 61 · F 55).
+                Scale: A+ 97–100 · A 93–96 · A− 90–92 · B+ 87–89 · B 83–86 · B− 80–82 · C+ 77–79 · C 73–76 · C− 70–72 · D+ 67–69 · D 63–66 · D− 60–62 · F below 60.
+              </p>
+            )}
           </>
         )}
       </div>
