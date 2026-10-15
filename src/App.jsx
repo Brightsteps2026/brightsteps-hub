@@ -151,13 +151,13 @@ function BrightStepsHubInner() {
     { id: "leave", label: "Leave requests", navKey: "nav.leave", icon: LeaveIcon, category: "office" },
     { id: "attendance", label: "Attendance", navKey: "nav.attendance", icon: CheckSquare, category: "core" },
     { id: "portfolio", label: "Portfolio", navKey: "nav.portfolio", icon: BookOpen, category: "core" },
-    { id: "assessment", label: "Assessment", navKey: "nav.assessment", icon: ClipboardCheck, category: "core" },
     { id: "gradebook", label: "Gradebook", navKey: "nav.gradebook", icon: Percent, category: "classroom" },
     { id: "planning", label: "Curriculum", navKey: "nav.planning", icon: ClipboardList, category: "classroom" },
     { id: "calendar", label: "Calendar", navKey: "nav.calendar", icon: CalendarIcon, category: "office" },
     { id: "canteen", label: "Canteen", navKey: "nav.canteen", icon: Utensils, category: "office" },
     { id: "incidents", label: "Incidents", navKey: "nav.incidents", icon: IncidentsIcon, category: "classroom" },
     { id: "admissions", label: "Admissions", navKey: "nav.admissions", icon: UserPlus, category: "office" },
+    { id: "assessment", label: "Assessment", navKey: "nav.assessment", icon: ClipboardCheck, category: "classroom" },
     { id: "assignments", label: "Assignments", navKey: "nav.assignments", icon: FileText, category: "classroom" },
     { id: "reports", label: "Reports", navKey: "nav.reports", icon: FileCheck, category: "compliance" },
     { id: "resources", label: "Resources", navKey: "nav.resources", icon: FolderOpen, category: "compliance" },
@@ -304,7 +304,7 @@ function BrightStepsHubInner() {
           {["classroom", "office", "compliance"]
             .map((cat) => ({
               cat,
-              items: allSections.filter((s) => s.category === cat && !primaryIds.includes(s.id))
+              items: allSections.filter((s) => s.category === cat && (!primaryIds.includes(s.id) || (s.id === "assessment" && !isParent && !isStudent)))
             }))
             .filter(({ items }) => items.length > 0)
             .map(({ cat, items }) => (
