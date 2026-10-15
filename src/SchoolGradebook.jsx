@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 import { COLORS, FONT, TONES, card as cardToken, chip, chipOn, primaryBtn, ghostBtn, input, label, pill } from "./ui/tokens";
+import { AssessmentTab } from "./screens/Assessment";
 
 // Staff screen, English only.
 // Gradebook backed by the gb_* tables (see gradebook-setup.sql and
@@ -138,7 +139,9 @@ function termFor(studentId, assessments, marks) {
   return { f: f == null ? null : Math.round(f), s: s == null ? null : Math.round(s), term, letter: letterFor(term) };
 }
 
-export default function SchoolGradebook({ profile }) {
+// The staff "Assessment" tab: gradebook, early-years levels, ATL · SEL · Life
+// skills, and the older one-student-at-a-time notes (with Standards and Rubrics).
+export default function SchoolGradebook({ profile, data, persist }) {
   const role = profile?.role;
   const isAdmin = role === "admin";
   const assigned = listOf(profile?.grades_assigned);
@@ -151,21 +154,16 @@ export default function SchoolGradebook({ profile }) {
 
   const myUpper = UPPER.filter((g) => viewGrades.includes(g));
   const myEarly = EARLY.filter((g) => viewGrades.includes(g));
+  const myAll = ALL_GRADES.filter((g) => viewGrades.includes(g));
+  const hasNotes = !!data && !!persist;
 
-  const [section, setSection] = useState(myUpper.length ? "academic" : myEarly.length ? "early" : "skills");
-
-  if (viewGrades.length === 0) {
-    return (
-      <div style={{ padding: "16px 16px 90px" }}>
-        <div style={card}>No class is assigned to your account yet. Please ask the school office to add your grades.</div>
-      </div>
-    );
-  }
+  const [section, setSection] = useState(myUpper.length ? "academic" : myEarly.length ? "early" : hasNotes ? "notes" : "skills");
 
   const sections = [
-    myUpper.length > 0 && { id: "academic", label: "Academic · Grade 3–7" },
+    myUpper.length > 0 && { id: "academic", label: "Gradebook · Grade 3–7" },
     myEarly.length > 0 && { id: "early", label: "Levels · Pre-N–Grade 2" },
-    { id: "skills", label: "ATL · SEL · Life skills" }
+    myAll.length > 0 && { id: "skills", label: "ATL · SEL · Life skills" },
+    hasNotes && { id: "notes", label: "Student notes" }
   ].filter(Boolean);
 
   return (
@@ -176,12 +174,15 @@ export default function SchoolGradebook({ profile }) {
         ))}
       </div>
 
-      {section === "academic" && <ClassGradebook key="academic" grades={myUpper} editGrades={editGrades} early={false} />}
-      {section === "early" && <ClassGradebook key="early" grades={myEarly} editGrades={editGrades} early />}
-      {section === "skills" && (
-        <div style={card}>
-          <p style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 600 }}>ATL · SEL · Life skills</p>
-          <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>This part of the gradebook is coming next.</p>
+      {myAll.length === 0 && section !== "notes" && (
+        <div style={card}>No class is assigned to your account yet. Please ask the school office to add your grades.</div>
+      )}
+      {section === "academic" && myUpper.length > 0 && <ClassGradebook key="academic" grades={myUpper} editGrades={editGrades} early={false} />}
+      {section === "early" && myEarly.length > 0 && <ClassGradebook key="early" grades={myEarly} editGrades={editGrades} early />}
+      {section === "skills" && myAll.length > 0 && <SkillsGradebook grades={myAll} editGrades={editGrades} />}
+      {section === "notes" && hasNotes && (
+        <div style={{ margin: "0 -16px" }}>
+          <AssessmentTab data={data} persist={persist} profile={profile} />
         </div>
       )}
     </div>
@@ -825,5 +826,222 @@ function SubjectComments({ grade, subject, term, canEdit }) {
         })
       )}
     </div>
+  );
+}
+
+// ATL · SEL · Life skills: each child rated Rarely / Sometimes / Usually /
+// Consistently on every skill, per term, plus one general comment per term.
+const RATINGS = [
+  { id: "rarely", short: "R", label: "Rarely", tone: TONES.bad },
+  { id: "sometimes", short: "S", label: "Sometimes", tone: TONES.warn },
+  { id: "usually", short: "U", label: "Usually", tone: TONES.ok },
+  { id: "consistently", short: "C", label: "Consistently", tone: TONES.info }
+];
+const AREAS = [
+  { id: "atl", label: "ATL" },
+  { id: "sel", label: "SEL" },
+  { id: "life", label: "Life skills" },
+  { id: "comment", label: "General comment" }
+];
+
+function SkillsGradebook({ grades, editGrades }) {
+  const [grade, setGrade] = useState(grades[0]);
+  const [term, setTerm] = useState(1);
+  const [area, setArea] = useState("atl");
+  const [skills, setSkills] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [ratings, setRatings] = useState({});
+  const [notes, setNotes] = useState({});
+  const [drafts, setDrafts] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [status, setStatus] = useState("");
+  const canEdit = editGrades.includes(grade);
+
+  useEffect(() => {
+    supabase.from("gb_skills").select("id, area, name_en, sort").eq("active", true).order("sort")
+      .then(({ data, error: err }) => { if (err) setError(err.message); else setSkills(data || []); });
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setLoading(true); setError(""); setStatus(""); setDrafts({});
+      const st = await supabase.from("students").select("id, full_name").eq("grade", grade).order("full_name");
+      if (st.error) { if (alive) { setError(st.error.message); setLoading(false); } return; }
+      const ids = (st.data || []).map((x) => x.id);
+      const r = {}, n = {};
+      if (ids.length) {
+        const [rt, nt] = await Promise.all([
+          supabase.from("gb_skill_ratings").select("student_id, skill_id, rating").in("student_id", ids).eq("term", term).eq("school_year", SCHOOL_YEAR),
+          supabase.from("gb_term_notes").select("student_id, note").in("student_id", ids).eq("term", term).eq("school_year", SCHOOL_YEAR)
+        ]);
+        const err = rt.error || nt.error;
+        if (err) { if (alive) { setError(err.message); setLoading(false); } return; }
+        (rt.data || []).forEach((x) => { r[`${x.student_id}:${x.skill_id}`] = x.rating; });
+        (nt.data || []).forEach((x) => { n[x.student_id] = x.note || ""; });
+      }
+      if (alive) { setStudents(st.data || []); setRatings(r); setNotes(n); setLoading(false); }
+    })();
+    return () => { alive = false; };
+  }, [grade, term]);
+
+  const areaSkills = skills.filter((k) => k.area === area);
+
+  async function saveRating(studentId, skillId, value) {
+    const key = `${studentId}:${skillId}`;
+    const { error: err } = value
+      ? await supabase.from("gb_skill_ratings").upsert(
+          { student_id: studentId, skill_id: skillId, school_year: SCHOOL_YEAR, term, rating: value },
+          { onConflict: "student_id,skill_id,school_year,term" })
+      : await supabase.from("gb_skill_ratings").delete()
+          .eq("student_id", studentId).eq("skill_id", skillId).eq("school_year", SCHOOL_YEAR).eq("term", term);
+    if (err) { setStatus(`Not saved: ${err.message}`); return; }
+    setRatings((r) => { const n = { ...r }; if (value) n[key] = value; else delete n[key]; return n; });
+    setStatus("");
+  }
+
+  async function saveNote(studentId) {
+    if (!(studentId in drafts)) return;
+    const text = drafts[studentId].trim();
+    if (text === (notes[studentId] || "")) {
+      setDrafts((d) => { const n = { ...d }; delete n[studentId]; return n; });
+      return;
+    }
+    const { error: err } = await supabase.from("gb_term_notes").upsert(
+      { student_id: studentId, school_year: SCHOOL_YEAR, term, note: text || null },
+      { onConflict: "student_id,school_year,term" });
+    if (err) { setStatus(`Not saved: ${err.message}`); return; }
+    setNotes((c) => ({ ...c, [studentId]: text }));
+    setDrafts((d) => { const n = { ...d }; delete n[studentId]; return n; });
+    setStatus("");
+  }
+
+  const totalCells = students.length * areaSkills.length;
+  const doneCells = students.reduce((n, s) => n + areaSkills.filter((k) => ratings[`${s.id}:${k.id}`]).length, 0);
+  const doneNotes = students.filter((s) => (notes[s.id] || "").trim()).length;
+  const areaLabel = AREAS.find((a) => a.id === area)?.label;
+
+  const th = { padding: "10px 8px", fontSize: 12, fontWeight: 600, color: COLORS.text2, textAlign: "center", background: "#F7EEEF", borderBottom: `1px solid ${COLORS.line}` };
+  const td = { padding: "6px 8px", fontSize: 14, textAlign: "center", borderBottom: "1px solid #F1E4E6", whiteSpace: "nowrap" };
+  const nameCell = { ...td, textAlign: "left", fontWeight: 600, position: "sticky", left: 0, background: "#fff", zIndex: 1, minWidth: 150 };
+
+  return (
+    <>
+      <div style={card}>
+        <p style={{ margin: "0 0 8px", fontSize: 13, color: COLORS.muted }}>{grades.length > 1 ? "My classes" : "My class"}</p>
+        <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 12 }}>
+          {grades.map((g) => <button key={g} onClick={() => setGrade(g)} style={grade === g ? chipOn : chip}>{g}</button>)}
+        </div>
+        <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 5 }}>Term</div>
+        <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+          {[1, 2, 3].map((t) => <button key={t} onClick={() => setTerm(t)} style={term === t ? chipOn : chip}>Term {t}</button>)}
+        </div>
+        <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 5 }}>Area</div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {AREAS.map((a) => <button key={a.id} onClick={() => setArea(a.id)} style={area === a.id ? chipOn : chip}>{a.label}</button>)}
+        </div>
+        {!canEdit && (
+          <p style={{ margin: "12px 0 0", fontSize: 13, color: COLORS.warn, background: COLORS.warnBg, borderRadius: 8, padding: "8px 10px" }}>
+            You can view this class but not change ratings.
+          </p>
+        )}
+      </div>
+
+      <div style={card}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+          <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{grade} · {areaLabel} · Term {term}</p>
+          {!loading && !error && (
+            <span style={{ fontSize: 13, color: COLORS.muted }}>
+              {area === "comment" ? `${doneNotes} of ${students.length} written` : `${doneCells} of ${totalCells} rated`}
+            </span>
+          )}
+        </div>
+        {status && <p style={{ margin: "0 0 10px", fontSize: 13, color: COLORS.bad }}>{status}</p>}
+
+        {loading ? (
+          <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>Loading…</p>
+        ) : error ? (
+          <p style={{ margin: 0, fontSize: 14, color: COLORS.bad }}>Could not load: {error}</p>
+        ) : students.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>No students in {grade}.</p>
+        ) : area === "comment" ? (
+          <>
+            <p style={{ margin: "0 0 12px", fontSize: 13, color: COLORS.muted }}>
+              The general comment for the report card: how the child is doing overall this term and one next step. It saves when you leave the box.
+            </p>
+            {students.map((s) => {
+              const value = s.id in drafts ? drafts[s.id] : notes[s.id] || "";
+              return (
+                <div key={s.id} style={{ borderTop: `1px solid ${COLORS.line}`, padding: "10px 0" }}>
+                  <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 6 }} htmlFor={`tn-${s.id}`}>{s.full_name}</label>
+                  {canEdit ? (
+                    <textarea
+                      id={`tn-${s.id}`}
+                      rows={3}
+                      value={value}
+                      onChange={(e) => setDrafts((d) => ({ ...d, [s.id]: e.target.value }))}
+                      onBlur={() => saveNote(s.id)}
+                      style={{ ...input, resize: "vertical", lineHeight: 1.5 }}
+                    />
+                  ) : (
+                    <p style={{ margin: 0, fontSize: 14, color: value ? COLORS.ink : COLORS.muted }}>{value || "Not written yet."}</p>
+                  )}
+                </div>
+              );
+            })}
+          </>
+        ) : (
+          <>
+            <div style={{ overflowX: "auto", border: `1px solid ${COLORS.line}`, borderRadius: 12 }}>
+              <table style={{ borderCollapse: "separate", borderSpacing: 0, width: "100%" }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...th, textAlign: "left", position: "sticky", left: 0, zIndex: 2 }}>Student</th>
+                    {areaSkills.map((k) => <th key={k.id} style={th}>{k.name_en}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {students.map((s) => (
+                    <tr key={s.id}>
+                      <td style={nameCell}>{s.full_name}</td>
+                      {areaSkills.map((k) => {
+                        const v = ratings[`${s.id}:${k.id}`];
+                        const r = RATINGS.find((x) => x.id === v);
+                        if (!canEdit) {
+                          return (
+                            <td key={k.id} style={td}>
+                              {r ? <span title={r.label} style={{ ...pill(r.tone), minWidth: 26, textAlign: "center", padding: "3px 8px", fontSize: 13, fontWeight: 700 }}>{r.short}</span>
+                                 : <span style={{ color: COLORS.muted }}>—</span>}
+                            </td>
+                          );
+                        }
+                        return (
+                          <td key={k.id} style={td}>
+                            <select
+                              aria-label={`${s.full_name}, ${k.name_en}`}
+                              value={v || ""}
+                              onChange={(e) => saveRating(s.id, k.id, e.target.value)}
+                              style={{ ...input, width: 74, minHeight: 36, padding: "6px 4px", textAlign: "center", fontWeight: 700,
+                                ...(r ? { background: r.tone.bg, color: r.tone.fg, borderColor: r.tone.bg } : {}) }}
+                            >
+                              <option value="">—</option>
+                              {RATINGS.map((x) => <option key={x.id} value={x.id}>{x.short} · {x.label}</option>)}
+                            </select>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p style={{ margin: "10px 0 0", fontSize: 12, color: COLORS.muted }}>
+              R Rarely · S Sometimes · U Usually · C Consistently. Saves as soon as you pick.
+            </p>
+          </>
+        )}
+      </div>
+    </>
   );
 }
