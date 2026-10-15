@@ -9,7 +9,9 @@
 --   * Teachers make and refresh DRAFTS for their own grades. Assistants can look.
 --   * Only the admin can PUBLISH. Families only ever see published report cards,
 --     and only for their own children.
---   * When a report card is published, each parent of that child gets a bell notice.
+--   * When a report card is published, each parent of that child gets a bell notice,
+--     and an email (sent by the notify-term-reports function) saying it is ready on
+--     the Hub. The report card itself is never attached to the email.
 
 -- 1. The table --------------------------------------------------------------------
 
@@ -28,8 +30,10 @@ create table if not exists public.term_reports (
   updated_at timestamptz not null default now(),
   published_by uuid,
   published_at timestamptz,
+  emailed_at timestamptz,              -- when families were emailed (only ever once)
   unique (student_id, school_year, term)
 );
+alter table public.term_reports add column if not exists emailed_at timestamptz;
 create index if not exists term_reports_lookup on public.term_reports (grade, school_year, term);
 create index if not exists term_reports_hub_student on public.term_reports (hub_student_id);
 
@@ -47,6 +51,18 @@ begin
   from public.students st where st.id = new.student_id;
 
   if new.grade is null then raise exception 'Student not found'; end if;
+
+  -- The email function (no signed-in person) only records when families were emailed.
+  if auth.uid() is null then
+    return new;
+  end if;
+
+  -- Only the email function sets emailed_at.
+  if tg_op = 'INSERT' then
+    new.emailed_at := null;
+  else
+    new.emailed_at := old.emailed_at;
+  end if;
 
   if tg_op = 'INSERT' then
     if new.status = 'published' and me is distinct from 'admin' then

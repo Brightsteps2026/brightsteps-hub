@@ -437,22 +437,30 @@ function TermReportDocument({ report, lang, logoUrl }) {
   );
 }
 
-// Prints the report card alone on A4 (the rest of the Hub is hidden while printing).
-function PrintableReport({ report, lang, logoUrl, label }) {
+// Prints one report card, or a whole class (one per page), alone on A4
+// (the rest of the Hub is hidden while printing).
+function PrintableReport({ report, reports, lang, logoUrl, label, style = ghostBtn, disabled = false }) {
+  const list = reports || (report ? [report] : []);
   const [printing, setPrinting] = useState(false);
   useEffect(() => {
     if (!printing) return;
     document.body.classList.add("bs-trc-printing");
     const done = () => { document.body.classList.remove("bs-trc-printing"); setPrinting(false); };
     window.addEventListener("afterprint", done, { once: true });
-    const id = setTimeout(() => window.print(), 400); // let the photos load
+    const id = setTimeout(() => window.print(), 400 + 150 * list.length); // let the photos load
     return () => { clearTimeout(id); window.removeEventListener("afterprint", done); document.body.classList.remove("bs-trc-printing"); };
-  }, [printing]);
+  }, [printing]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <>
-      <button style={ghostBtn} onClick={() => setPrinting(true)}>{label}</button>
+      <button style={style} disabled={disabled || !list.length} onClick={() => setPrinting(true)}>{label}</button>
       {printing && createPortal(
-        <div className="bs-trc-print-root bsf-printable"><TermReportDocument report={report} lang={lang} logoUrl={logoUrl} /></div>,
+        <div className="bs-trc-print-root bsf-printable">
+          {list.map((r, i) => (
+            <div key={r.id} style={i > 0 ? { breakBefore: "page", pageBreakBefore: "always" } : undefined}>
+              <TermReportDocument report={r} lang={lang} logoUrl={logoUrl} />
+            </div>
+          ))}
+        </div>,
         document.body
       )}
     </>
@@ -482,6 +490,7 @@ function TermReportsStaff({ profile, data }) {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [openId, setOpenId] = useState(null);
+  const [printLang, setPrintLang] = useState("en");
   const canEdit = editGrades.includes(grade);
   const dates = termDates(data?.settings, term);
 
@@ -545,9 +554,23 @@ function TermReportsStaff({ profile, data }) {
   };
 
   const setReportStatus = async (ids, next) => {
-    setBusy(true); setError("");
+    setBusy(true); setError(""); setStatus("");
     const { error: e } = await supabase.from("term_reports").update({ status: next }).in("id", ids);
-    if (e) setError(e.message); else setStatus(next === "published" ? `${ids.length} published. Families have been notified.` : "Back to draft. Families can no longer see it.");
+    if (e) {
+      setError(e.message);
+    } else if (next === "draft") {
+      setStatus("Back to draft. Families can no longer see it.");
+    } else {
+      // Email the families (once per report card): "the report card is ready on the Hub".
+      const { data: res, error: mailErr } = await supabase.functions.invoke("notify-term-reports", { body: { ids } });
+      if (mailErr || res?.error) {
+        setStatus(`${ids.length} published. Families got a bell notice.`);
+        setError(`The emails could not be sent (${res?.error || mailErr?.message || "unknown error"}). Families can still see the report card on the Hub.`);
+      } else {
+        const missing = (res?.noParent || []).length ? ` No parent account for: ${res.noParent.join(", ")}.` : "";
+        setStatus(`${ids.length} published. ${res?.sent || 0} famil${res?.sent === 1 ? "y" : "ies"} emailed.${missing}`);
+      }
+    }
     await load();
     setBusy(false);
   };
@@ -588,9 +611,19 @@ function TermReportsStaff({ profile, data }) {
             <button style={primaryBtn} disabled={busy} onClick={() => build()}>
               {busy ? "Working…" : Object.keys(reports).length ? "Refresh drafts from the Gradebook" : `Make drafts for ${grade}`}
             </button>
+            {Object.keys(reports).length > 0 && (
+              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                <PrintableReport
+                  reports={students.map((st) => reports[st.id]).filter(Boolean)}
+                  lang={printLang} logoUrl={data?.settings?.branding?.logoUrl}
+                  label={`Print whole class (${printLang === "fr" ? "French" : "English"})`} disabled={busy} />
+                <button style={printLang === "en" ? chipOn : chip} onClick={() => setPrintLang("en")}>EN</button>
+                <button style={printLang === "fr" ? chipOn : chip} onClick={() => setPrintLang("fr")}>FR</button>
+              </span>
+            )}
             {isAdmin && drafts.length > 0 && (
               <button style={ghostBtn} disabled={busy} onClick={() => {
-                if (window.confirm(`Publish ${drafts.length} report card${drafts.length > 1 ? "s" : ""} for ${grade}, Term ${term}? Each family will get a notice.`)) {
+                if (window.confirm(`Publish ${drafts.length} report card${drafts.length > 1 ? "s" : ""} for ${grade}, Term ${term}? Each family will get a bell notice and an email saying the report card is ready on the Hub.`)) {
                   setReportStatus(drafts.map((r) => r.id), "published");
                 }
               }}>Publish all {drafts.length} drafts</button>
@@ -615,7 +648,7 @@ function TermReportsStaff({ profile, data }) {
               <button key={s.id} onClick={() => r && setOpenId(r.id)} disabled={!r}
                 style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "11px 2px", background: "none", border: "none", borderTop: `1px solid ${COLORS.line}`, cursor: r ? "pointer" : "default", fontFamily: "inherit", fontSize: 14, color: COLORS.ink, textAlign: "left" }}>
                 <span>{s.full_name}</span>
-                {r ? <span style={pill(r.status === "published" ? "ok" : "warn")}>{r.status === "published" ? "Published" : "Draft"}</span>
+                {r ? <span style={pill(r.status === "published" ? "ok" : "warn")}>{r.status === "published" ? (r.emailed_at ? "Published · emailed" : "Published") : "Draft"}</span>
                   : <span style={{ fontSize: 13, color: COLORS.muted }}>Not made yet</span>}
               </button>
             );
@@ -662,7 +695,7 @@ function StaffReportModal({ report, student, data, isAdmin, canEdit, busy, onClo
         {editable && !published && <button style={ghostBtn} disabled={busy} onClick={onRefresh}>Refresh from Gradebook</button>}
         {editable && c.early && <button style={ghostBtn} onClick={() => setPicking((p) => !p)}>{picking ? "Done choosing photos" : "Choose photos"}</button>}
         <PrintableReport report={report} lang={lang} logoUrl={data?.settings?.branding?.logoUrl} label="Print" />
-        {isAdmin && !published && <button style={primaryBtn} disabled={busy} onClick={() => onStatus("published")}>Publish to family</button>}
+        {isAdmin && !published && <button style={primaryBtn} disabled={busy} onClick={() => onStatus("published")}>{report.emailed_at ? "Publish again (no new email)" : "Publish and email family"}</button>}
         {isAdmin && published && <button style={ghostBtn} disabled={busy} onClick={() => onStatus("draft")}>Unpublish</button>}
       </div>
 
