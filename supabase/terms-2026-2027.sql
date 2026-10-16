@@ -2,10 +2,10 @@
 -- Run once in Supabase > SQL Editor. Safe to run again. Deletes nothing.
 --
 --   Term 1  Mon 7 Sep 2026  – Tue 15 Dec 2026
---   Term 2  Mon 11 Jan 2027 – Fri 26 Mar 2027
---   Term 3  Mon 12 Apr 2027 – Tue 8 Jun 2027
+--   Term 2  Mon 11 Jan 2027 – Fri 19 Mar 2027
+--   Term 3  Tue 30 Mar 2027 – Tue 8 Jun 2027
 --   Breaks (on the calendar for everyone): October (already there), Christmas,
---   February (2 days), Easter. A break already on the calendar on those dates
+--   February (2 days), Easter (22–26 March, plus Easter Monday 29 March). A break already on the calendar on those dates
 --   is not added again.
 
 -- 1. Settings: school year and the three terms ------------------------------------------------------------
@@ -15,8 +15,8 @@ set value = jsonb_set(jsonb_set(value::jsonb,
       '{settings,academicYear}', '{"startDate": "2026-09-07", "endDate": "2027-06-08"}'::jsonb),
       '{settings,terms}', '[
         {"name": "Term 1", "startDate": "2026-09-07", "endDate": "2026-12-15"},
-        {"name": "Term 2", "startDate": "2027-01-11", "endDate": "2027-03-26"},
-        {"name": "Term 3", "startDate": "2027-04-12", "endDate": "2027-06-08"}
+        {"name": "Term 2", "startDate": "2027-01-11", "endDate": "2027-03-19"},
+        {"name": "Term 3", "startDate": "2027-03-30", "endDate": "2027-06-08"}
       ]'::jsonb)::text,
     updated_at = now()
 where key = 'brightsteps-hub-data' and shared = true;
@@ -28,8 +28,8 @@ with breaks(id, title, starts, ends, description) as (values
    'No school from Wednesday 16 December to Friday 8 January. School resumes on Monday 11 January. / Pas d''école du mercredi 16 décembre au vendredi 8 janvier. Reprise des cours le lundi 11 janvier.'),
   ('february-break-2027', 'February Break', '2027-02-18', '2027-02-19',
    'No school on Thursday 18 and Friday 19 February. / Pas d''école le jeudi 18 et le vendredi 19 février.'),
-  ('easter-break-2027', 'Easter Break', '2027-03-29', '2027-04-09',
-   'No school from Monday 29 March (Easter Monday) to Friday 9 April. School resumes on Monday 12 April. / Pas d''école du lundi 29 mars (lundi de Pâques) au vendredi 9 avril. Reprise des cours le lundi 12 avril.')
+  ('easter-break-2027', 'Easter Break', '2027-03-22', '2027-03-29',
+   'No school from Monday 22 March to Monday 29 March (Easter Monday). School resumes on Tuesday 30 March. / Pas d''école du lundi 22 mars au lundi 29 mars (lundi de Pâques). Reprise des cours le mardi 30 mars.')
 ), current_events as (
   select coalesce(value::jsonb->'events', '[]'::jsonb) as ev
   from public.app_storage where key = 'brightsteps-hub-data' and shared = true
