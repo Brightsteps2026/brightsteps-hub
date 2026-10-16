@@ -170,7 +170,11 @@ const emptyData = { students: [], classes: [], portfolio: [], plans: [], announc
 
 function syncGlobalsFromSettings(settings) {
   if (!settings) return;
-  const extraGrades = (settings.grades || []).filter((g) => g && !CORE_GRADES.includes(g) && g !== "Pre Nursery");
+  // Other spellings of the core grades (e.g. "Pre-Nursery", "Pre-K", "KG") are not extra grades.
+  const norm = (g) => String(g).toLowerCase().replace(/[^a-z0-9]/g, "");
+  const ALIASES = new Set(["prenursery", "pren", "prek", "prekindergarten", "kindergarten", "kg", "k",
+    ...CORE_GRADES.map(norm), ...CORE_GRADES.map((g) => norm(g).replace("grade", "g"))]);
+  const extraGrades = (settings.grades || []).filter((g) => g && !CORE_GRADES.includes(g) && !ALIASES.has(norm(g)));
   GRADES.length = 0;
   GRADES.push(...CORE_GRADES, ...extraGrades);
   if (settings.assessmentLevels && settings.assessmentLevels.length) {
