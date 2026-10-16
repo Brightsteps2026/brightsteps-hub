@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Percent, Briefcase, FolderOpen, Award, LogOut, Utensils, Wallet } from "lucide-react";
 import { useAuth } from "./LoginGate";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
@@ -9,11 +9,11 @@ import StaffCheckinTab, { CheckinIcon, CheckinBanner } from "./StaffCheckinTab";
 import SchoolGradebook from "./SchoolGradebook";
 import { GRADES, DEFAULT_SETTINGS, ACTIVITY_AREA_LABELS } from "./data/constants";
 import { useSchoolData } from "./data/useSchoolData";
-import { uid, getUnreadThreads } from "./lib/format";
+import { uid } from "./lib/format";
 import { Modal, TabErrorBoundary } from "./ui/common";
 import { Dashboard } from "./screens/Dashboard";
 import { ParentStudentView } from "./screens/ParentStudentView";
-import { StudentMessages, useUnreadNoticeCount, NotificationBell } from "./screens/Messages";
+import { StudentMessages, useUnreadNoticeCount, useUnreadThreads, NotificationBell } from "./screens/Messages";
 import { StudentsTab } from "./screens/Students";
 import { ClassesTab } from "./screens/Classes";
 import { PortfolioTab } from "./screens/Portfolio";
@@ -99,7 +99,7 @@ function BrightStepsHubInner() {
   // Pre-N through Grade 2: reflections only. Grade 3 and up: can also see (not edit)
   // their own attendance and grades.
   const STUDENT_ALLOWED_TABS = isUpperStudent ? ["portfolio", "attendance", "gradebook", "assignments", "assessment", "messages"] : ["portfolio"];
-  const unreadThreads = useMemo(() => getUnreadThreads(data, profile), [data.students, profile]);
+  const unreadThreads = useUnreadThreads(profile, data);
   const unreadMessageCount = unreadThreads.reduce((n, t) => n + t.count, 0);
   const unreadNoticeCount = useUnreadNoticeCount(profile);
   const unreadCount = unreadMessageCount + unreadNoticeCount;

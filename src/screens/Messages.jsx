@@ -1,37 +1,124 @@
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import { X, Send, Bell } from "lucide-react";
 import { useAuth } from "../LoginGate";
 import { useLanguage } from "../lib/i18n";
 import { supabase } from "../lib/supabaseClient";
 import { GRADES } from "../data/constants";
-import { uid, todayStr } from "../lib/format";
 
-// Two private threads per student:
-//   "family"  (messages / lastRead): parents and teachers. Students never see it.
-//   "student" (studentMessages / studentLastRead): a Grade 3+ student and teachers.
-//             Parents never see it.
-// Staff switch between the two for Grade 3+ students. The database stamps who
-// sent each family or student message, and they can only add to their thread.
-const THREAD_FIELDS = {
-  family: { msgs: "messages", read: "lastRead" },
-  student: { msgs: "studentMessages", read: "studentLastRead" }
-};
+// Two private threads per student, kept in the hub_messages table
+// (see supabase/stage1-messages.sql):
+//   "family":  parents and teachers. Students never see it.
+//   "student": a Grade 3+ student and teachers. Parents never see it.
+// Staff switch between the two for Grade 3+ students. The database decides who
+// may read and write each thread, and stamps who sent each message.
 
 const MESSAGE_ROLE_LABELS = {
   en: { parent: "parent", student: "student", teacher: "teacher", admin: "school", learning_assistant: "assistant" },
   fr: { parent: "parent", student: "élève", teacher: "enseignant(e)", admin: "école", learning_assistant: "assistant(e)" }
 };
 
-const unreadIn = (student, thread, userId, fromFamily) => {
-  const f = THREAD_FIELDS[thread];
-  const seen = ((student[f.read] || {})[userId]) || "";
-  return (student[f.msgs] || []).filter((m) => {
-    const isFamily = m.role === "parent" || m.role === "student";
-    return (fromFamily ? isFamily : !isFamily) && (m.createdAt || m.date || "") > seen;
-  }).length;
+const POLL_MS = 30 * 1000;
+
+const localDay = (iso) => {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
-function StudentMessages({ student, data, persist }) {
+const toMessage = (r) => ({
+  id: r.id,
+  author: r.author_name,
+  authorId: r.author_id,
+  role: r.author_role,
+  text: r.body,
+  date: localDay(r.created_at),
+  createdAt: r.created_at
+});
+
+// Tells the bell and unread counts to refresh.
+const messagesChanged = () => window.dispatchEvent(new Event("bs-messages-changed"));
+
+// Unread messages for the signed-in person: { "<studentId>:<thread>": count }.
+function useUnreadMessages(profile) {
+  const [map, setMap] = useState({});
+  useEffect(() => {
+    if (!profile?.id || !["admin", "teacher", "parent", "student"].includes(profile.role)) { setMap({}); return; }
+    let cancelled = false;
+    const load = async () => {
+      const { data: rows, error } = await supabase.rpc("my_unread_messages");
+      if (cancelled || error) return;
+      const m = {};
+      (rows || []).forEach((r) => { m[`${r.student_id}:${r.thread}`] = r.unread; });
+      setMap(m);
+    };
+    load();
+    const id = setInterval(() => { if (!document.hidden) load(); }, POLL_MS);
+    const onVisible = () => { if (!document.hidden) load(); };
+    window.addEventListener("bs-messages-changed", load);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      window.removeEventListener("bs-messages-changed", load);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [profile?.id, profile?.role]);
+  return map;
+}
+
+// Unread threads for the bell, one entry per student: [{ id, name, count }].
+// Teachers only count the students of their own grades (as before).
+function useUnreadThreads(profile, data) {
+  const map = useUnreadMessages(profile);
+  return useMemo(() => {
+    const teacherGrades = profile?.role === "teacher" ? (profile.grades_assigned || []) : null;
+    const byStudent = {};
+    Object.entries(map).forEach(([key, n]) => {
+      const sid = key.slice(0, key.lastIndexOf(":"));
+      byStudent[sid] = (byStudent[sid] || 0) + n;
+    });
+    return Object.entries(byStudent)
+      .map(([sid, count]) => {
+        const s = (data?.students || []).find((x) => x.id === sid);
+        return s ? { id: sid, name: s.name, grade: s.grade, count } : null;
+      })
+      .filter((t) => t && t.count > 0 && (!teacherGrades || teacherGrades.includes(t.grade)))
+      .map(({ grade, ...t }) => t)
+      .sort((a, b) => b.count - a.count || (a.name || "").localeCompare(b.name || ""));
+  }, [map, data?.students, profile?.role, profile?.grades_assigned]);
+}
+
+// The messages of one thread, kept current while it is open.
+function useThreadMessages(studentId, thread) {
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    if (!studentId) return;
+    const { data: rows, error: e } = await supabase
+      .from("hub_messages")
+      .select("id, author_id, author_name, author_role, body, created_at")
+      .eq("student_id", studentId).eq("thread", thread)
+      .order("created_at", { ascending: true });
+    if (e) setError(e.message); else { setError(""); setMessages((rows || []).map(toMessage)); }
+    setLoading(false);
+  }, [studentId, thread]);
+  useEffect(() => {
+    setLoading(true); setMessages([]);
+    load();
+    const id = setInterval(() => { if (!document.hidden) load(); }, POLL_MS);
+    const onVisible = () => { if (!document.hidden) load(); };
+    window.addEventListener("bs-messages-changed", load);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("bs-messages-changed", load);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [load]);
+  return { messages, setMessages, loading, error, reload: load };
+}
+
+function StudentMessages({ student }) {
   const { profile } = useAuth();
   const { language } = useLanguage();
   const fr = language === "fr";
@@ -43,71 +130,63 @@ function StudentMessages({ student, data, persist }) {
   // Learning assistants can read the parents' thread but never write in it,
   // and never see a Grade 3+ student's private thread.
   const hasStudentThread = !isAssistantUser && GRADES.indexOf(student.grade) >= GRADES.indexOf("Grade 3");
+  const unread = useUnreadMessages(profile);
   const [messageText, setMessageText] = useState("");
   const [sending, setSending] = useState(false);
-  const [staffThread, setStaffThread] = useState(() =>
-    isStaffUser && hasStudentThread && profile?.id &&
-    unreadIn(student, "student", profile.id, true) > 0 && unreadIn(student, "family", profile.id, true) === 0
-      ? "student" : "family"
-  );
+  const [sendError, setSendError] = useState("");
+  const [staffThread, setStaffThread] = useState("family");
+  const [pickedThread, setPickedThread] = useState(false);
   const thread = isStudentUser ? "student" : isParentUser ? "family" : (hasStudentThread ? staffThread : "family");
-  const F = THREAD_FIELDS[thread];
   const canPost = role !== "viewer" && role !== "learning_assistant" && role !== "accountant";
+  const { messages, setMessages, loading, error } = useThreadMessages(student.id, thread);
+  const unreadOf = (k) => unread[`${student.id}:${k}`] || 0;
 
+  // Staff: open the student's thread first when only that one has something new.
   useEffect(() => {
-    if (!profile?.id || !student?.id) return;
-    if (role === "viewer" || role === "learning_assistant") return;
-    // Only save "last read" when there is actually something new to mark as read.
-    const seen = (student[F.read] || {})[profile.id] || "";
-    const hasNew = (student[F.msgs] || []).some((m) => (m.createdAt || m.date || "") > seen);
-    if (!hasNew) return;
-    persist({
-      ...data,
-      students: data.students.map((s) =>
-        s.id === student.id ? { ...s, [F.read]: { ...(s[F.read] || {}), [profile.id]: new Date().toISOString() } } : s
-      )
-    });
-    // Only re-run when switching student or thread, not on every persist.
+    if (pickedThread || !isStaffUser || !hasStudentThread) return;
+    if (unreadOf("student") > 0 && unreadOf("family") === 0) setStaffThread("student");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [student.id, profile?.id, thread]);
+  }, [unread, student.id]);
+  useEffect(() => { setPickedThread(false); setStaffThread("family"); setSendError(""); }, [student.id]);
+
+  // Mark the thread as read when it is opened and whenever new messages arrive.
+  useEffect(() => {
+    if (!profile?.id || !student?.id || loading) return;
+    if (role === "viewer" || role === "learning_assistant" || role === "accountant") return;
+    if (unreadOf(thread) === 0) return;
+    supabase.rpc("mark_hub_thread_read", { p_student: student.id, p_thread: thread })
+      .then(({ error: e }) => { if (!e) messagesChanged(); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [student.id, thread, messages.length, loading, unread]);
 
   const addMessage = async () => {
-    if (!messageText.trim() || sending) return;
-    const message = {
-      id: uid(),
-      author: (profile && profile.full_name) || "Someone",
-      authorId: profile?.id,
-      role: role || "",
-      text: messageText.trim(),
-      date: todayStr(),
-      createdAt: new Date().toISOString()
-    };
-    setSending(true);
-    const ok = await persist({
-      ...data,
-      students: data.students.map((s) =>
-        s.id === student.id
-          ? { ...s, [F.msgs]: [...(s[F.msgs] || []), message], [F.read]: { ...(s[F.read] || {}), [profile.id]: message.createdAt } }
-          : s
-      )
-    });
+    const text = messageText.trim();
+    if (!text || sending) return;
+    setSending(true); setSendError("");
+    const { data: row, error: e } = await supabase.rpc("send_hub_message", { p_student: student.id, p_thread: thread, p_body: text });
     setSending(false);
-    if (!ok) return; // keep the text in the box; the top bar says "Not saved"
+    if (e || !row) {
+      // Keep the text in the box so nothing is lost.
+      setSendError(fr ? "Le message n'a pas été envoyé. Vérifiez la connexion et réessayez." : "The message wasn't sent. Check the connection and try again.");
+      return;
+    }
     setMessageText("");
-    // Only email once the message is really saved (family thread only: emails go to parents).
+    setMessages((list) => (list.some((m) => m.id === row.id) ? list : [...list, toMessage(row)]));
+    messagesChanged();
+    // Email only for the parents' thread.
     if (thread === "family") {
       supabase.functions
-        .invoke("notify-message", { body: { studentId: student.id, senderRole: role || "", senderName: (profile && profile.full_name) || "Someone" } })
-        .catch((e) => console.error("notify-message failed", e));
+        .invoke("notify-message", { body: { studentId: student.id, senderRole: role || "", senderName: (profile && profile.full_name) || "Someone", messageId: row.id } })
+        .catch((err) => console.error("notify-message failed", err));
     }
   };
 
-  const removeMessage = (msgId) => {
+  const removeMessage = async (msgId) => {
     if (!window.confirm(fr ? "Supprimer ce message ?" : "Remove this message?")) return;
-    persist({
-      ...data,
-      students: data.students.map((s) => (s.id === student.id ? { ...s, [F.msgs]: (s[F.msgs] || []).filter((m) => m.id !== msgId) } : s))
-    });
+    const { error: e } = await supabase.rpc("remove_hub_message", { p_id: msgId });
+    if (e) { setSendError(fr ? "Impossible de supprimer ce message." : "This message couldn't be removed."); return; }
+    setMessages((list) => list.filter((m) => m.id !== msgId));
+    messagesChanged();
   };
 
   const initials = (name) =>
@@ -119,7 +198,6 @@ function StudentMessages({ student, data, persist }) {
   };
   const roleLabel = (r) => (MESSAGE_ROLE_LABELS[fr ? "fr" : "en"][r] || r);
 
-  const messages = student[F.msgs] || [];
   let lastDate = null;
 
   const intro = isStudentUser
@@ -143,9 +221,9 @@ function StudentMessages({ student, data, persist }) {
       {isStaffUser && hasStudentThread && (
         <div className="bsf-chiprow" style={{ marginBottom: 10 }}>
           {["family", "student"].map((k) => {
-            const n = profile?.id ? unreadIn(student, k, profile.id, true) : 0;
+            const n = unreadOf(k);
             return (
-              <button key={k} className={`bsf-chip ${thread === k ? "active" : ""}`} onClick={() => setStaffThread(k)}>
+              <button key={k} className={`bsf-chip ${thread === k ? "active" : ""}`} onClick={() => { setPickedThread(true); setStaffThread(k); }}>
                 {k === "family" ? "Parents" : "Student"}{n > 0 ? ` (${n})` : ""}
               </button>
             );
@@ -153,7 +231,9 @@ function StudentMessages({ student, data, persist }) {
         </div>
       )}
       <div className="bsf-chatthread">
-        {messages.length === 0 && (
+        {loading && <p className="bsf-empty">{fr ? "Chargement…" : "Loading…"}</p>}
+        {!loading && error && <p className="bsf-empty">{fr ? "Impossible de charger les messages." : "Messages couldn't be loaded."}</p>}
+        {!loading && !error && messages.length === 0 && (
           <p className="bsf-empty">
             {isStudentUser ? "No messages yet. Say hello to your teacher below." : fr && isParentUser ? "Aucun message pour l'instant. Écrivez ci-dessous." : "No messages yet. Say hello below."}
           </p>
@@ -181,6 +261,7 @@ function StudentMessages({ student, data, persist }) {
           );
         })}
       </div>
+      {sendError && <p className="bsf-muted" style={{ color: "#B23A3A", margin: "6px 0" }}>{sendError}</p>}
       {canPost && (
         <div className="bsf-chatinputbar">
           <textarea
@@ -425,4 +506,4 @@ function NotificationBell({ profile, unreadThreads, unreadNoticeCount, onOpenThr
   );
 }
 
-export { StudentMessages, useUnreadNoticeCount, AbsenceNotices, NotificationBell };
+export { StudentMessages, useUnreadNoticeCount, useUnreadThreads, AbsenceNotices, NotificationBell };
