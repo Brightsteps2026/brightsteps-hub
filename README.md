@@ -31,13 +31,14 @@ vercel.json               security headers
 
 The database decides what each person receives, not the screens:
 
-- **Admin, viewer:** everything (viewer cannot save).
+- **Admin:** everything.
+- **Viewer:** everything except family messages and medical details; cannot save.
 - **Teacher:** students of their grades, without parent contacts or medical details; behaviour notes for their own grades.
 - **Learning assistant:** students of their grades, no message threads, no behaviour notes.
 - **Accountant:** student names and grades, billing and fees.
 - **Parent:** their own children only. **Student:** their own records and their own thread with teachers.
 
-See `supabase/audit-fixes-2026-10.sql` for the current rules.
+See `supabase/audit-fixes-2026-10.sql` for the current rules. What each role receives is decided by `hub_trim_core`; `hub_trim` sits in front of it and removes messages and medical details for viewers (`supabase/viewer-no-messages-medical.sql`). Future changes go in `hub_trim_core`.
 
 ## Translations
 
