@@ -3,7 +3,7 @@ import { X, Send, Bell } from "lucide-react";
 import { useAuth } from "../LoginGate";
 import { useLanguage } from "../lib/i18n";
 import { supabase } from "../lib/supabaseClient";
-import { pushStatus, turnOnPush, turnOffPush } from "../lib/push";
+import { pushStatus, turnOnPush, turnOffPush, resyncPush } from "../lib/push";
 import { GRADES } from "../data/constants";
 
 // Two private threads per student, kept in the hub_messages table
@@ -369,7 +369,9 @@ function PhoneNotifications({ fr }) {
   const [status, setStatus] = useState("loading");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  useEffect(() => { pushStatus().then(setStatus).catch(() => setStatus("unsupported")); }, []);
+  useEffect(() => {
+    pushStatus().then((st) => { setStatus(st); if (st === "on") resyncPush(); }).catch(() => setStatus("unsupported"));
+  }, []);
   if (status === "loading" || status === "unsupported") return null;
 
   const toggle = async () => {
@@ -377,7 +379,7 @@ function PhoneNotifications({ fr }) {
     try {
       setStatus(status === "on" ? await turnOffPush() : await turnOnPush());
     } catch (e) {
-      setError(fr ? "Impossible d'activer les notifications. Réessayez." : "Notifications couldn't be turned on. Please try again.");
+      setError((fr ? "Impossible d'activer les notifications. Réessayez." : "Notifications couldn't be turned on. Please try again.") + ` (${e?.message || e})`);
     }
     setBusy(false);
   };

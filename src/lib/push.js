@@ -38,11 +38,11 @@ export async function turnOnPush() {
   const reg = (await navigator.serviceWorker.getRegistration()) || (await navigator.serviceWorker.register("/sw.js"));
   await navigator.serviceWorker.ready;
   const { data: k, error: ke } = await supabase.functions.invoke("push", { body: { action: "public-key" } });
-  if (ke || !k?.publicKey) throw new Error("Could not get the notification key");
+  if (ke || !k?.publicKey) throw new Error("key: " + (ke?.message || k?.error || "no key"));
   let sub = await reg.pushManager.getSubscription();
   if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyToBytes(k.publicKey) });
-  const { error } = await supabase.functions.invoke("push", { body: { action: "subscribe", subscription: sub.toJSON() } });
-  if (error) throw error;
+  const { data: saved, error } = await supabase.functions.invoke("push", { body: { action: "subscribe", subscription: sub.toJSON() } });
+  if (error || saved?.error) throw new Error("save: " + (error?.message || saved?.error));
   return "on";
 }
 
@@ -54,4 +54,19 @@ export async function turnOffPush() {
     await sub.unsubscribe();
   }
   return "off";
+}
+
+// If this phone already has notifications on, make sure the server knows it
+// (repairs a phone whose first "Turn on" did not reach the server). Silent.
+export async function resyncPush() {
+  try {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg ? await reg.pushManager.getSubscription() : null;
+    if (!sub) return;
+    await supabase.functions.invoke("push", { body: { action: "subscribe", subscription: sub.toJSON() } });
+  } catch (e) {
+    console.error("Notification check failed", e);
+  }
 }

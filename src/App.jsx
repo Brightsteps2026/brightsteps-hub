@@ -14,6 +14,7 @@ import { Modal, TabErrorBoundary } from "./ui/common";
 import { Dashboard } from "./screens/Dashboard";
 import { ParentStudentView } from "./screens/ParentStudentView";
 import { StudentMessages, useUnreadNoticeCount, useUnreadThreads, NotificationBell } from "./screens/Messages";
+import { resyncPush } from "./lib/push";
 import { StudentsTab } from "./screens/Students";
 import { ClassesTab } from "./screens/Classes";
 import { PortfolioTab } from "./screens/Portfolio";
@@ -100,6 +101,8 @@ function BrightStepsHubInner() {
   // their own attendance and grades.
   const STUDENT_ALLOWED_TABS = isUpperStudent ? ["portfolio", "attendance", "gradebook", "assignments", "assessment", "messages"] : ["portfolio"];
   const unreadThreads = useUnreadThreads(profile, data);
+  // Phone notifications: re-confirm this phone with the server each time the Hub opens.
+  useEffect(() => { if (profile?.id) resyncPush(); }, [profile?.id]);
   const unreadMessageCount = unreadThreads.reduce((n, t) => n + t.count, 0);
   const unreadNoticeCount = useUnreadNoticeCount(profile);
   const unreadCount = unreadMessageCount + unreadNoticeCount;
