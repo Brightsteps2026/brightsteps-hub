@@ -3,6 +3,7 @@ import { X, Send, Bell } from "lucide-react";
 import { useAuth } from "../LoginGate";
 import { useLanguage } from "../lib/i18n";
 import { supabase } from "../lib/supabaseClient";
+import { pushStatus, turnOnPush, turnOffPush } from "../lib/push";
 import { GRADES } from "../data/constants";
 
 // Two private threads per student, kept in the hub_messages table
@@ -363,6 +364,59 @@ function AbsenceNotices({ profile, studentId }) {
 }
 
 // The bell in the top bar: opens a small panel with unread notices and a link to unread messages.
+// "Notifications on this phone": turns phone notifications (push) on or off.
+function PhoneNotifications({ fr }) {
+  const [status, setStatus] = useState("loading");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => { pushStatus().then(setStatus).catch(() => setStatus("unsupported")); }, []);
+  if (status === "loading" || status === "unsupported") return null;
+
+  const toggle = async () => {
+    setBusy(true); setError("");
+    try {
+      setStatus(status === "on" ? await turnOffPush() : await turnOnPush());
+    } catch (e) {
+      setError(fr ? "Impossible d'activer les notifications. Réessayez." : "Notifications couldn't be turned on. Please try again.");
+    }
+    setBusy(false);
+  };
+
+  const box = { background: "#FCFAF4", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", marginBottom: 10, fontSize: 13, lineHeight: 1.5, color: "var(--ink)" };
+  if (status === "ios-home-screen") {
+    return (
+      <div style={box}>
+        {fr
+          ? "Pour recevoir les notifications sur iPhone : dans Safari, touchez Partager puis « Sur l'écran d'accueil », puis ouvrez le Hub depuis cette icône."
+          : "To get notifications on iPhone: in Safari, tap Share, then \u201cAdd to Home Screen\u201d, then open the Hub from that icon."}
+      </div>
+    );
+  }
+  if (status === "denied") {
+    return (
+      <div style={box}>
+        {fr
+          ? "Les notifications sont bloquées pour le Hub sur cet appareil. Autorisez-les dans les réglages du navigateur."
+          : "Notifications are blocked for the Hub on this device. Allow them in the browser's settings."}
+      </div>
+    );
+  }
+  return (
+    <div style={{ ...box, display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{ flex: 1 }}>
+        {status === "on"
+          ? (fr ? "Notifications activées sur cet appareil." : "Notifications are on for this device.")
+          : (fr ? "Recevez une notification pour chaque nouveau message ou avis." : "Get a notification for each new message or notice.")}
+        {error && <span style={{ display: "block", color: "#B23A3A" }}>{error}</span>}
+      </span>
+      <button onClick={toggle} disabled={busy}
+        style={{ fontSize: 13, padding: "6px 12px", borderRadius: 8, border: status === "on" ? "1px solid var(--line)" : "none", background: status === "on" ? "#fff" : "#801524", color: status === "on" ? "var(--ink)" : "#fff", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+        {busy ? "…" : status === "on" ? (fr ? "Désactiver" : "Turn off") : (fr ? "Activer" : "Turn on")}
+      </button>
+    </div>
+  );
+}
+
 function NotificationBell({ profile, unreadThreads, unreadNoticeCount, onOpenThread, onOpenNotice }) {
   const unreadMessageCount = (unreadThreads || []).reduce((n, t) => n + t.count, 0);
   const { language } = useLanguage();
@@ -459,6 +513,8 @@ function NotificationBell({ profile, unreadThreads, unreadNoticeCount, onOpenThr
                 </button>
               )}
             </div>
+
+            <PhoneNotifications fr={fr} />
 
             {onOpenThread && (unreadThreads || []).map((t) => (
               <button
