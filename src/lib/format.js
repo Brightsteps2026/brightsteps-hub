@@ -193,6 +193,22 @@ function feeCategoryIcon(category) {
 // Counts messages the current person hasn't seen yet, across every student
 // thread they're allowed to view. Parents only see messages from staff;
 // staff only see messages from parents (staff-to-staff notes don't count).
+// Saturday or Sunday ("YYYY-MM-DD"). There is no school on weekends, so these
+// days are never marked and never counted in attendance.
+function isWeekendStr(dateStr) {
+  const [y, m, d] = String(dateStr || "").split("-").map(Number);
+  if (!y || !m || !d) return false;
+  const dow = new Date(y, m - 1, d).getDay();
+  return dow === 0 || dow === 6;
+}
+
+// Today, or the Friday before when today is a weekend.
+function lastSchoolDayStr() {
+  const d = new Date();
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 // Counts a student's attendance days, optionally limited to a date range (a term).
 // Pass no range to get the year-to-date total.
 function attendanceCountsForRange(attendanceMap, studentId, startDate, endDate) {
@@ -200,6 +216,7 @@ function attendanceCountsForRange(attendanceMap, studentId, startDate, endDate) 
   Object.entries(attendanceMap || {}).forEach(([date, day]) => {
     if (startDate && date < startDate) return;
     if (endDate && date > endDate) return;
+    if (isWeekendStr(date)) return;
     const status = day[studentId];
     if (status) counts[status === "excused" ? "absent" : status] += 1;
   });
@@ -244,4 +261,4 @@ function getUnreadMessageCount(data, profile) {
   return getUnreadThreads(data, profile).reduce((n, t) => n + t.count, 0);
 }
 
-export { uid, nextStudentIdNumber, formatEventWhen, safeLink, todayStr, lunchWeekLabel, isThisSchoolWeek, useTodayWeekday, formatCurrency, formatDateLong, formatTimestampDate, gradeLabel, tLabel, computeFeeBreakdown, feeCategoryIcon, attendanceCountsForRange, getUnreadThreads, getUnreadMessageCount };
+export { uid, nextStudentIdNumber, formatEventWhen, safeLink, todayStr, lunchWeekLabel, isThisSchoolWeek, useTodayWeekday, formatCurrency, formatDateLong, formatTimestampDate, gradeLabel, tLabel, computeFeeBreakdown, feeCategoryIcon, attendanceCountsForRange, isWeekendStr, lastSchoolDayStr, getUnreadThreads, getUnreadMessageCount };

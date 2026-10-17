@@ -327,6 +327,8 @@ const translations = {
   "attendance.notMarked": { en: "Not marked yet", fr: "Pas encore renseigné" },
   "attendance.presentToday": { en: "present today", fr: "présent(s) aujourd'hui" },
   "attendance.jumpToday": { en: "Jump back to today", fr: "Revenir à aujourd'hui" },
+  "attendance.weekend": { en: "No school on weekends. Attendance is only taken Monday to Friday.", fr: "Pas d'école le week-end. L'appel se fait uniquement du lundi au vendredi." },
+  "attendance.jumpSchoolDay": { en: "Go to the last school day", fr: "Aller au dernier jour d'école" },
   "attendance.noRecord": { en: "No attendance recorded yet.", fr: "Aucune présence enregistrée pour l'instant." },
 
   // Assessment (parent view)

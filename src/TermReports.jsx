@@ -156,6 +156,9 @@ function attendanceFor(hubId, attendance, dates) {
   const a = { present: 0, absent: 0, late: 0, excused: 0 };
   Object.entries(attendance || {}).forEach(([day, row]) => {
     if (day < dates.start || day > dates.end) return;
+    const [yy, mm, dd] = day.split("-").map(Number);
+    const dow = new Date(yy, mm - 1, dd).getDay();
+    if (dow === 0 || dow === 6) return; // no school on weekends
     const v = row && row[hubId];
     if (v === "present") a.present += 1;
     else if (v === "late") a.late += 1;

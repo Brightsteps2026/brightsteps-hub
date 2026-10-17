@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useLanguage } from "../lib/i18n";
 import { useReportedAbsences } from "../AbsenceReport";
 import { GRADES } from "../data/constants";
-import { todayStr, gradeLabel } from "../lib/format";
+import { todayStr, gradeLabel, isWeekendStr, lastSchoolDayStr } from "../lib/format";
 import { StudentThumb } from "../ui/common";
 import { AbsenceNotices } from "./Messages";
 
@@ -14,7 +14,7 @@ const STATUS_COLOR = { present: "#2F7A5C", absent: "#B5473B", late: "#8A6420", e
 
 function AttendanceTab({ data, persist, profile }) {
   const { t, language } = useLanguage();
-  const [date, setDate] = useState(todayStr());
+  const [date, setDate] = useState(lastSchoolDayStr());
   const isParent = profile?.role === "parent";
   const isStudent = profile?.role === "student";
   const isSelfOnly = isParent || isStudent;
@@ -34,7 +34,10 @@ function AttendanceTab({ data, persist, profile }) {
     ? data.students.filter((s) => linkedIds.includes(s.id) && s.grade === activeGrade)
     : data.students.filter((s) => s.grade === activeGrade);
 
+  const weekend = isWeekendStr(date);
+
   const setStatus = (studentId, status) => {
+    if (weekend) return;
     const nextDay = { ...dayRecord, [studentId]: status };
     persist({ ...data, attendance: { ...data.attendance, [date]: nextDay } });
   };
@@ -48,6 +51,7 @@ function AttendanceTab({ data, persist, profile }) {
   };
 
   const markAllPresent = () => {
+    if (weekend) return;
     const nextDay = { ...dayRecord };
     gradeStudents.forEach((s) => { nextDay[s.id] = "present"; });
     persist({ ...data, attendance: { ...data.attendance, [date]: nextDay } });
@@ -66,7 +70,7 @@ function AttendanceTab({ data, persist, profile }) {
     const [y, m, d] = date.split("-").map(Number);
     return new Date(y, m - 1, d).toLocaleDateString(language === "fr" ? "fr-FR" : "en-GB", { weekday: "long", day: "numeric", month: "long" });
   })();
-  const isToday = date === todayStr();
+  const isToday = date === lastSchoolDayStr();
   const markedTotal = summary.present + summary.absent + summary.late;
 
   return (
@@ -75,8 +79,8 @@ function AttendanceTab({ data, persist, profile }) {
         <p className="bsf-eyebrow">{t("nav.attendance")}</p>
         <h1>{dateLabel}</h1>
         {!isToday && (
-          <button className="bsf-textbtn" onClick={() => setDate(todayStr())} style={{ marginTop: 2 }}>
-            {t("attendance.jumpToday")}
+          <button className="bsf-textbtn" onClick={() => setDate(lastSchoolDayStr())} style={{ marginTop: 2 }}>
+            {lastSchoolDayStr() === todayStr() ? t("attendance.jumpToday") : t("attendance.jumpSchoolDay")}
           </button>
         )}
         <div className="bsf-attend-summary">
@@ -122,6 +126,11 @@ function AttendanceTab({ data, persist, profile }) {
       )}
 
       {!isSelfOnly && <AbsenceNotices profile={profile} />}
+      {weekend ? (
+        <section className="bsf-card">
+          <p className="bsf-empty" style={{ margin: 0 }}>{t("attendance.weekend")}</p>
+        </section>
+      ) : (<>
       <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
         <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 16 }}>{isParent ? gradeLabel(activeGrade, language) : activeGrade}</h2>
         {!isSelfOnly && <button className="bsf-btn" onClick={markAllPresent} disabled={gradeStudents.length === 0}>Mark all present</button>}
@@ -167,6 +176,7 @@ function AttendanceTab({ data, persist, profile }) {
           );
         })}
       </section>
+      </>)}
     </div>
   );
 }
