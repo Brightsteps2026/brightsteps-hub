@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { WeeklyUpdatesFamily, WeeklyHistoryStaff } from "../WeeklyUpdates";
 import { useLanguage } from "../lib/i18n";
 import { getLevelColor, DEFAULT_SETTINGS, isStaffOnlyEvent } from "../data/constants";
 import { todayStr, formatDateLong, gradeLabel, tLabel, attendanceCountsForRange } from "../lib/format";
@@ -108,6 +109,8 @@ function FamilyViewModal({ student, data, onClose, hideContacts = false, showMes
             </div>
           ))}
       </section>
+
+      <WeeklyHistoryStaff student={student} />
 
       <section className="bsf-card">
         <h2>Attendance</h2>
@@ -359,6 +362,8 @@ function ParentStudentView({ data, persist, profile }) {
             {activeStudent.allergies && <p className="bsf-alert-note">{t("dash.allergies")} {activeStudent.allergies}</p>}
             {activeStudent.medicalConditions && <p className="bsf-alert-note">{t("dash.medical")} {activeStudent.medicalConditions}</p>}
           </section>
+
+          <WeeklyUpdatesFamily student={activeStudent} language={language} />
 
           <section className="bsf-card">
             <h2>{t("nav.attendance")}</h2>

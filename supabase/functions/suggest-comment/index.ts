@@ -30,6 +30,66 @@ const KINDS: Record<string, string> = {
   general: "3 to 4 sentences for the homeroom teacher's general comment: how STUDENT is doing overall this term (learning and attitudes), one strength, and one clear next step.",
 };
 
+async function askClaude(prompt: string, maxTokens = 700) {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") || "",
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: maxTokens, messages: [{ role: "user", content: prompt }] }),
+  });
+  if (!res.ok) throw new Error("The AI service did not answer: " + (await res.text()).slice(0, 300));
+  const out = await res.json();
+  return (out?.content || []).map((c: { text?: string }) => c.text || "").join("").trim();
+}
+
+function parseJson(text: string) {
+  const a = text.indexOf("{"), b = text.lastIndexOf("}");
+  if (a < 0 || b < a) throw new Error("The AI answer could not be read. Please try again.");
+  return JSON.parse(text.slice(a, b + 1));
+}
+
+// Weekly child update: a short note in English and French ("weekly"), or a French
+// translation of a few short texts ("translate"). The child is STUDENT, never named.
+async function weekly(kind: string, body: Record<string, unknown>) {
+  try {
+    if (kind === "translate") {
+      const fields = (body.fields || {}) as Record<string, string>;
+      const clean: Record<string, string> = {};
+      Object.entries(fields).forEach(([k, v]) => { if (typeof v === "string" && v.trim()) clean[k] = v.slice(0, 1500); });
+      if (!Object.keys(clean).length) return { fr: {} };
+      const text = await askClaude([
+        "Translate these short texts from a school's weekly update for parents into natural French as used in Côte d'Ivoire.",
+        "Keep names, the word STUDENT, dates and numbers unchanged. Keep subject names such as Math as Mathématiques and English Language Arts as Anglais. Avoid gendered adjectives for STUDENT (rephrase instead).",
+        "Reply with JSON only, with the same keys: " + JSON.stringify(clean),
+      ].join("\n"), 1200);
+      return { fr: parseJson(text) };
+    }
+    const grade = String(body.grade || "");
+    const prompt = [
+      `You are helping a teacher at BrightSteps International School (Côte d'Ivoire) write this week's short update for the family of a child in ${grade}. The school uses inquiry-based learning.`,
+      EARLY.includes(grade)
+        ? "This is an early years class: simple, warm, everyday words for parents of a young child."
+        : "Older pupil: you may mention study habits and responsibility.",
+      "Write 3 to 4 sentences: how the week went in Math and English Language Arts (using the topics), how STUDENT took part and behaved, the highlight if there is one, and one gentle next step. 'Needs support' or 'Sometimes' must be written as an encouraging next step, never as a problem.",
+      "Rules: American English spelling; call the child STUDENT and do not use he/she/him/her; use ONLY the facts below and never invent events, numbers or grades; no greeting or sign-off.",
+      "Also give the same note in natural French as used in Côte d'Ivoire (keep STUDENT; avoid gendered adjectives for STUDENT).",
+      "",
+      "This week:",
+      String(body.facts || "").slice(0, 2500),
+      body.current ? `\nThe teacher's own wording so far (keep their ideas): ${String(body.current).slice(0, 800)}` : "",
+      "",
+      'Reply with JSON only: {"en": "...", "fr": "..."}',
+    ].join("\n");
+    const out = parseJson(await askClaude(prompt));
+    return { en: String(out.en || "").trim(), fr: String(out.fr || "").trim() };
+  } catch (e) {
+    return { error: String((e as Error)?.message || e) };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
@@ -39,9 +99,11 @@ Deno.serve(async (req) => {
     const { data: who } = await supabase.auth.getUser(token);
     if (!who?.user) return json({ error: "Not signed in" }, 401);
     const { data: me } = await supabase.from("profiles").select("role").eq("id", who.user.id).single();
-    if (!["admin", "teacher"].includes(me?.role)) return json({ error: "Only teachers can use this" }, 403);
+    if (!["admin", "teacher", "learning_assistant"].includes(me?.role)) return json({ error: "Only staff can use this" }, 403);
 
-    const { kind, grade, term, subject, facts, current } = await req.json();
+    const body = await req.json();
+    const { kind, grade, term, subject, facts, current } = body;
+    if (kind === "weekly" || kind === "translate") return json(await weekly(kind, body));
     if (!KINDS[kind]) return json({ error: "Unknown comment type" }, 400);
 
     const prompt = [

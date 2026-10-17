@@ -47,6 +47,7 @@ const translations = {
   "nav.accreditation": { en: "Accreditation", fr: "Accréditation" },
   "nav.billing": { en: "Billing", fr: "Facturation" },
   "nav.updates": { en: "Family Updates", fr: "Infos aux familles" },
+  "nav.weekly": { en: "Weekly updates", fr: "Points hebdomadaires" },
   "nav.more": { en: "More", fr: "Plus" },
   "nav.allSections": { en: "Explore", fr: "Explorer" },
   "nav.moreSectionsNote": {
