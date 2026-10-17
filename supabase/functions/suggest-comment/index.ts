@@ -22,6 +22,8 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 }
 
+const EARLY = ["Pre-N", "PreK", "Kindergarten", "Grade 1", "Grade 2"];
+
 const KINDS: Record<string, string> = {
   line: "ONE sentence (max 25 words) for this subject on the report card: what STUDENT does well, or the next step.",
   appreciation: "2 to 3 short sentences for this subject: what STUDENT enjoys, a skill STUDENT has shown, and one thing to work on next.",
@@ -46,6 +48,9 @@ Deno.serve(async (req) => {
       `You are helping a teacher at BrightSteps International School (Côte d'Ivoire) write a Term ${term} report card comment for a child in ${grade}.`,
       `The school uses inquiry-based learning. Early years levels: Emerging, Developing, Meeting, Exceeding. Skills are rated Rarely, Sometimes, Usually, Consistently.`,
       subject ? `Subject: ${subject}.` : "",
+      EARLY.includes(grade)
+        ? `This is an early years class (${grade}): write for parents of a young child. Use simple, warm, everyday words; focus on growth, curiosity, independence, play, getting along with others and early language/number skills as shown in the results; describe next steps as gentle encouragement, never as a problem.`
+        : `Write for an upper primary / middle school pupil: you may mention study habits, thinking and responsibility as shown in the results.`,
       `Write ${KINDS[kind]}`,
       `Rules: warm, specific and professional; written to parents; British English; call the child STUDENT and do not use he/she/him/her (write STUDENT again or rephrase); base it ONLY on the results below and never invent activities, events or numbers; do not quote grades, percentages or letters; no greeting, no sign-off.`,
       ``,
