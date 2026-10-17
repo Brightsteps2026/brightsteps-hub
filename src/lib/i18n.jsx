@@ -161,6 +161,8 @@ const translations = {
   "dash.nothingPosted": { en: "Nothing posted yet.", fr: "Aucune publication pour l'instant." },
   "dash.announcements": { en: "School announcements", fr: "Annonces de l'école" },
   "dash.noAnnouncements": { en: "No announcements yet.", fr: "Aucune annonce pour l'instant." },
+  "dash.seeAllAnnouncements": { en: "See all announcements", fr: "Voir toutes les annonces" },
+  "dash.showFewerAnnouncements": { en: "Show fewer", fr: "Afficher moins" },
   "dash.audienceLower": { en: "Lower school", fr: "Maternelle et primaire" },
   "dash.audienceUpper": { en: "Upper school", fr: "Collège" },
   "dash.lunchMenu": { en: "Lunch menu", fr: "Menu de la cantine" },

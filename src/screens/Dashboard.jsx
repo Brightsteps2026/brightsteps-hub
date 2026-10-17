@@ -36,6 +36,7 @@ function Dashboard({ data, profile, persist, onNavigate }) {
   const [annForm, setAnnForm] = useState(emptyAnnForm);
   const [editingAnnId, setEditingAnnId] = useState(null);
   const [emailingAnnId, setEmailingAnnId] = useState(null);
+  const [showAllAnn, setShowAllAnn] = useState(false);
 const [postingAnn, setPostingAnn] = useState(false);
 // Email an announcement to the parents who can see it (once per announcement).
 const emailAnnouncement = async (id) => {
@@ -84,7 +85,7 @@ const deleteAnnouncement = async (id) => {
   setAnnouncements(announcements.filter((a) => a.id !== id));
 };
 useEffect(() => {
-  supabase.from("announcements").select("*").order("created_at", { ascending: false }).limit(20).then(({ data, error }) => {
+  supabase.from("announcements").select("*").order("created_at", { ascending: false }).limit(60).then(({ data, error }) => {
     if (error) { console.error("announcements load failed", error); return; }
     setAnnouncements(data || []);
   });
@@ -572,7 +573,7 @@ const saveLunchMenu = async () => {
 )}
         </div>
         {visibleAnnouncements.length === 0 && <p className="bsf-empty">{isParent ? t("dash.noAnnouncements") : "No announcements yet."}</p>}
-        {visibleAnnouncements.slice(0, 3).map((a) => (
+        {(showAllAnn ? visibleAnnouncements : visibleAnnouncements.slice(0, 3)).map((a) => (
         <div key={a.id} style={{ borderTop: "1px solid #eee", padding: "12px 0" }}>
         <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 4px" }}>{isParent
           ? `${a.audience === "school" || !a.audience ? t("common.wholeSchool") : a.audience === "lower" ? t("dash.audienceLower") : a.audience === "upper" ? t("dash.audienceUpper") : gradeLabel(a.audience, language)} · ${formatTimestampDate(a.created_at, language)}`
@@ -593,6 +594,13 @@ const saveLunchMenu = async () => {
 )}
         </div>
         ))}
+        {visibleAnnouncements.length > 3 && (
+          <button className="bsf-textbtn" style={{ fontSize: 13, marginTop: 4 }} onClick={() => setShowAllAnn(!showAllAnn)}>
+            {showAllAnn
+              ? (isParent ? t("dash.showFewerAnnouncements") : "Show fewer")
+              : (isParent ? t("dash.seeAllAnnouncements") : "See all announcements") + ` (${visibleAnnouncements.length})`}
+          </button>
+        )}
         </section>
           <section className="bsf-card">
 <div className="bsf-row-head">
