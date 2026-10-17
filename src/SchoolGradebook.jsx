@@ -739,12 +739,96 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
   );
 }
 
+// ---------- "Suggest a starter draft" (AI) ----------
+// Collects one child's results for the term as plain text. No name or ID goes
+// to the AI: the child is "STUDENT" and the first name is put back afterwards.
+async function commentFacts(studentId, grade, term, subject) {
+  let q = supabase.from("gb_assessments").select("id, title, subject, kind, grading, max_points, assess_type")
+    .eq("grade", grade).eq("term", term).eq("school_year", SCHOOL_YEAR);
+  if (subject) q = q.eq("subject", subject);
+  const as = await q;
+  if (as.error) throw as.error;
+  const list = as.data || [];
+  const marks = {};
+  if (list.length) {
+    const mk = await supabase.from("gb_marks").select("assessment_id, student_id, points, letter, level, excused")
+      .eq("student_id", studentId).in("assessment_id", list.map((a) => a.id));
+    if (mk.error) throw mk.error;
+    (mk.data || []).forEach((m) => { marks[`${m.assessment_id}:${m.student_id}`] = m; });
+  }
+  const lines = [];
+  const subjects = Array.from(new Set(list.map((a) => a.subject)));
+  subjects.forEach((sub) => {
+    const mine = list.filter((a) => a.subject === sub);
+    const leveled = EARLY.includes(grade) || SPECIALS.includes(sub) || mine.some((a) => a.grading === "level");
+    const overall = leveled
+      ? levelOf(termLevelFor(studentId, mine, marks))?.label
+      : termFor(studentId, mine, marks).letter;
+    if (!overall && !subject) return;
+    lines.push(`${sub}: overall ${overall ? (leveled ? overall : "grade band " + overall.charAt(0)) : "not assessed yet"}`);
+    if (subject) {
+      mine.forEach((a) => {
+        const m = marks[`${a.id}:${studentId}`];
+        if (!m || m.excused) return;
+        const r = m.level ? levelOf(m.level)?.label : m.letter ? "band " + m.letter.charAt(0)
+          : m.points != null && a.max_points ? Math.round((100 * m.points) / a.max_points) >= 80 ? "strong" : Math.round((100 * m.points) / a.max_points) >= 65 ? "secure" : "still developing" : null;
+        if (r) lines.push(`- ${a.title || typeLabel(a.assess_type) || "Assessment"}${a.assess_type ? " (" + typeLabel(a.assess_type) + ")" : ""}: ${r}`);
+      });
+    }
+  });
+  if (!subject) {
+    const [sk, rt] = await Promise.all([
+      supabase.from("gb_skills").select("id, area, name_en").eq("active", true).order("sort"),
+      supabase.from("gb_skill_ratings").select("skill_id, rating").eq("student_id", studentId).eq("term", term).eq("school_year", SCHOOL_YEAR)
+    ]);
+    const byId = {};
+    (sk.data || []).forEach((k) => { byId[k.id] = k; });
+    const rated = (rt.data || []).filter((r) => byId[r.skill_id]);
+    if (rated.length) {
+      lines.push("Approaches to learning, social-emotional and life skills:");
+      rated.forEach((r) => lines.push(`- ${byId[r.skill_id].name_en}: ${RATINGS.find((x) => x.id === r.rating)?.label || r.rating}`));
+    }
+  }
+  return lines.join("\n");
+}
+
+function SuggestDraft({ kind, grade, term, subject, student, current, onDraft }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  async function go() {
+    if (busy) return;
+    if ((current || "").trim() && !window.confirm("Replace what is in the box with a new starter draft? Your words will be used as notes for it.")) return;
+    setBusy(true); setErr("");
+    try {
+      const first = (student.full_name || "").trim().split(/\s+/)[0] || "Your child";
+      const facts = await commentFacts(student.id, grade, term, subject);
+      const notes = (current || "").split(first).join("STUDENT");
+      const { data: res, error } = await supabase.functions.invoke("suggest-comment", { body: { kind, grade, term, subject, facts, current: notes } });
+      if (error || res?.error || !res?.draft) throw new Error(res?.error || error?.message || "No draft came back.");
+      onDraft(res.draft.replace(/STUDENT/g, first));
+    } catch (e) {
+      setErr("Couldn't make a draft. " + (e?.message || ""));
+    }
+    setBusy(false);
+  }
+  return (
+    <div style={{ marginTop: 4 }}>
+      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={go} disabled={busy}
+        style={{ background: "none", border: "none", padding: 0, color: COLORS.brand, fontSize: 13, cursor: busy ? "default" : "pointer", fontFamily: "inherit" }}>
+        {busy ? "Writing a draft…" : "Suggest a starter draft"}
+      </button>
+      {err && <span style={{ marginLeft: 8, fontSize: 12, color: COLORS.bad }}>{err}</span>}
+    </div>
+  );
+}
+
 // Pre-N, PreK and Kindergarten specials: one written appreciation per child,
 // per subject and term (no levels).
 function SubjectComments({ grade, subject, term, canEdit, oneLine = false }) {
   const [students, setStudents] = useState([]);
   const [comments, setComments] = useState({});
   const [drafts, setDrafts] = useState({});
+  const [aiDrafts, setAiDrafts] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -752,7 +836,7 @@ function SubjectComments({ grade, subject, term, canEdit, oneLine = false }) {
   useEffect(() => {
     let alive = true;
     (async () => {
-      setLoading(true); setError(""); setStatus(""); setDrafts({});
+      setLoading(true); setError(""); setStatus(""); setDrafts({}); setAiDrafts({});
       const st = await supabase.from("students").select("id, full_name").eq("grade", grade).order("full_name");
       if (st.error) { if (alive) { setError(st.error.message); setLoading(false); } return; }
       const ids = (st.data || []).map((x) => x.id);
@@ -829,7 +913,15 @@ function SubjectComments({ grade, subject, term, canEdit, oneLine = false }) {
                   placeholder={oneLine ? "e.g. Explains her reasoning clearly in multi-step problems." : "e.g. Ama loves singing and now keeps the beat with the class. Next, she will work on singing in a small group."}
                   style={{ ...input, resize: "vertical", lineHeight: 1.5 }}
                 />
-              ) : (
+              ) : null}
+              {canEdit && (
+                <>
+                  {aiDrafts[s.id] && s.id in drafts && <p style={{ margin: "4px 0 0", fontSize: 12, color: COLORS.warn }}>Starter draft: read it, change what you need, then click outside the box to save it.</p>}
+                  <SuggestDraft kind={oneLine ? "line" : "appreciation"} grade={grade} term={term} subject={subject} student={s} current={value}
+                    onDraft={(text) => { setDrafts((d) => ({ ...d, [s.id]: text })); setAiDrafts((a) => ({ ...a, [s.id]: true })); }} />
+                </>
+              )}
+              {canEdit ? null : (
                 <p style={{ margin: 0, fontSize: 14, color: value ? COLORS.ink : COLORS.muted }}>{value || "Not written yet."}</p>
               )}
             </div>
@@ -864,6 +956,7 @@ function SkillsGradebook({ grades, editGrades }) {
   const [ratings, setRatings] = useState({});
   const [notes, setNotes] = useState({});
   const [drafts, setDrafts] = useState({});
+  const [aiDrafts, setAiDrafts] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -877,7 +970,7 @@ function SkillsGradebook({ grades, editGrades }) {
   useEffect(() => {
     let alive = true;
     (async () => {
-      setLoading(true); setError(""); setStatus(""); setDrafts({});
+      setLoading(true); setError(""); setStatus(""); setDrafts({}); setAiDrafts({});
       const st = await supabase.from("students").select("id, full_name").eq("grade", grade).order("full_name");
       if (st.error) { if (alive) { setError(st.error.message); setLoading(false); } return; }
       const ids = (st.data || []).map((x) => x.id);
@@ -995,7 +1088,15 @@ function SkillsGradebook({ grades, editGrades }) {
                       onBlur={() => saveNote(s.id)}
                       style={{ ...input, resize: "vertical", lineHeight: 1.5 }}
                     />
-                  ) : (
+                  ) : null}
+                  {canEdit && (
+                    <>
+                      {aiDrafts[s.id] && s.id in drafts && <p style={{ margin: "4px 0 0", fontSize: 12, color: COLORS.warn }}>Starter draft: read it, change what you need, then click outside the box to save it.</p>}
+                      <SuggestDraft kind="general" grade={grade} term={term} subject={null} student={s} current={value}
+                        onDraft={(text) => { setDrafts((d) => ({ ...d, [s.id]: text })); setAiDrafts((a) => ({ ...a, [s.id]: true })); }} />
+                    </>
+                  )}
+                  {canEdit ? null : (
                     <p style={{ margin: 0, fontSize: 14, color: value ? COLORS.ink : COLORS.muted }}>{value || "Not written yet."}</p>
                   )}
                 </div>
