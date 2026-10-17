@@ -32,17 +32,50 @@ function Dashboard({ data, profile, persist, onNavigate }) {
   const [savingLunch, setSavingLunch] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
   const [showAnnForm, setShowAnnForm] = useState(false);
-  const [annForm, setAnnForm] = useState({ title: "", title_fr: "", body: "", body_fr: "", audience: "school", show_staff: true, email: false });
+  const emptyAnnForm = { title: "", title_fr: "", body: "", body_fr: "", audience: "school", show_staff: true, email: true };
+  const [annForm, setAnnForm] = useState(emptyAnnForm);
+  const [editingAnnId, setEditingAnnId] = useState(null);
+  const [emailingAnnId, setEmailingAnnId] = useState(null);
 const [postingAnn, setPostingAnn] = useState(false);
+// Email an announcement to the parents who can see it (once per announcement).
+const emailAnnouncement = async (id) => {
+  setEmailingAnnId(id);
+  const { data: res, error } = await supabase.functions.invoke("notify-announcement", { body: { id } });
+  setEmailingAnnId(null);
+  if (error || res?.error) { console.error("announcement email failed", error || res?.error); alert("The announcement is posted, but the email could not be sent. You can try again with \"Email parents\"."); return false; }
+  const stamp = new Date().toISOString();
+  setAnnouncements((list) => list.map((a) => (a.id === id ? { ...a, emailed_at: a.emailed_at || stamp } : a)));
+  if (res?.already) alert("This announcement was already emailed to parents.");
+  else alert(`Emailed to ${res?.sent || 0} parent${res?.sent === 1 ? "" : "s"}.`);
+  return true;
+};
+const openNewAnnouncement = () => { setEditingAnnId(null); setAnnForm(emptyAnnForm); setShowAnnForm(true); };
+const openEditAnnouncement = (a) => {
+  setEditingAnnId(a.id);
+  setAnnForm({ title: a.title || "", title_fr: a.title_fr || "", body: a.body || "", body_fr: a.body_fr || "", audience: a.audience || "school", show_staff: a.show_staff !== false, email: false });
+  setShowAnnForm(true);
+};
+const closeAnnForm = () => { setShowAnnForm(false); setEditingAnnId(null); setAnnForm(emptyAnnForm); };
 const postAnnouncement = async () => {
   if (!annForm.title.trim() || !annForm.body.trim() || postingAnn) return;
   setPostingAnn(true);
-  const { data: row, error } = await supabase.from("announcements").insert({ title: annForm.title.trim(), title_fr: annForm.title_fr.trim(), body: annForm.body.trim(), body_fr: annForm.body_fr.trim(), audience: annForm.audience, show_staff: annForm.show_staff }).select().single();
+  const fields = { title: annForm.title.trim(), title_fr: annForm.title_fr.trim(), body: annForm.body.trim(), body_fr: annForm.body_fr.trim(), audience: annForm.audience, show_staff: annForm.show_staff };
+  if (editingAnnId) {
+    // Fixing a mistake: no new bell notice and no new email.
+    const { data: row, error } = await supabase.from("announcements").update({ ...fields, edited_at: new Date().toISOString() }).eq("id", editingAnnId).select().single();
+    setPostingAnn(false);
+    if (error) { console.error("announcement edit failed", error); alert("Could not save your changes."); return; }
+    setAnnouncements(announcements.map((a) => (a.id === row.id ? row : a)));
+    closeAnnForm();
+    return;
+  }
+  const { data: row, error } = await supabase.from("announcements").insert(fields).select().single();
   setPostingAnn(false);
   if (error) { console.error("announcement failed", error); alert("Could not post announcement."); return; }
   setAnnouncements([row, ...announcements]);
-  setAnnForm({ title: "", title_fr: "", body: "", body_fr: "", audience: "school", show_staff: true, email: false });
-  setShowAnnForm(false);
+  const sendEmail = annForm.email;
+  closeAnnForm();
+  if (sendEmail) emailAnnouncement(row.id);
 };
 const deleteAnnouncement = async (id) => {
   if (!window.confirm("Delete this announcement? Parents will no longer see it.")) return;
@@ -500,10 +533,11 @@ const saveLunchMenu = async () => {
         <div className="bsf-row-head">
         <h2>{isParent ? t("dash.announcements") : "School announcements"}</h2>
           {isAdmin && !showAnnForm && (
-  <button className="bsf-textbtn" onClick={() => setShowAnnForm(true)}>New announcement</button>
+  <button className="bsf-textbtn" onClick={openNewAnnouncement}>New announcement</button>
 )}
           {isAdmin && showAnnForm && (
   <div style={{ borderTop: "1px solid #eee", paddingTop: 12, marginTop: 8 }}>
+    {editingAnnId && <p style={{ fontSize: 13, fontWeight: 500, margin: "0 0 8px" }}>Edit announcement</p>}
     <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 4px" }}>Send to</p>
     <select value={annForm.audience} onChange={(e) => setAnnForm({ ...annForm, audience: e.target.value })} style={{ width: "100%", height: 34, marginBottom: 10 }}>
       <option value="school">Whole school</option>
@@ -523,9 +557,16 @@ const saveLunchMenu = async () => {
       <input type="checkbox" checked={annForm.show_staff} onChange={(e) => setAnnForm({ ...annForm, show_staff: e.target.checked })} />
       Also show on staff dashboard
     </label>
+    {!editingAnnId && (
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 12 }}>
+        <input type="checkbox" checked={annForm.email} onChange={(e) => setAnnForm({ ...annForm, email: e.target.checked })} />
+        Also email parents
+      </label>
+    )}
+    {editingAnnId && <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 12px" }}>Saving changes updates the announcement on the Hub. Parents are not notified again.</p>}
     <div style={{ display: "flex", gap: 8 }}>
-      <button className="bsf-btn" onClick={postAnnouncement} disabled={postingAnn}>{postingAnn ? "Posting…" : "Post announcement"}</button>
-      <button className="bsf-textbtn" onClick={() => setShowAnnForm(false)}>Cancel</button>
+      <button className="bsf-btn" onClick={postAnnouncement} disabled={postingAnn}>{postingAnn ? (editingAnnId ? "Saving…" : "Posting…") : (editingAnnId ? "Save changes" : "Post announcement")}</button>
+      <button className="bsf-textbtn" onClick={closeAnnForm}>Cancel</button>
     </div>
   </div>
 )}
@@ -535,12 +576,21 @@ const saveLunchMenu = async () => {
         <div key={a.id} style={{ borderTop: "1px solid #eee", padding: "12px 0" }}>
         <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 4px" }}>{isParent
           ? `${a.audience === "school" || !a.audience ? t("common.wholeSchool") : a.audience === "lower" ? t("dash.audienceLower") : a.audience === "upper" ? t("dash.audienceUpper") : gradeLabel(a.audience, language)} · ${formatTimestampDate(a.created_at, language)}`
-          : `${a.audience === "school" ? "Whole school" : a.audience === "lower" ? "Lower school" : a.audience === "upper" ? "Upper school" : a.audience} · ${formatTimestampDate(a.created_at, "en")}`}</p>
+          : `${a.audience === "school" ? "Whole school" : a.audience === "lower" ? "Lower school" : a.audience === "upper" ? "Upper school" : a.audience} · ${formatTimestampDate(a.created_at, "en")}${a.edited_at ? " · Edited" : ""}${isAdmin && a.emailed_at ? " · Emailed" : ""}`}</p>
         <p style={{ fontSize: 14, fontWeight: 500, margin: "0 0 2px" }}>{language === "fr" && a.title_fr ? a.title_fr : a.title}</p>
         <p style={{ fontSize: 13, color: "#3B4A4C", margin: 0, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{language === "fr" && a.body_fr ? a.body_fr : a.body}</p>
         {isAdmin && (
-  <button className="bsf-textbtn" style={{ fontSize: 12, marginTop: 6 }} onClick={() => deleteAnnouncement(a.id)}>Delete</button>
-)}  
+  <div style={{ display: "flex", gap: 14, marginTop: 6 }}>
+    <button className="bsf-textbtn" style={{ fontSize: 12 }} onClick={() => openEditAnnouncement(a)}>Edit</button>
+    {!a.emailed_at && a.title !== "Lunch menu updated" && (
+      <button className="bsf-textbtn" style={{ fontSize: 12 }} disabled={emailingAnnId === a.id}
+        onClick={() => { if (window.confirm("Email this announcement to the parents who can see it?")) emailAnnouncement(a.id); }}>
+        {emailingAnnId === a.id ? "Sending…" : "Email parents"}
+      </button>
+    )}
+    <button className="bsf-textbtn" style={{ fontSize: 12 }} onClick={() => deleteAnnouncement(a.id)}>Delete</button>
+  </div>
+)}
         </div>
         ))}
         </section>
