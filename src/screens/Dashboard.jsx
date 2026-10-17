@@ -4,6 +4,7 @@ import AttachmentField from "../AttachmentField";
 import { useLanguage } from "../lib/i18n";
 import { supabase } from "../lib/supabaseClient";
 import { ReportAbsenceCard } from "../AbsenceReport";
+import StaffDeadlinesCard from "../StaffDeadlines";
 import { GRADES, DEFAULT_SETTINGS, isStaffOnlyEvent } from "../data/constants";
 import { uid, formatEventWhen, todayStr, lunchWeekLabel, isThisSchoolWeek, useTodayWeekday, formatCurrency, formatDateLong, formatTimestampDate, gradeLabel, tLabel, computeFeeBreakdown, feeCategoryIcon, attendanceCountsForRange } from "../lib/format";
 import { EventRow, Field, Modal, EnrollmentStairs, SignaturePad, StudentThumb } from "../ui/common";
@@ -309,6 +310,8 @@ const saveLunchMenu = async () => {
       })()}
 
       {isParent && myStudents.length > 0 && <ReportAbsenceCard students={myStudents} />}
+
+      {!isParent && <StaffDeadlinesCard profile={profile} events={data.events} onNavigate={onNavigate} />}
 
          {isParent && (() => {
         // Once this parent has signed a document, it leaves the Dashboard (it stays in Resources).
