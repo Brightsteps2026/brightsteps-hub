@@ -76,13 +76,14 @@ Deno.serve(async (req) => {
     const aud = a.audience || "school";
     const grades = aud === "school" ? [] : aud === "lower" ? LOWER : aud === "upper" ? UPPER : [aud];
 
-    const { data: parents } = await supabase.from("profiles").select("id, email, student_ids").eq("role", "parent");
-    let wanted = parents || [];
-    if (grades.length) {
-      const { data: kids } = await supabase.from("students").select("legacy_id, grade").in("grade", grades);
-      const ids = new Set((kids || []).map((k) => k.legacy_id));
-      wanted = wanted.filter((p) => (p.student_ids || []).some((s: string) => ids.has(s)));
-    }
+    // Same parent list as the bell notice (database function hub_parents_of_grades).
+    const { data: ids, error: pe } = await supabase.rpc("hub_parents_of_grades", { p_grades: grades });
+    if (pe) return json({ error: "Could not find the parents: " + pe.message }, 500);
+    const parentIds = (ids || []).map((r: unknown) =>
+      typeof r === "string" ? r : (r as Record<string, string>).hub_parents_of_grades ?? Object.values(r as object)[0]);
+    if (parentIds.length === 0) return json({ sent: 0, parents: 0 });
+    const { data: parents } = await supabase.from("profiles").select("id, email").in("id", parentIds);
+    const wanted = parents || [];
 
     // The parent's sign-in email is the address they use for the Hub.
     const seen = new Set<string>();

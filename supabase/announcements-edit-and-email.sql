@@ -19,6 +19,10 @@ create policy "admin edits announcements" on public.announcements for update to 
   using (public.hub_my_role() = 'admin')
   with check (public.hub_my_role() = 'admin');
 
+-- 2b. The email function uses the same parent list as the bell notice -----------------------------------------------
+
+grant execute on function public.hub_parents_of_grades(text[]) to service_role;
+
 -- 3. Check ----------------------------------------------------------------------------------------------------------
 --   * "bell trigger installed" must say yes. If it says no, run notify-updates-announcements.sql first:
 --     without it, parents get no bell notice for announcements.
