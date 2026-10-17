@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useLanguage, pluralKey } from "../lib/i18n";
 import { GRADES, ASSESS_LEVELS, getLevelColor, DEFAULT_SETTINGS, LETTER_GRADE_MEANING, LEARNING_PROGRESS_BAND, LETTER_GRADE_COLOR } from "../data/constants";
-import { uid, todayStr, formatDateLong, gradeLabel, tLabel, attendanceCountsForRange } from "../lib/format";
+import { uid, todayStr, formatDateLong, gradeLabel, tLabel, attendanceCountsForRange, isWeekendStr } from "../lib/format";
 import { Field, Modal } from "../ui/common";
 import { TermReportsStaff, TermReportsFamily } from "../TermReports";
 
@@ -459,7 +459,7 @@ function ReportsTab({ data, persist, profile }) {
     const rows = targetStudents.map((s) => {
       const counts = { present: 0, absent: 0, late: 0 };
       Object.entries(data.attendance || {}).forEach(([date, day]) => {
-        if (date >= start && date <= end) {
+        if (date >= start && date <= end && !isWeekendStr(date)) {
           const status = day[s.id];
           if (status) counts[status === "excused" ? "absent" : status] += 1;
         }
