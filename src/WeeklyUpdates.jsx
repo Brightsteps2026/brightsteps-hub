@@ -152,6 +152,24 @@ function comingUp(events, grade, monday) {
     .map((e) => ({ date: e.date, title: e.title }));
 }
 
+// Units planned in the Curriculum tab that run during this week, for this class:
+// suggested as the week's topics (the teacher accepts, changes or ignores them).
+function plannedTopics(plans, grade, monday) {
+  const end = addDays(monday, 4);
+  const subj = (p) => (p.subjects && p.subjects.length ? p.subjects : String(p.subject || "").split(/,\s*/)).filter(Boolean);
+  const units = (plans || []).filter((p) => (p.grades || []).includes(grade) && (p.title || "").trim()
+    && p.startDate && p.startDate <= end && (!p.endDate || p.endDate >= monday));
+  const math = units.find((p) => subj(p).includes("Math"));
+  const ela = units.find((p) => subj(p).some((x) => /literacy|english|ela/i.test(x)));
+  const uoi = units.find((p) => p !== math && p !== ela && (p.theme || subj(p).some((x) => /science|social|whole school/i.test(x))))
+    || units.find((p) => p.theme);
+  const out = [];
+  if (math) out.push({ field: "math_topic", label: "Math", value: math.title.trim() });
+  if (ela) out.push({ field: "ela_topic", label: "ELA", value: ela.title.trim() });
+  if (uoi) out.push({ field: "uoi_topic", label: "Unit of inquiry", value: [uoi.theme, uoi.title.trim()].filter(Boolean).join(" · ") });
+  return out;
+}
+
 async function ai(body) {
   const { data, error } = await supabase.functions.invoke("suggest-comment", { body });
   if (error || data?.error) throw new Error(data?.error || error?.message || "No answer");
@@ -225,6 +243,7 @@ function ClassWeek({ grade, week, data, profile, canEdit, canSend }) {
   const [sending, setSending] = useState(false);
 
   const upcoming = useMemo(() => comingUp(data?.events, grade, week), [data?.events, grade, week]);
+  const planned = useMemo(() => plannedTopics(data?.plans, grade, week), [data?.plans, grade, week]);
 
   async function load() {
     setLoading(true); setError("");
@@ -401,6 +420,20 @@ function ClassWeek({ grade, week, data, profile, canEdit, canSend }) {
           <h2 style={h2}>1 · This week for the whole class</h2>
           <span style={small}>Written once, added to every child's update</span>
         </div>
+        {canEdit && !classLocked && planned.some((t) => (form[t.field] || "").trim() !== t.value) && (
+          <div style={{ border: `1px solid ${COLORS.line}`, borderRadius: 12, background: COLORS.surface2, padding: "10px 12px", marginBottom: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>From your Curriculum plans this week</span>
+            {planned.filter((t) => (form[t.field] || "").trim() !== t.value).map((t) => (
+              <div key={t.field} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", fontSize: 14 }}>
+                <span><strong>{t.label}:</strong> {t.value}</span>
+                <button style={ghostBtn} onClick={() => { const next = { ...form, [t.field]: t.value }; setForm(next); saveNotes({ [t.field]: t.value }); }}>
+                  {(form[t.field] || "").trim() ? "Replace with this" : "Use this"}
+                </button>
+              </div>
+            ))}
+            <span style={{ ...small, fontSize: 12 }}>A unit runs over several weeks: make it more precise for this week if you can (e.g. the lesson focus).</span>
+          </div>
+        )}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
           {[["math_topic", "Math this week", "e.g. Adding two-digit numbers"], ["ela_topic", "English Language Arts this week", "e.g. Retelling a story in order"], ["uoi_topic", "Unit of inquiry (optional)", "e.g. Why things float or sink"]].map(([k, l, ph]) => (
             <label key={k} style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 13, fontWeight: 600 }}>
