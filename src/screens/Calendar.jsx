@@ -187,7 +187,7 @@ function CalendarTab({ data, persist, profile }) {
         <div className="bsf-chiprow">
           <button className={`bsf-chip ${typeFilter === null ? "active" : ""}`} onClick={() => setTypeFilter(null)}>{t("common.all")}</button>
           {EVENT_TYPES.filter((tp) => !isFamily || tp !== "Staff").map((tp) => (
-            <button key={tp} className={`bsf-chip ${typeFilter === tp ? "active" : ""}`} onClick={() => setTypeFilter(tp)}>{tLabel(t, "eventType.", tp)}</button>
+            <button key={tp} className={`bsf-chip ${typeFilter === tp ? "active" : ""}`} onClick={() => setTypeFilter(tp)}>{tp === "Holiday" ? t("eventFilter.Holiday") : tLabel(t, "eventType.", tp)}</button>
           ))}
         </div>
         {!isFamily && (
