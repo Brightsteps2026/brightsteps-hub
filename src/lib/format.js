@@ -133,7 +133,8 @@ function gradeLabel(g, language) {
 // type "Holiday" so check-in, attendance and repeating events skip them, but they are
 // shown as "Break", not "Holiday".
 function eventTypeLabel(t, e) {
-  if (e?.type === "Holiday" && /break|vacances/i.test(e?.title || "")) return t("eventType.Break");
+  const multiDay = !!e?.endDate && e.endDate > e.date;
+  if (e?.type === "Holiday" && (multiDay || /break|vacances|cong/i.test(e?.title || ""))) return t("eventType.Break");
   return tLabel(t, "eventType.", e?.type);
 }
 

@@ -230,7 +230,7 @@ const translations = {
   "calendar.upcoming": { en: "Upcoming", fr: "À venir" },
   "calendar.past": { en: "Past", fr: "Passés" },
   "eventType.Academic": { en: "Academic", fr: "Scolaire" },
-  "eventType.Holiday": { en: "Holiday", fr: "Congé" },
+  "eventType.Holiday": { en: "Holidays & breaks", fr: "Congés et vacances" },
   "eventType.Break": { en: "Break", fr: "Vacances" },
   "eventType.Staff": { en: "Staff", fr: "Personnel" },
   "eventType.Event": { en: "Event", fr: "Événement" },
