@@ -129,6 +129,14 @@ function gradeLabel(g, language) {
 
 // Translates a stored English value (a fee status, event type, category...) for
 // display only. Unknown values (custom ones typed by staff) are shown as saved.
+// The label shown on a calendar event. Breaks (October Break, Spring Break…) are saved as
+// type "Holiday" so check-in, attendance and repeating events skip them, but they are
+// shown as "Break", not "Holiday".
+function eventTypeLabel(t, e) {
+  if (e?.type === "Holiday" && /break|vacances/i.test(e?.title || "")) return t("eventType.Break");
+  return tLabel(t, "eventType.", e?.type);
+}
+
 function tLabel(t, prefix, value) {
   if (value === undefined || value === null || value === "") return value;
   return hasTranslation(`${prefix}${value}`) ? t(`${prefix}${value}`) : value;
@@ -261,4 +269,4 @@ function getUnreadMessageCount(data, profile) {
   return getUnreadThreads(data, profile).reduce((n, t) => n + t.count, 0);
 }
 
-export { uid, nextStudentIdNumber, formatEventWhen, safeLink, todayStr, lunchWeekLabel, isThisSchoolWeek, useTodayWeekday, formatCurrency, formatDateLong, formatTimestampDate, gradeLabel, tLabel, computeFeeBreakdown, feeCategoryIcon, attendanceCountsForRange, isWeekendStr, lastSchoolDayStr, getUnreadThreads, getUnreadMessageCount };
+export { uid, nextStudentIdNumber, formatEventWhen, safeLink, todayStr, lunchWeekLabel, isThisSchoolWeek, useTodayWeekday, formatCurrency, formatDateLong, formatTimestampDate, gradeLabel, tLabel, eventTypeLabel, computeFeeBreakdown, feeCategoryIcon, attendanceCountsForRange, isWeekendStr, lastSchoolDayStr, getUnreadThreads, getUnreadMessageCount };

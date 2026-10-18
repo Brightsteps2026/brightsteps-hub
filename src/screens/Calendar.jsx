@@ -3,7 +3,7 @@ import { Plus, Trash2, Calendar as CalendarIcon } from "lucide-react";
 import { useLanguage, pluralKey } from "../lib/i18n";
 import { supabase } from "../lib/supabaseClient";
 import { GRADES, DEFAULT_SETTINGS, EVENT_TYPES, EVENT_TYPE_COLOR, isStaffOnlyEvent } from "../data/constants";
-import { uid, formatEventWhen, todayStr, gradeLabel, tLabel } from "../lib/format";
+import { uid, formatEventWhen, todayStr, gradeLabel, tLabel, eventTypeLabel } from "../lib/format";
 import { Field, Modal } from "../ui/common";
 
 const OFFICIAL_CALENDAR_2026_27 = [
@@ -148,7 +148,7 @@ function CalendarTab({ data, persist, profile }) {
       <div>
         <div className="bsf-row-head">
           <span className="bsf-status-pill" style={{ background: `${EVENT_TYPE_COLOR[e.type]}1A`, color: EVENT_TYPE_COLOR[e.type] }}>
-            {tLabel(t, "eventType.", e.type)}
+            {eventTypeLabel(t, e)}
           </span>
           {!isFamily && isStaffOnlyEvent(e) && <span className="bsf-status-pill bsf-staffonly-pill">Staff only</span>}
           <span className="bsf-muted">{formatEventWhen(e, language)}</span>

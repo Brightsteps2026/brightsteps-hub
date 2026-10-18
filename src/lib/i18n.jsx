@@ -231,6 +231,7 @@ const translations = {
   "calendar.past": { en: "Past", fr: "Passés" },
   "eventType.Academic": { en: "Academic", fr: "Scolaire" },
   "eventType.Holiday": { en: "Holiday", fr: "Congé" },
+  "eventType.Break": { en: "Break", fr: "Vacances" },
   "eventType.Staff": { en: "Staff", fr: "Personnel" },
   "eventType.Event": { en: "Event", fr: "Événement" },
   "eventType.Meeting": { en: "Meeting", fr: "Réunion" },

@@ -25,7 +25,7 @@ const STATUS = {
   authorized: { label: "Authorized absence", tone: TONES.info },
   training: { label: "Training", tone: TONES.info },
   official: { label: "Official assignment", tone: TONES.info },
-  holiday: { label: "Holiday / no school", tone: TONES.neutral },
+  holiday: { label: "No school (holiday or break)", tone: TONES.neutral },
   closure: { label: "School closure", tone: TONES.neutral },
   not_in: { label: "Not in yet", tone: TONES.neutral },
   not_required: { label: "Doesn't check in", tone: TONES.neutral }
@@ -210,7 +210,7 @@ function MyCheckin({ profile }) {
         </div>
 
         {!s.required && <p style={{ fontSize: 14, color: COLORS.muted }}>You don't need to check in. You can still record your arrival if you want.</p>}
-        {s.holiday && <p style={{ fontSize: 14, color: COLORS.muted }}>Today is a school holiday.</p>}
+        {s.holiday && <p style={{ fontSize: 14, color: COLORS.muted }}>No school today.</p>}
         {!s.holiday && !s.expected_start && <p style={{ fontSize: 14, color: COLORS.muted }}>Today isn't a working day.</p>}
         {s.leave && <p style={{ fontSize: 14, color: TONES.info.fg }}>You have approved {s.leave === "half" ? "half-day " : ""}leave today.</p>}
         {!s.site_ready && <p style={{ fontSize: 14, color: TONES.warn.fg }}>The school's location hasn't been set up yet, so check-in isn't possible. Please tell the office.</p>}
@@ -624,7 +624,7 @@ function CheckinSettings() {
             </div>
           );
         })}
-        <p style={{ margin: "8px 0 0", fontSize: 12, color: COLORS.muted }}>Holidays on the Hub calendar (type Holiday, all grades) are skipped automatically.</p>
+        <p style={{ margin: "8px 0 0", fontSize: 12, color: COLORS.muted }}>Holidays and breaks on the Hub calendar (all grades) are skipped automatically.</p>
       </section>
 
       {err && <p style={{ ...card, color: TONES.bad.fg, fontSize: 14 }}>{err}</p>}
