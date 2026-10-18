@@ -254,6 +254,19 @@ function ParentStudentView({ data, persist, profile }) {
     }, 150);
     return () => clearTimeout(t);
   }, [scrollToMessages, activeChildId]);
+  // Opened from the weekly update card on the Dashboard: scroll to Weekly updates.
+  useEffect(() => {
+    if (!pending.scrollToWeekly) return;
+    pending.scrollToWeekly = false;
+    let tries = 0;
+    const t = setInterval(() => {
+      const el = document.getElementById("bs-weekly-updates");
+      tries += 1;
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (el || tries > 20) clearInterval(t);
+    }, 250);
+    return () => clearInterval(t);
+  }, [activeChildId]);
   const today = todayStr();
 
   const activeStudent = myStudents.find((s) => s.id === activeChildId) || myStudents[0];

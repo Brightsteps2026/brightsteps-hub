@@ -67,7 +67,8 @@ const T = {
     ackTitle: "Confirm you've read it", ackWhy: (n) => `It's kept in ${n}'s file, so the teacher knows the update reached you.`,
     ackBox: (n) => `I have read ${n}'s weekly update`, ackNote: "A note for the teacher (optional)",
     ackBtn: "Confirm I've read it", acked: (d) => `✓ You confirmed reading this on ${d}`, yourNote: "Your note:",
-    reply: "Reply to the teacher", earlier: "Earlier weekly updates", none: "No weekly update yet.", tickFirst: "Please tick the box first."
+    reply: "Reply to the teacher", earlier: "Earlier weekly updates", none: "No weekly update yet.", tickFirst: "Please tick the box first.",
+    soon: (n) => `${n}'s weekly update arrives here every Friday. You'll get a notification and an email when it's ready, so you can read it and confirm.`
   },
   fr: {
     title: "Points hebdomadaires", week: (r) => `Point de la semaine · ${r}`, whose: (n) => `La semaine de ${n}`, from: (t) => `de la part de ${t}`,
@@ -78,7 +79,8 @@ const T = {
     ackTitle: "Confirmez votre lecture", ackWhy: (n) => `Elle est gardée dans le dossier de ${n}, pour que l'enseignant(e) sache que le point vous est bien parvenu.`,
     ackBox: (n) => `J'ai lu le point de la semaine de ${n}`, ackNote: "Un mot pour l'enseignant(e) (facultatif)",
     ackBtn: "Je confirme ma lecture", acked: (d) => `✓ Vous avez confirmé votre lecture le ${d}`, yourNote: "Votre mot :",
-    reply: "Répondre à l'enseignant(e)", earlier: "Points précédents", none: "Pas encore de point hebdomadaire.", tickFirst: "Merci de cocher la case d'abord."
+    reply: "Répondre à l'enseignant(e)", earlier: "Points précédents", none: "Pas encore de point hebdomadaire.", tickFirst: "Merci de cocher la case d'abord.",
+    soon: (n) => `Le point de la semaine de ${n} arrive ici chaque vendredi. Vous recevrez une notification et un e-mail lorsqu'il sera prêt, pour le lire et confirmer votre lecture.`
   }
 };
 
@@ -311,6 +313,24 @@ function ClassWeek({ grade, week, data, profile, canEdit, canSend }) {
     return saveChild(stu, { note_en: text.trim(), note_fr: fr, status: "ready" });
   }
 
+  async function saveDraft(stu, text) {
+    return saveChild(stu, { note_en: text.trim(), note_fr: null, status: "draft" });
+  }
+
+  const [writingAll, setWritingAll] = useState("");
+  const toWrite = students.filter((s) => TAPS.every((k) => rows[s.id]?.[k]) && !rows[s.id]?.note_en && rows[s.id]?.status !== "sent");
+  async function writeAll() {
+    if (writingAll || !toWrite.length) return;
+    let done = 0, failed = 0;
+    for (const s of toWrite) {
+      setWritingAll(`Writing ${done + 1} of ${toWrite.length}…`);
+      try { await writeNote(s); } catch (e) { failed += 1; }
+      done += 1;
+    }
+    setWritingAll("");
+    if (failed) setStatus(`Not saved: ${failed} note${failed === 1 ? "" : "s"} could not be written. Try "Write the note with AI" on ${failed === 1 ? "that child" : "those children"}.`);
+  }
+
   const ready = students.filter((s) => rows[s.id]?.status === "ready").length;
   const sentCount = students.filter((s) => rows[s.id]?.status === "sent").length;
 
@@ -415,12 +435,21 @@ function ClassWeek({ grade, week, data, profile, canEdit, canSend }) {
       <section style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 4 }}>
           <h2 style={h2}>2 · Each child · about 30 seconds</h2>
-          <span style={small}>Tap Math, ELA and the three habits, add a highlight if you like, then write the note.</span>
+          {canEdit && (
+            <button style={{ ...primaryBtn, opacity: toWrite.length && !writingAll ? 1 : 0.5 }} disabled={!toWrite.length || !!writingAll} onClick={writeAll}>
+              {writingAll || `Write all notes${toWrite.length ? ` (${toWrite.length})` : ""}`}
+            </button>
+          )}
         </div>
+        <p style={{ ...small, margin: "0 0 4px" }}>
+          Tap Math, ELA and the three habits, and add a highlight if you like. This can be done any day of the week: everything saves as you go.
+          {canSend ? " Then write the notes, check each one and press Looks good." : " The class teacher checks each note and sends them on Friday."}
+        </p>
         {students.length === 0 && <p style={small}>No students in {grade}.</p>}
         {students.map((s) => (
-          <ChildRow key={s.id} stu={s} row={rows[s.id] || {}} canEdit={canEdit} data={data} week={week}
-            onTap={(patch) => saveChild(s, patch)} onWrite={() => writeNote(s)} onApprove={(text) => approve(s, text)} />
+          <ChildRow key={s.id} stu={s} row={rows[s.id] || {}} canEdit={canEdit} canApprove={canSend} data={data} week={week}
+            onTap={(patch) => saveChild(s, patch)} onWrite={() => writeNote(s)} onApprove={(text) => approve(s, text)}
+            onSaveDraft={(text) => saveDraft(s, text)} />
         ))}
       </section>
 
@@ -453,7 +482,7 @@ function ClassWeek({ grade, week, data, profile, canEdit, canSend }) {
   );
 }
 
-function ChildRow({ stu, row, canEdit, data, week, onTap, onWrite, onApprove }) {
+function ChildRow({ stu, row, canEdit, canApprove, data, week, onTap, onWrite, onApprove, onSaveDraft }) {
   const [highlight, setHighlight] = useState(row.highlight || "");
   const [text, setText] = useState(row.note_en || "");
   const [busy, setBusy] = useState("");
@@ -463,7 +492,9 @@ function ChildRow({ stu, row, canEdit, data, week, onTap, onWrite, onApprove }) 
   useEffect(() => { setHighlight(row.highlight || ""); }, [row.highlight]);
 
   const sent = row.status === "sent";
+  // Assistants can't change a note the teacher has approved (they can still change the taps).
   const locked = !canEdit || sent;
+  const noteLocked = locked || (!canApprove && row.status === "ready");
   const tapsDone = TAPS.every((k) => row[k]);
   const att = weekAttendance(data?.attendance, stu.legacy_id, week);
   const state = sent ? ["Sent", TONES.ok] : row.status === "ready" ? ["Ready", TONES.ok] : row.note_en ? ["Check the draft", TONES.warn] : tapsDone ? ["Write the note", TONES.info] : ["Not started", TONES.neutral];
@@ -527,26 +558,29 @@ function ChildRow({ stu, row, canEdit, data, week, onTap, onWrite, onApprove }) 
         <div style={{ border: `1px solid ${COLORS.line}`, borderRadius: 12, background: COLORS.surface2, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: sent || row.status === "ready" ? COLORS.ok : COLORS.warn }}>
-              {sent ? "Sent to the family" : row.status === "ready" ? "Ready to send" : "AI draft · read it and change anything before it is sent"}
+              {sent ? "Sent to the family" : row.status === "ready" ? "Ready to send" : canApprove ? "AI draft · read it and change anything before it is sent" : "AI draft · waiting for the class teacher to check it"}
             </span>
             <span style={{ display: "flex", gap: 14 }}>
-              {!locked && <button type="button" style={{ background: "none", border: "none", padding: 0, color: COLORS.brand, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }} onClick={() => run("Writing…", onWrite)} disabled={!!busy}>Write again</button>}
+              {!noteLocked && <button type="button" style={{ background: "none", border: "none", padding: 0, color: COLORS.brand, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }} onClick={() => run("Writing…", onWrite)} disabled={!!busy}>Write again</button>}
               <button type="button" style={{ background: "none", border: "none", padding: 0, color: COLORS.brand, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }} onClick={() => setShowFr(!showFr)}>{showFr ? "Show English" : "Show French"}</button>
             </span>
           </div>
           {showFr ? (
             <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>{row.note_fr || "The French version is made when you press Looks good."}</p>
-          ) : locked ? (
+          ) : noteLocked ? (
             <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>{row.note_en}</p>
           ) : (
             <textarea rows={4} value={text} onChange={(e) => setText(e.target.value)} style={{ ...input, resize: "vertical", lineHeight: 1.6 }} aria-label={`Note for ${stu.full_name}`} />
           )}
-          {!locked && row.status !== "ready" && (
+          {!noteLocked && canApprove && row.status !== "ready" && (
             <div>
               <button style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }} disabled={!!busy || !text.trim()} onClick={() => run("Saving…", () => onApprove(text))}>{busy || "Looks good"}</button>
             </div>
           )}
-          {!locked && row.status === "ready" && text.trim() !== (row.note_en || "").trim() && (
+          {!noteLocked && !canApprove && text.trim() && text.trim() !== (row.note_en || "").trim() && (
+            <div><button style={primaryBtn} disabled={!!busy} onClick={() => run("Saving…", () => onSaveDraft(text))}>{busy || "Save my changes"}</button></div>
+          )}
+          {!noteLocked && canApprove && row.status === "ready" && text.trim() !== (row.note_en || "").trim() && (
             <div><button style={primaryBtn} disabled={!!busy} onClick={() => run("Saving…", () => onApprove(text))}>{busy || "Save my changes"}</button></div>
           )}
         </div>
@@ -685,7 +719,7 @@ export function WeeklyUpdatesFamily({ student, language }) {
     if (!student?.id) return;
     const { data, error } = await supabase.from("weekly_updates").select("*")
       .eq("hub_student_id", student.id).eq("status", "sent").order("week_start", { ascending: false }).limit(12);
-    if (error) { setRows([]); return; }
+    if (error) { setRows(/weekly_/.test(error.message) ? null : []); return; }
     setRows(data || []);
     setOpen((o) => o || data?.[0]?.id || null);
     const weeks = Array.from(new Set((data || []).map((r) => r.week_start)));
@@ -700,8 +734,16 @@ export function WeeklyUpdatesFamily({ student, language }) {
   }
   useEffect(() => { load(); }, [student?.id]);
 
-  if (!rows || rows.length === 0) return null;
+  if (!rows) return null;
   const name = firstName(student.name) || student.name;
+  if (rows.length === 0) {
+    return (
+      <section className="bsf-card" id="bs-weekly-updates">
+        <h2>{t.title}</h2>
+        <p className="bsf-muted" style={{ margin: 0 }}>{t.soon(name)}</p>
+      </section>
+    );
+  }
 
   return (
     <section className="bsf-card" id="bs-weekly-updates">
@@ -879,6 +921,46 @@ export function WeeklyHistoryStaff({ student }) {
           )}
         </div>
       ))}
+    </section>
+  );
+}
+
+
+// ===========================================================================
+// Parent Dashboard: a card while a sent weekly update is not confirmed yet
+// ===========================================================================
+
+export function WeeklyUpdateCard({ students, language, onOpen }) {
+  const lang = language === "fr" ? "fr" : "en";
+  const [rows, setRows] = useState([]);
+  const ids = (students || []).map((s) => s.id);
+  useEffect(() => {
+    if (!ids.length) return;
+    supabase.from("weekly_updates").select("id, hub_student_id, week_start")
+      .in("hub_student_id", ids).eq("status", "sent").is("ack_at", null)
+      .gte("week_start", addDays(currentMonday(), -14)).order("week_start", { ascending: false })
+      .then(({ data, error }) => { if (!error) setRows(data || []); });
+  }, [ids.join(",")]);
+  if (!rows.length) return null;
+  const kids = Array.from(new Set(rows.map((r) => r.hub_student_id)))
+    .map((id) => students.find((s) => s.id === id)).filter(Boolean);
+  const names = kids.map((k) => firstName(k.name) || k.name);
+  const list = names.length === 1 ? names[0] : names.slice(0, -1).join(", ") + (lang === "fr" ? " et " : " and ") + names[names.length - 1];
+  return (
+    <section className="bsf-card" style={{ border: `2px solid ${COLORS.brand}` }}>
+      <h2 style={{ marginTop: 0 }}>{lang === "fr" ? "Nouveau point de la semaine" : "New weekly update"}</h2>
+      <p style={{ margin: "0 0 12px" }}>
+        {lang === "fr"
+          ? `Le point de la semaine de ${list} est prêt. Merci de le lire et de confirmer votre lecture.`
+          : `${list}'s weekly update is ready. Please read it and confirm.`}
+      </p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {kids.map((k) => (
+          <button key={k.id} className="bsf-btn" onClick={() => onOpen(k.id)}>
+            {lang === "fr" ? `Lire · ${firstName(k.name) || k.name}` : `Read · ${firstName(k.name) || k.name}`}
+          </button>
+        ))}
+      </div>
     </section>
   );
 }

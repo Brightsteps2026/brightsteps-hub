@@ -7,4 +7,7 @@ export const pending = {
 
   // Lets a tap on a child on the Dashboard open that child's profile directly.
   childProfileId: null,
+
+  // Set by the weekly update card on the Dashboard: the child page scrolls to Weekly updates.
+  scrollToWeekly: false,
 };

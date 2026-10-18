@@ -5,6 +5,7 @@ import { useLanguage } from "../lib/i18n";
 import { supabase } from "../lib/supabaseClient";
 import { ReportAbsenceCard } from "../AbsenceReport";
 import StaffDeadlinesCard from "../StaffDeadlines";
+import { WeeklyUpdateCard } from "../WeeklyUpdates";
 import { GRADES, DEFAULT_SETTINGS, isStaffOnlyEvent } from "../data/constants";
 import { uid, formatEventWhen, todayStr, lunchWeekLabel, isThisSchoolWeek, useTodayWeekday, formatCurrency, formatDateLong, formatTimestampDate, gradeLabel, tLabel, computeFeeBreakdown, feeCategoryIcon, attendanceCountsForRange } from "../lib/format";
 import { EventRow, Field, Modal, EnrollmentStairs, SignaturePad, StudentThumb } from "../ui/common";
@@ -309,6 +310,10 @@ const saveLunchMenu = async () => {
         );
       })()}
 
+      {isParent && myStudents.length > 0 && (
+        <WeeklyUpdateCard students={myStudents} language={language}
+          onOpen={(id) => { pending.scrollToWeekly = true; openChildProfile(id); }} />
+      )}
       {isParent && myStudents.length > 0 && <ReportAbsenceCard students={myStudents} />}
 
       {!isParent && <StaffDeadlinesCard profile={profile} events={data.events} onNavigate={onNavigate} />}
