@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "../lib/supabaseClient";
 import { Plus, Trash2, FileText } from "lucide-react";
 import AttachmentField from "../AttachmentField";
 import { useLanguage, pluralKey } from "../lib/i18n";
@@ -6,7 +7,10 @@ import { RESOURCE_CATEGORIES, PARENT_RESOURCE_CATEGORIES } from "../data/constan
 import { uid, safeLink, todayStr, formatDateLong, tLabel } from "../lib/format";
 import { Field, Modal, SignaturePad } from "../ui/common";
 
-const emptyResourceForm = { title: "", category: RESOURCE_CATEGORIES[0], link: "", description: "", files: [], filesFr: [], visibleToParents: false, requiresSignature: false };
+const emptyResourceForm = { title: "", category: RESOURCE_CATEGORIES[0], link: "", description: "", files: [], filesFr: [], visibleToParents: false, requiresSignature: false, requiresStaffSignature: false };
+
+// Staff who are asked to read and sign a staff document.
+const SIGNING_ROLES = ["teacher", "learning_assistant"];
 
 function ResourcesTab({ data, persist, profile }) {
   const { t, language } = useLanguage();
@@ -23,6 +27,27 @@ function ResourcesTab({ data, persist, profile }) {
   const [signatureError, setSignatureError] = useState("");
 
   const isParent = profile?.role === "parent";
+  const isAdminView = profile?.role === "admin" || profile?.role === "viewer";
+  const signsAsStaff = SIGNING_ROLES.includes(profile?.role);
+
+  // Staff signatures live in their own table (staff_signatures): each person sees their own,
+  // the admin sees everyone's.
+  const [staffSigs, setStaffSigs] = useState([]);
+  const [staffList, setStaffList] = useState([]);
+  const loadStaffSigs = () => {
+    if (isParent) return;
+    supabase.from("staff_signatures").select("id, resource_id, user_id, full_name, signed_at")
+      .then(({ data: rows, error }) => { if (!error) setStaffSigs(rows || []); });
+  };
+  useEffect(() => {
+    loadStaffSigs();
+    if (isAdminView) {
+      supabase.from("profiles").select("id, full_name, email, role").in("role", SIGNING_ROLES)
+        .then(({ data: rows }) => setStaffList((rows || []).sort((a, b) => (a.full_name || "").localeCompare(b.full_name || ""))));
+    }
+  }, []);
+  const sigsFor = (rid) => staffSigs.filter((x) => x.resource_id === rid);
+  const mySig = (rid) => staffSigs.find((x) => x.resource_id === rid && x.user_id === profile?.id);
 
   const openSign = (id) => {
     setSigningId(id);
@@ -32,7 +57,7 @@ function ResourcesTab({ data, persist, profile }) {
     setSignatureError("");
   };
 
-  const saveSignature = () => {
+  const saveSignature = async () => {
     if (!signatureName.trim()) {
       setSignatureError(t("sign.errName"));
       return;
@@ -43,6 +68,17 @@ function ResourcesTab({ data, persist, profile }) {
     }
     if (!signatureConfirmed) {
       setSignatureError(t("sign.errConfirm"));
+      return;
+    }
+    if (!isParent) {
+      const doc = (data.resources || []).find((r) => r.id === signingId);
+      const { error } = await supabase.from("staff_signatures").insert({
+        resource_id: signingId, resource_title: doc?.title || null, user_id: profile.id,
+        full_name: signatureName.trim(), signature: signatureDataUrl
+      });
+      if (error) { setSignatureError(/staff_signatures/.test(error.message) ? "Signing isn't switched on yet. Please tell the office." : "Not saved: " + error.message); return; }
+      setSigningId(null);
+      loadStaffSigs();
       return;
     }
     const signature = { id: uid(), parentId: profile.id, parentName: signatureName.trim(), signatureDataUrl, date: todayStr() };
@@ -152,7 +188,19 @@ function ResourcesTab({ data, persist, profile }) {
                 </div>
               )}
               {!isParent && r.requiresSignature && (
-                <span className="bsf-minitag" style={{ marginTop: 8, display: "inline-block" }}>{(r.signatures || []).length} signed</span>
+                <span className="bsf-minitag" style={{ marginTop: 8, display: "inline-block" }}>{(r.signatures || []).length} parent{(r.signatures || []).length === 1 ? "" : "s"} signed</span>
+              )}
+              {!isParent && r.requiresStaffSignature && isAdminView && (
+                <span className="bsf-minitag" style={{ marginTop: 8, marginLeft: 6, display: "inline-block" }}>
+                  {sigsFor(r.id).length} of {staffList.length} staff signed
+                </span>
+              )}
+              {!isParent && r.requiresStaffSignature && signsAsStaff && (
+                mySig(r.id) ? (
+                  <p className="bsf-minitag" style={{ marginTop: 8, display: "inline-block" }}>✓ You signed on {formatDateLong(mySig(r.id).signed_at.slice(0, 10), "en")}</p>
+                ) : (
+                  <button className="bsf-btn" style={{ marginTop: 8, display: "block" }} onClick={() => openSign(r.id)}>Read and sign</button>
+                )
               )}
               {isParent && r.requiresSignature && (
                 mySignature ? (
@@ -205,6 +253,31 @@ function ResourcesTab({ data, persist, profile }) {
             />
             <span>Visible to parents (e.g. the Parent and Student Handbook)</span>
           </label>
+          {!form.visibleToParents && (
+            <label className="bsf-checkboxrow" style={{ marginBottom: 14 }}>
+              <input
+                type="checkbox"
+                checked={form.requiresStaffSignature}
+                onChange={(e) => setForm({ ...form, requiresStaffSignature: e.target.checked })}
+              />
+              <span>Staff must read and sign (teachers and learning assistants), e.g. the Staff Handbook</span>
+            </label>
+          )}
+          {editingId && form.requiresStaffSignature && isAdminView && (() => {
+            const signed = sigsFor(editingId);
+            const missing = staffList.filter((p) => !signed.some((x) => x.user_id === p.id));
+            return (
+              <div className="bsf-inlinenote" style={{ marginBottom: 14 }}>
+                <strong style={{ display: "block", marginBottom: 6 }}>{signed.length} of {staffList.length} staff signed</strong>
+                {signed.map((x) => (
+                  <p key={x.id} className="bsf-muted" style={{ margin: "2px 0" }}>✓ {x.full_name} · {formatDateLong(x.signed_at.slice(0, 10), "en")}</p>
+                ))}
+                {missing.length > 0 && (
+                  <p className="bsf-muted" style={{ margin: "8px 0 0" }}>Not signed yet: {missing.map((p) => p.full_name || p.email).join(", ")}</p>
+                )}
+              </div>
+            );
+          })()}
           {form.visibleToParents && (
             <label className="bsf-checkboxrow" style={{ marginBottom: 14 }}>
               <input
@@ -257,4 +330,24 @@ function ResourcesTab({ data, persist, profile }) {
   );
 }
 
-export { ResourcesTab };
+// Staff Dashboard: documents still waiting for this person's signature.
+function StaffToSignCard({ data, profile, onNavigate }) {
+  const [signedIds, setSignedIds] = useState(null);
+  useEffect(() => {
+    if (!SIGNING_ROLES.includes(profile?.role)) return;
+    supabase.from("staff_signatures").select("resource_id").eq("user_id", profile.id)
+      .then(({ data: rows, error }) => setSignedIds(error ? null : (rows || []).map((r) => r.resource_id)));
+  }, [profile?.id]);
+  if (!SIGNING_ROLES.includes(profile?.role) || !signedIds) return null;
+  const todo = (data?.resources || []).filter((r) => r.requiresStaffSignature && !signedIds.includes(r.id));
+  if (!todo.length) return null;
+  return (
+    <section className="bsf-card" style={{ border: "2px solid #801524" }}>
+      <h2 style={{ marginTop: 0 }}>Please read and sign</h2>
+      <p style={{ margin: "0 0 10px" }}>{todo.map((r) => r.title).join(", ")}</p>
+      <button className="bsf-btn" onClick={() => onNavigate && onNavigate("resources")}>Go to Resources</button>
+    </section>
+  );
+}
+
+export { ResourcesTab, StaffToSignCard };
