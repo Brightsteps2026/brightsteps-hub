@@ -45,17 +45,6 @@ const LOGIN_TEXT = {
     passwordMismatch: "Passwords don't match.",
     passwordSetFailed: "Your password could not be saved. Please try again.",
     passwordSetupIncomplete: "Your password was saved, but we could not finish setting up your account. Please try again.",
-    mfaSetupTitle: "Set up two-step sign-in",
-    mfaSetupIntro: "Your admin account can see all school data, so it needs a second step. Open an authenticator app on your phone (Google Authenticator, Microsoft Authenticator or similar) and scan this code.",
-    mfaSecretLabel: "Can't scan? Enter this key in the app instead. Keep a copy somewhere safe: it also lets you set up a new phone.",
-    mfaSetupCode: "Then enter the 6-digit code the app shows",
-    mfaVerifyTitle: "Two-step sign-in",
-    mfaVerifyIntro: "Open your authenticator app and enter the 6-digit code for BrightSteps Hub.",
-    mfaCode: "6-digit code",
-    mfaConfirm: "Confirm",
-    mfaChecking: "Checking…",
-    mfaWrongCode: "That code is not right or has expired. Please try the new code in the app.",
-    mfaFailed: "Two-step sign-in could not be loaded. Please check your connection and try again.",
     footer: "© BrightSteps International School",
   },
   fr: {
@@ -89,17 +78,6 @@ const LOGIN_TEXT = {
     passwordMismatch: "Les mots de passe ne correspondent pas.",
     passwordSetFailed: "Votre mot de passe n'a pas pu être enregistré. Veuillez réessayer.",
     passwordSetupIncomplete: "Votre mot de passe a été enregistré, mais la configuration de votre compte n'a pas pu être finalisée. Veuillez réessayer.",
-    mfaSetupTitle: "Activer la connexion en deux étapes",
-    mfaSetupIntro: "Votre compte administrateur a accès à toutes les données de l'école ; il lui faut donc une deuxième étape. Ouvrez une application d'authentification sur votre téléphone (Google Authenticator, Microsoft Authenticator ou similaire) et scannez ce code.",
-    mfaSecretLabel: "Impossible de scanner ? Saisissez plutôt cette clé dans l'application. Gardez-en une copie en lieu sûr : elle permet aussi de configurer un nouveau téléphone.",
-    mfaSetupCode: "Saisissez ensuite le code à 6 chiffres affiché par l'application",
-    mfaVerifyTitle: "Connexion en deux étapes",
-    mfaVerifyIntro: "Ouvrez votre application d'authentification et saisissez le code à 6 chiffres de BrightSteps Hub.",
-    mfaCode: "Code à 6 chiffres",
-    mfaConfirm: "Valider",
-    mfaChecking: "Vérification…",
-    mfaWrongCode: "Ce code est incorrect ou a expiré. Veuillez essayer le nouveau code affiché dans l'application.",
-    mfaFailed: "La connexion en deux étapes n'a pas pu être chargée. Veuillez vérifier votre connexion et réessayer.",
     footer: "© BrightSteps International School",
   }
 };
@@ -133,16 +111,6 @@ export default function LoginGate({ children }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSetError, setPasswordSetError] = useState("");
   const [settingPassword, setSettingPassword] = useState(false);
-  // Two-step sign-in (admin accounts only).
-  // mfaStep: "checking" | "enroll" | "verify" | "done" | "error"
-  const [mfaStep, setMfaStep] = useState("checking");
-  const [mfaFactorId, setMfaFactorId] = useState("");
-  const [mfaQr, setMfaQr] = useState("");
-  const [mfaSecret, setMfaSecret] = useState("");
-  const [mfaCode, setMfaCode] = useState("");
-  const [mfaError, setMfaError] = useState("");
-  const [mfaSubmitting, setMfaSubmitting] = useState(false);
-  const [mfaRetry, setMfaRetry] = useState(0);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -198,91 +166,6 @@ export default function LoginGate({ children }) {
       cancelled = true;
     };
   }, [session]);
-
-  // Two-step sign-in: admin accounts must confirm a code from an authenticator
-  // app before the Hub opens. Everyone else goes straight in. The database also
-  // refuses admin rights until this step is done, so this is not just a screen.
-  const userId = session?.user?.id;
-  const profileRole = profile?.role;
-  const passwordReady = !!profile?.password_changed;
-  useEffect(() => {
-    if (!userId) {
-      setMfaStep("checking");
-      setMfaCode("");
-      setMfaError("");
-      return;
-    }
-    if (!profileRole || !passwordReady) return;
-    if (profileRole !== "admin") {
-      setMfaStep("done");
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-        if (aalError) throw aalError;
-        if (cancelled) return;
-        if (aal.currentLevel === "aal2") {
-          setMfaStep("done");
-          return;
-        }
-        const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
-        if (listError) throw listError;
-        if (cancelled) return;
-        const verified = (factors.totp || []).filter((f) => f.status === "verified");
-        if (verified.length > 0) {
-          setMfaFactorId(verified[0].id);
-          setMfaStep("verify");
-          return;
-        }
-        // No phone set up yet. Clear any half-finished setup, then start a fresh one.
-        for (const f of factors.all || []) {
-          if (f.factor_type === "totp" && f.status !== "verified") {
-            await supabase.auth.mfa.unenroll({ factorId: f.id });
-          }
-        }
-        const { data: enrolled, error: enrollError } = await supabase.auth.mfa.enroll({
-          factorType: "totp",
-          friendlyName: `BrightSteps Hub ${new Date().toISOString().slice(0, 10)}`,
-          issuer: "BrightSteps Hub",
-        });
-        if (enrollError) throw enrollError;
-        if (cancelled) return;
-        setMfaFactorId(enrolled.id);
-        setMfaQr(enrolled.totp.qr_code);
-        setMfaSecret(enrolled.totp.secret);
-        setMfaStep("enroll");
-      } catch (err) {
-        console.error("Two-step sign-in could not load", err);
-        if (!cancelled) setMfaStep("error");
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [userId, profileRole, passwordReady, mfaRetry]);
-
-  async function handleMfaSubmit(e) {
-    e.preventDefault();
-    setMfaError("");
-    const code = mfaCode.replace(/\D/g, "");
-    if (code.length !== 6) {
-      setMfaError("mfaWrongCode");
-      return;
-    }
-    setMfaSubmitting(true);
-    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: mfaFactorId, code });
-    setMfaSubmitting(false);
-    if (error) {
-      console.error("Two-step code rejected", error);
-      setMfaError("mfaWrongCode");
-      setMfaCode("");
-      return;
-    }
-    setMfaCode("");
-    setMfaQr("");
-    setMfaSecret("");
-    setMfaStep("done");
-  }
 
   // Signs someone out automatically after 10 minutes of no activity, a normal
   // safety practice for a system holding student and family information.
@@ -563,93 +446,6 @@ export default function LoginGate({ children }) {
     );
   }
 
-  if (mfaStep === "checking") {
-    return (
-      <div style={styles.centerScreen}>
-        <BrandStyles />
-        <p style={{ color: "#F0D9DD", fontFamily: "'Work Sans', sans-serif" }}>{lt.loadingAccount}</p>
-      </div>
-    );
-  }
-
-  if (mfaStep === "error") {
-    return (
-      <div style={styles.centerScreen}>
-        <BrandStyles />
-        <div style={styles.card}>
-          <Logo url={logoUrl} />
-          <h1 style={styles.title}>{lt.mfaVerifyTitle}</h1>
-          <p style={{ ...styles.error, marginTop: 16 }}>{lt.mfaFailed}</p>
-          <button onClick={() => { setMfaStep("checking"); setMfaRetry((n) => n + 1); }} style={styles.button} className="bsh-btn">
-            {lt.mfaConfirm}
-          </button>
-          <button
-            onClick={handleSignOut}
-            style={{ ...styles.button, marginTop: 12, background: "transparent", color: "#801524", border: "1px solid #E2C6CB", boxShadow: "none" }}
-            className="bsh-btn-ghost"
-          >
-            {lt.signOut}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (mfaStep === "enroll" || mfaStep === "verify") {
-    const enrolling = mfaStep === "enroll";
-    return (
-      <div style={styles.centerScreen}>
-        <BrandStyles />
-        <div style={styles.card}>
-          <Logo url={logoUrl} />
-          <h1 style={styles.title}>{enrolling ? lt.mfaSetupTitle : lt.mfaVerifyTitle}</h1>
-          <p style={styles.subtitle}>{enrolling ? lt.mfaSetupIntro : lt.mfaVerifyIntro}</p>
-          {enrolling && (
-            <>
-              {mfaQr && (
-                <img
-                  src={mfaQr}
-                  alt="QR code"
-                  style={{ width: 180, height: 180, display: "block", margin: "0 auto", background: "#fff", borderRadius: 12, border: "1px solid #EFD9DB", padding: 8 }}
-                />
-              )}
-              <p style={{ ...styles.footnote, marginTop: 14, color: "#7A6A6C" }}>{lt.mfaSecretLabel}</p>
-              <code style={styles.secret}>{mfaSecret}</code>
-            </>
-          )}
-          <form onSubmit={handleMfaSubmit}>
-            <label style={styles.label}>{enrolling ? lt.mfaSetupCode : lt.mfaCode}</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9 ]*"
-              maxLength={7}
-              required
-              autoFocus
-              value={mfaCode}
-              onChange={(e) => setMfaCode(e.target.value)}
-              style={{ ...styles.input, textAlign: "center", fontSize: 22, letterSpacing: "0.3em" }}
-              className="bsh-input"
-              autoComplete="one-time-code"
-              placeholder="000000"
-            />
-            {mfaError && <p style={styles.error}>{lt[mfaError] || mfaError}</p>}
-            <button type="submit" disabled={mfaSubmitting} style={styles.button} className="bsh-btn">
-              {mfaSubmitting ? lt.mfaChecking : lt.mfaConfirm}
-            </button>
-          </form>
-          <button
-            onClick={handleSignOut}
-            style={{ ...styles.button, marginTop: 12, background: "transparent", color: "#801524", border: "1px solid #E2C6CB", boxShadow: "none" }}
-            className="bsh-btn-ghost"
-          >
-            {lt.signOut}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <AuthContext.Provider value={{ session, profile, signOut: handleSignOut, updateProfileLocal: (patch) => setProfile((p) => (p ? { ...p, ...patch } : p)) }}>
       {children}
@@ -782,17 +578,6 @@ const styles = {
     color: "#7A6A6C",
   },
   footnote: { fontSize: 12.5, color: "#A69698", marginTop: 22, lineHeight: 1.5 },
-  secret: {
-    display: "block",
-    marginTop: 8,
-    padding: "8px 10px",
-    borderRadius: 8,
-    background: "#FBF1F2",
-    color: "#3B2426",
-    fontSize: 13,
-    wordBreak: "break-all",
-    userSelect: "all",
-  },
   modeToggle: {
     display: "flex",
     background: "#F5E4E6",
