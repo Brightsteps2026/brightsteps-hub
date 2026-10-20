@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Camera, X, Loader2 } from "lucide-react";
-import { uploadAttachment, getAttachmentUrl, deleteAttachment } from "./lib/attachments";
+import { uploadAttachment, getAttachmentUrl, deleteAttachment, shrinkImage } from "./lib/attachments";
 
 const MAX_SIZE = 50 * 1024 * 1024; // 50MB, matches the Supabase bucket limit
 
@@ -40,7 +40,7 @@ export default function StudentPhotoField({ photo, onChange }) {
       if (photo && photo.path) {
         await deleteAttachment(photo.path);
       }
-      const meta = await uploadAttachment(file, "student-photos");
+      const meta = await uploadAttachment(await shrinkImage(file), "student-photos");
       onChange(meta);
     } catch (err) {
       setError("Upload failed. Please check your connection and try again.");

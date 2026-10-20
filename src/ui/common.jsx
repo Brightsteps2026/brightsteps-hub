@@ -190,7 +190,7 @@ function StudentThumb({ photo }) {
   }, [photo && photo.path]);
   return (
     <div className="bsf-student-thumb">
-      {url ? <img src={url} alt="" /> : <Users size={18} />}
+      {url ? <img src={url} alt="" loading="lazy" decoding="async" /> : <Users size={18} />}
     </div>
   );
 }
