@@ -52,7 +52,11 @@ function UpdatesTab({ data, persist }) {
     announcements: data.announcements.map((a) => (a.id === id ? { ...a, [key]: files } : a))
   });
 
-  const removePost = (id) => persist({ ...data, announcements: data.announcements.filter((a) => a.id !== id) });
+  const removePost = (id) => {
+    const post = data.announcements.find((a) => a.id === id);
+    if (!window.confirm(`Delete "${post?.titleEn || "this update"}"? Families will no longer see it. This cannot be undone.`)) return;
+    persist({ ...data, announcements: data.announcements.filter((a) => a.id !== id) });
+  };
 
   const openTranslate = (post) => {
     setTranslateForm({ titleFr: post.titleFr || "", bodyFr: post.bodyFr || "" });
@@ -137,7 +141,7 @@ function UpdatesTab({ data, persist }) {
                   {a.titleFr ? "Edit French translation" : "Add French translation"}
                 </button>
               </div>
-              <button className="bsf-iconbtn" onClick={() => removePost(a.id)} aria-label="Remove"><Trash2 size={16} /></button>
+              <button className="bsf-iconbtn" onClick={() => removePost(a.id)} aria-label="Delete update" title="Delete update"><Trash2 size={16} /></button>
             </div>
           );
         })}
