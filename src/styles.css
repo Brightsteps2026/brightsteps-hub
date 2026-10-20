@@ -182,6 +182,7 @@
         .bsf-datechip-day { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 600; }
         .bsf-datechip-month { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px; }
         .bsf-eventrow-text { flex: 1; min-width: 0; }
+        .bsf-now-pill { display: inline-block; margin-left: 8px; font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 100px; background: #E7F0EA; color: #2F7A5C; vertical-align: middle; }
         .bsf-eventrow-text strong { display: block; font-size: 15px; line-height: 1.3; }
         .bsf-eventrow-text p { margin: 3px 0 0; font-size: 13px; color: #5A4A4C; }
         .bsf-eventrow-type { font-weight: 600; }

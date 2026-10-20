@@ -284,7 +284,7 @@ const saveLunchMenu = async () => {
                   <p className="bsf-tile-sub">across {gradeCount} grade{gradeCount === 1 ? "" : "s"}</p>
                 </div>
                 <div className="bsf-tile">
-                  <p className="bsf-tile-label"><CalendarIcon size={14} /> Next event</p>
+                  <p className="bsf-tile-label"><CalendarIcon size={14} /> {nextEvent && nextEvent.date <= today ? "Happening now" : "Next event"}</p>
                   <p className="bsf-tile-value">{nextEvent ? nextEvent.title : "Nothing scheduled"}</p>
                   {nextEvent && <p className="bsf-tile-sub">{formatEventWhen(nextEvent, language)}</p>}
                 </div>

@@ -3,7 +3,7 @@ import { Users, X } from "lucide-react";
 import { getAttachmentUrl } from "../lib/attachments";
 import { useLanguage } from "../lib/i18n";
 import { GRADES, EVENT_TYPE_COLOR, SHORT_GRADE_LABEL } from "../data/constants";
-import { formatEventWhen, tLabel, eventTypeLabel } from "../lib/format";
+import { formatEventWhen, tLabel, eventTypeLabel, todayStr } from "../lib/format";
 
 // One upcoming event: a small date chip, then the title and the dates.
 function EventRow({ event: e }) {
@@ -19,6 +19,9 @@ function EventRow({ event: e }) {
       </div>
       <div className="bsf-eventrow-text">
         <strong>{e.title}</strong>
+        {e.date <= todayStr() && (e.endDate || e.date) >= todayStr() && (
+          <span className="bsf-now-pill">{language === "fr" ? "En cours" : "Happening now"}</span>
+        )}
         <p>{formatEventWhen(e, language)}<span className="bsf-eventrow-type" style={{ color }}> · {eventTypeLabel(t, e)}</span></p>
       </div>
     </div>
