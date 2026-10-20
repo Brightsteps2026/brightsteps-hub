@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Percent, Briefcase, FolderOpen, Award, LogOut, Utensils, Wallet, NotebookPen, Clock3 } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Percent, Briefcase, FolderOpen, Award, LogOut, Utensils, Wallet, NotebookPen, Clock3, Target } from "lucide-react";
 import { useAuth } from "./LoginGate";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
 import CanteenTab from "./CanteenTab";
@@ -27,6 +27,7 @@ import { CalendarTab } from "./screens/Calendar";
 import { AdmissionsTab } from "./screens/Admissions";
 import { AssignmentsTab } from "./screens/Assignments";
 import { TimetableTab } from "./screens/Timetable";
+import { StandardsTab } from "./screens/Standards";
 import { ReportsTab } from "./screens/Reports";
 import { BehaviorTab } from "./screens/Behavior";
 import { GradebookTab } from "./screens/Gradebook";
@@ -86,17 +87,17 @@ function BrightStepsHubInner() {
       };
   const myLinkedStudent = isStudent ? data.students.find((s) => (profile.student_ids || [])[0] === s.id) : null;
   const isUpperStudent = !!myLinkedStudent && GRADES.indexOf(myLinkedStudent.grade) >= GRADES.indexOf("Grade 3");
-  const PARENT_HIDDEN_TABS = ["weekly", "checkin", "leave", "classes", "staff", "admissions", "behavior", "accreditation", "planning", "gradebook"];
+  const PARENT_HIDDEN_TABS = ["standards", "weekly", "checkin", "leave", "classes", "staff", "admissions", "behavior", "accreditation", "planning", "gradebook"];
   const ADMIN_ONLY_TABS = ["accreditation","staff","admissions"];
   // Only admin and the accountant role can see billing, everyone else is blocked outright.
   const BILLING_ALLOWED_ROLES = ["admin", "accountant", "viewer"];
   // A learning assistant supports specific grades day to day; they don't need
   // enrollment, staffing, or school-wide admin tools, just the classroom-facing ones.
-  const LEARNING_ASSISTANT_ALLOWED_TABS = ["weekly", "checkin", "leave", "gradebook", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "classes", "calendar", "timetable", "assignments", "updates", "resources"];
+  const LEARNING_ASSISTANT_ALLOWED_TABS = ["weekly", "checkin", "leave", "gradebook", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "classes", "calendar", "timetable", "standards", "assignments", "updates", "resources"];
   // An accountant only ever needs billing, nothing about students' academic
   // records, behavior, or staff information.
   const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "billing", "checkin", "leave"];
-  const RESTRICTED_TEACHER_TABS = ["weekly", "checkin", "leave", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "planning", "assignments", "timetable", "reports", "calendar", "incidents", "updates", "resources"];
+  const RESTRICTED_TEACHER_TABS = ["weekly", "checkin", "leave", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "planning", "assignments", "timetable", "standards", "reports", "calendar", "incidents", "updates", "resources"];
   // Set per teacher by the admin in the database (profiles.limited_access).
   const isRestrictedTeacher = profile?.role === "teacher" && profile?.limited_access === true;
   // Pre-N through Grade 2: reflections only. Grade 3 and up: can also see (not edit)
@@ -160,6 +161,7 @@ function BrightStepsHubInner() {
     { id: "planning", label: "Curriculum", navKey: "nav.planning", icon: ClipboardList, category: "classroom" },
     { id: "calendar", label: "Calendar", navKey: "nav.calendar", icon: CalendarIcon, category: "office" },
     { id: "timetable", label: "Timetable", navKey: "nav.timetable", icon: Clock3, category: "classroom" },
+    { id: "standards", label: "Standards", navKey: "nav.standards", icon: Target, category: "classroom" },
     { id: "canteen", label: "Canteen", navKey: "nav.canteen", icon: Utensils, category: "office" },
     { id: "incidents", label: "Incidents", navKey: "nav.incidents", icon: IncidentsIcon, category: "classroom" },
     { id: "admissions", label: "Admissions", navKey: "nav.admissions", icon: UserPlus, category: "office" },
@@ -298,6 +300,7 @@ function BrightStepsHubInner() {
       {tab === "admissions" && !isParent && !isLearningAssistant && <AdmissionsTab data={data} persist={persist} />}
       {tab === "assignments" && <AssignmentsTab data={data} persist={persist} profile={profile} />}
       {tab === "timetable" && <TimetableTab data={data} profile={profile} />}
+      {tab === "standards" && !isParent && !isStudent && !isAccountant && <StandardsTab profile={profile} />}
       {tab === "reports" && !isLearningAssistant && <ReportsTab data={data} persist={persist} profile={profile} />}
       {tab === "behavior" && !isParent && !isLearningAssistant && <BehaviorTab data={data} persist={persist} profile={profile} />}
       {tab === "resources" && <ResourcesTab data={data} persist={persist} profile={profile} />}

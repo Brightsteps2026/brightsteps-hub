@@ -42,6 +42,7 @@ const translations = {
   "nav.admissions": { en: "Admissions", fr: "Admissions" },
   "nav.assignments": { en: "Assignments", fr: "Devoirs" },
   "nav.timetable": { en: "Timetable", fr: "Emploi du temps" },
+  "nav.standards": { en: "Standards", fr: "Standards" },
   "nav.reports": { en: "Reports", fr: "Bulletins" },
   "nav.behavior": { en: "Behavior", fr: "Comportement" },
   "nav.resources": { en: "Resources", fr: "Ressources" },
