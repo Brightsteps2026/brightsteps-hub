@@ -171,6 +171,11 @@
         .bsf-row:first-of-type { border-top: none; padding-top: 0; }
         .bsf-row p { margin: 2px 0 0; font-size: 14px; color: #3B4A4C; }
         .bsf-row-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .bsf-row > .bsf-tag, .bsf-row > .bsf-status-pill { align-self: flex-start; flex-shrink: 0; }
+        .bsf-row > div { flex: 1; min-width: 0; }
+        .bsf-portfolio-row { flex-direction: column; gap: 4px; padding: 12px 0; }
+        .bsf-portfolio-row .bsf-row-head { gap: 8px; flex-wrap: wrap; }
+        .bsf-portfolio-tags { display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: center; }
         .bsf-eventrow { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
         .bsf-eventrow:first-of-type { border-top: none; padding-top: 2px; }
         .bsf-datechip { flex-shrink: 0; width: 46px; height: 50px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { WeeklyUpdatesFamily, WeeklyHistoryStaff } from "../WeeklyUpdates";
 import { useLanguage } from "../lib/i18n";
+import AttachmentField from "../AttachmentField";
 import { getLevelColor, DEFAULT_SETTINGS, isStaffOnlyEvent } from "../data/constants";
 import { todayStr, formatDateLong, gradeLabel, tLabel, attendanceCountsForRange } from "../lib/format";
 import { EventRow, Modal, StudentThumb } from "../ui/common";
@@ -156,17 +157,20 @@ function FamilyViewModal({ student, data, onClose, hideContacts = false, showMes
         <h2>Portfolio</h2>
         {portfolioEntries.length === 0 && <p className="bsf-empty">No portfolio entries yet.</p>}
         {portfolioEntries.map((p) => (
-          <div key={p.id} className="bsf-row">
-            <span className="bsf-tag">{p.tag}</span>
-            <div>
-              <div className="bsf-row-head">
+          <div key={p.id} className="bsf-row bsf-portfolio-row">
+            <div className="bsf-row-head">
+              <span className="bsf-portfolio-tags">
+                <span className="bsf-tag">{p.tag}</span>
                 <span className={`bsf-author-badge ${p.author === "student" ? "student" : "teacher"}`}>
                   {p.author === "student" ? "Student reflection" : "Teacher note"}
                 </span>
-                <span className="bsf-muted">{p.date}</span>
-              </div>
-              <p>{p.note}</p>
+              </span>
+              <span className="bsf-muted">{formatDateLong(p.date, "en")}</span>
             </div>
+            {p.note && <p>{p.note}</p>}
+            {(p.files || []).length > 0 && (
+              <AttachmentField folder="portfolio" files={p.files} onChange={() => {}} readOnly />
+            )}
           </div>
         ))}
       </section>
@@ -422,17 +426,20 @@ function ParentStudentView({ data, persist, profile }) {
             <h2>{t("portfolio.title")}</h2>
             {portfolioEntries.length === 0 && <p className="bsf-empty">{t("child.noPortfolio")}</p>}
             {portfolioEntries.map((p) => (
-              <div key={p.id} className="bsf-row">
-                <span className="bsf-tag">{tLabel(t, "tag.", p.tag)}</span>
-                <div>
-                  <div className="bsf-row-head">
+              <div key={p.id} className="bsf-row bsf-portfolio-row">
+                <div className="bsf-row-head">
+                  <span className="bsf-portfolio-tags">
+                    <span className="bsf-tag">{tLabel(t, "tag.", p.tag)}</span>
                     <span className={`bsf-author-badge ${p.author === "student" ? "student" : "teacher"}`}>
                       {p.author === "student" ? t("portfolio.studentReflection") : t("portfolio.teacherNote")}
                     </span>
-                    <span className="bsf-muted">{formatDateLong(p.date, language)}</span>
-                  </div>
-                  <p>{p.note}</p>
+                  </span>
+                  <span className="bsf-muted">{formatDateLong(p.date, language)}</span>
                 </div>
+                {p.note && <p>{p.note}</p>}
+                {(p.files || []).length > 0 && (
+                  <AttachmentField folder="portfolio" files={p.files} onChange={() => {}} readOnly />
+                )}
               </div>
             ))}
           </section>
