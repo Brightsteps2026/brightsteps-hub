@@ -8,6 +8,7 @@ import { EventRow, Modal, StudentThumb } from "../ui/common";
 import { StudentMessages, AbsenceNotices } from "./Messages";
 import { pending } from "../data/pending";
 import { TermReportsFamily } from "../TermReports";
+import { useAssignmentsDue } from "./Assignments";
 
 function FamilyViewModal({ student, data, onClose, hideContacts = false, showMessages = false }) {
   const today = todayStr();
@@ -41,11 +42,7 @@ function FamilyViewModal({ student, data, onClose, hideContacts = false, showMes
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 4);
 
-  const assignmentsDue = [...(data.assignments || [])]
-    .filter((a) => !a.dueDate || a.dueDate >= today)
-    .filter((a) => (a.grades || []).includes(student.grade))
-    .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))
-    .slice(0, 5);
+  const assignmentsDue = useAssignmentsDue(student.grade);
 
   const announcements = [...data.announcements].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
 
@@ -311,13 +308,7 @@ function ParentStudentView({ data, persist, profile }) {
         .slice(0, 4)
     : [];
 
-  const assignmentsDue = activeStudent
-    ? [...(data.assignments || [])]
-        .filter((a) => !a.dueDate || a.dueDate >= today)
-        .filter((a) => (a.grades || []).includes(activeStudent.grade))
-        .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))
-        .slice(0, 5)
-    : [];
+  const assignmentsDue = useAssignmentsDue(activeStudent?.grade);
 
   const reports = activeStudent
     ? (data.reports || []).filter((r) => r.studentId === activeStudent.id).sort((a, b) => b.createdDate.localeCompare(a.createdDate))
