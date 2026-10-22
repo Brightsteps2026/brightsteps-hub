@@ -67,7 +67,7 @@ const T = {
     ackTitle: "Confirm you've read it", ackWhy: (n) => `It's kept in ${n}'s file, so the teacher knows the update reached you.`,
     ackBox: (n) => `I have read ${n}'s weekly update`, ackNote: "A note for the teacher (optional)",
     ackBtn: "Confirm I've read it", acked: (d) => `✓ You confirmed reading this on ${d}`, yourNote: "Your note:",
-    reply: "Reply to the teacher", earlier: "Earlier weekly updates", none: "No weekly update yet.", tickFirst: "Please tick the box first.",
+    reply: "Reply to the teacher", print: "Print this update", earlier: "Earlier weekly updates", none: "No weekly update yet.", tickFirst: "Please tick the box first.",
     soon: (n) => `${n}'s weekly update arrives here every Friday. You'll get a notification and an email when it's ready, so you can read it and confirm.`
   },
   fr: {
@@ -79,7 +79,7 @@ const T = {
     ackTitle: "Confirmez votre lecture", ackWhy: (n) => `Elle est gardée dans le dossier de ${n}, pour que l'enseignant(e) sache que le point vous est bien parvenu.`,
     ackBox: (n) => `J'ai lu le point de la semaine de ${n}`, ackNote: "Un mot pour l'enseignant(e) (facultatif)",
     ackBtn: "Je confirme ma lecture", acked: (d) => `✓ Vous avez confirmé votre lecture le ${d}`, yourNote: "Votre mot :",
-    reply: "Répondre à l'enseignant(e)", earlier: "Points précédents", none: "Pas encore de point hebdomadaire.", tickFirst: "Merci de cocher la case d'abord.",
+    reply: "Répondre à l'enseignant(e)", print: "Imprimer ce point", earlier: "Points précédents", none: "Pas encore de point hebdomadaire.", tickFirst: "Merci de cocher la case d'abord.",
     soon: (n) => `Le point de la semaine de ${n} arrive ici chaque vendredi. Vous recevrez une notification et un e-mail lorsqu'il sera prêt, pour le lire et confirmer votre lecture.`
   }
 };
@@ -557,6 +557,7 @@ function ChildRow({ stu, row, canEdit, canApprove, data, week, onTap, onWrite, o
         </div>
         <span style={small}>{att.days ? `At school ${att.at} of ${att.days} days${att.excused ? ` · ${att.excused} excused` : ""}` : "Attendance not taken yet"}</span>
       </div>
+      {sent && row.id && <StaffPrintButtons rowId={row.id} name={firstName(stu.full_name)} />}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 10 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -879,8 +880,11 @@ function FamilyWeek({ row, notes, name, teacher, lang, onAcked }) {
           </>
         )}
       </div>
-      <button className="bsf-textbtn" style={{ marginTop: 10 }}
-        onClick={() => document.getElementById("bs-child-messages")?.scrollIntoView({ behavior: "smooth", block: "start" })}>{t.reply}</button>
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 10 }}>
+        <button className="bsf-textbtn"
+          onClick={() => document.getElementById("bs-child-messages")?.scrollIntoView({ behavior: "smooth", block: "start" })}>{t.reply}</button>
+        <button className="bsf-textbtn" onClick={() => printWeeklyUpdate({ row, notes, name, teacher, lang })}>{t.print}</button>
+      </div>
     </div>
   );
 }
@@ -889,6 +893,130 @@ function Line({ left, right }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13, padding: "4px 0" }}>
       <span style={{ color: COLORS.text2 }}>{left}</span><strong>{right}</strong>
+    </div>
+  );
+}
+
+// ===========================================================================
+// Print one child's weekly update (one A4 page, in the chosen language)
+// ===========================================================================
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const PRINT_TEXT = {
+  en: { sign: "Parent or guardian signature", date: "Date", note: "A note for the teacher (optional)", school: "BrightSteps International School",
+        confirmedOnline: (d) => `Already confirmed on the Hub on ${d}.`, returnIt: "Please sign and return this page to school." },
+  fr: { sign: "Signature du parent ou tuteur", date: "Date", note: "Un mot pour l'enseignant(e) (facultatif)", school: "BrightSteps International School",
+        confirmedOnline: (d) => `Lecture déjà confirmée sur le Hub le ${d}.`, returnIt: "Merci de signer et de rapporter cette page à l'école." }
+};
+
+export function printWeeklyUpdate({ row, notes, name, teacher, lang = "en" }) {
+  const l = lang === "fr" ? "fr" : "en";
+  const t = T[l];
+  const p = PRINT_TEXT[l];
+  const fr = notes?.fr || {};
+  const pick = (k) => (l === "fr" && fr[k] ? fr[k] : notes?.[k]);
+  const a = row.attendance || {};
+  const line = (left, right) => `<tr><td>${esc(left)}</td><td class="r">${esc(right)}</td></tr>`;
+
+  const glance = [
+    a.days > 0 ? line(t.atSchool, t.days(a)) : "",
+    row.math ? line(t.math, FAMILY.level[row.math][l]) + (pick("math_topic") ? `<tr><td colspan="2" class="topic">${esc(pick("math_topic"))}</td></tr>` : "") : "",
+    row.ela ? line(t.ela, FAMILY.level[row.ela][l]) + (pick("ela_topic") ? `<tr><td colspan="2" class="topic">${esc(pick("ela_topic"))}</td></tr>` : "") : "",
+    ...HABITS.map((h) => (row[h.id] ? line(FAMILY.habit[h.id][l], FAMILY.freq[row[h.id]][l]) : ""))
+  ].join("");
+
+  const coming = listOf(notes?.coming_up).map((e) => line(shortDay(e.date, l), l === "fr" ? e.title_fr || e.title : e.title)).join("");
+
+  const html = `<!doctype html><html lang="${l}"><head><meta charset="utf-8"><title>${esc(t.week(weekRange(row.week_start, l)))}</title>
+<style>
+  @page { size: A4; margin: 14mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Work Sans", Arial, sans-serif; color: #241012; font-size: 11.5pt; line-height: 1.45; margin: 0; }
+  header { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #801524; padding-bottom: 8px; margin-bottom: 12px; }
+  header img { width: 46px; height: 46px; object-fit: contain; }
+  .school { font-weight: 700; color: #801524; font-size: 12pt; }
+  .eyebrow { font-size: 9pt; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #801524; margin: 0; }
+  h1 { font-family: Fraunces, Georgia, serif; font-size: 20pt; font-weight: 600; margin: 2px 0 0; }
+  .muted { color: #6B5A4E; font-size: 10pt; margin: 0; }
+  .note { margin: 10px 0; }
+  .hl { background: #FBF1F2; border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+  .hl b { display: block; color: #801524; font-size: 9.5pt; }
+  h2 { font-size: 11.5pt; margin: 12px 0 4px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 4px 0; border-top: 1px solid #EFE6E0; vertical-align: top; }
+  td.r { text-align: right; font-weight: 600; }
+  td.topic { border-top: none; padding-top: 0; color: #6B5A4E; font-size: 10pt; }
+  .sign { margin-top: 18px; border: 1.5px solid #801524; border-radius: 10px; padding: 10px 12px; page-break-inside: avoid; }
+  .sline { display: flex; gap: 16px; margin-top: 22px; }
+  .sline div { flex: 1; border-top: 1px solid #241012; padding-top: 3px; font-size: 9.5pt; color: #6B5A4E; }
+  .noteline { border-bottom: 1px solid #C9BDB6; height: 22px; }
+</style></head><body>
+<header><img src="${window.location.origin}/logo.png" alt=""><div><div class="school">${esc(p.school)}</div><p class="muted">${esc(t.week(weekRange(row.week_start, l)))}</p></div></header>
+<h1>${esc(t.whose(name))}</h1>
+${teacher ? `<p class="muted">${esc(t.from(teacher))}</p>` : ""}
+<p class="note">${esc(l === "fr" && row.note_fr ? row.note_fr : row.note_en)}</p>
+${row.highlight ? `<div class="hl"><b>${esc(t.highlight)}</b>${esc(row.highlight)}</div>` : ""}
+${glance ? `<h2>${esc(t.glance)}</h2><table>${glance}</table>` : ""}
+${pick("uoi_topic") ? `<h2>${esc(t.inClass)}</h2><p style="margin:0"><b>${esc(t.uoi)}:</b> ${esc(pick("uoi_topic"))}</p>` : ""}
+${pick("home_idea") ? `<h2>${esc(t.home)}</h2><p style="margin:0">${esc(pick("home_idea"))}</p>` : ""}
+${coming || pick("reminders") ? `<h2>${esc(t.coming)}</h2>${coming ? `<table>${coming}</table>` : ""}${pick("reminders") ? `<p style="margin:6px 0 0;white-space:pre-line">${esc(pick("reminders"))}</p>` : ""}` : ""}
+<div class="sign">
+  ${row.ack_at
+    ? `<p style="margin:0"><b>✓ ${esc(p.confirmedOnline(longDate(row.ack_at, l)))}</b></p>`
+    : `<p style="margin:0"><b>${esc(t.ackBox(name))}</b></p>
+       <p class="muted">${esc(p.returnIt)}</p>
+       <p class="muted" style="margin-top:8px">${esc(p.note)}</p><div class="noteline"></div><div class="noteline"></div>
+       <div class="sline"><div>${esc(p.sign)}</div><div style="flex:0 0 32%">${esc(p.date)}</div></div>`}
+</div>
+</body></html>`;
+
+  // A hidden frame: prints just this page, with no pop-up window.
+  const frame = document.createElement("iframe");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  document.body.appendChild(frame);
+  const doc = frame.contentDocument;
+  doc.open();
+  doc.write(html);
+  doc.close();
+  const go = () => {
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+    setTimeout(() => frame.remove(), 60 * 1000);
+  };
+  const img = doc.querySelector("img");
+  if (img && !img.complete) { img.onload = go; img.onerror = go; } else { setTimeout(go, 50); }
+}
+
+// Fetches what a printed update needs (the class part and the class teacher), then prints.
+async function loadAndPrint({ rowId, grade, name, lang }) {
+  const { data: row, error } = await supabase.from("weekly_updates").select("*").eq("id", rowId).single();
+  if (error || !row) throw error || new Error("Update not found");
+  const g = grade || row.grade;
+  const [{ data: notes }, { data: gs }] = await Promise.all([
+    supabase.from("weekly_class_notes").select("*").eq("grade", row.grade).eq("week_start", row.week_start).maybeSingle(),
+    supabase.from("grade_staff").select("homeroom_teacher").eq("grade", g).maybeSingle()
+  ]);
+  printWeeklyUpdate({ row, notes, name, teacher: gs?.homeroom_teacher || "", lang });
+}
+
+// Staff: two small buttons, English or French copy.
+function StaffPrintButtons({ rowId, grade, name }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const run = async (lang) => {
+    setBusy(true); setErr("");
+    try { await loadAndPrint({ rowId, grade, name, lang }); }
+    catch (e) { console.error("Print failed", e); setErr("Could not prepare the page. Please try again."); }
+    setBusy(false);
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <span style={small}>Print for the family:</span>
+      <button type="button" style={{ ...ghostBtn, minHeight: 32, padding: "4px 12px", fontSize: 12 }} disabled={busy} onClick={() => run("en")}>English</button>
+      <button type="button" style={{ ...ghostBtn, minHeight: 32, padding: "4px 12px", fontSize: 12 }} disabled={busy} onClick={() => run("fr")}>French</button>
+      {err && <span style={{ fontSize: 12, color: COLORS.bad }}>{err}</span>}
     </div>
   );
 }
@@ -950,6 +1078,7 @@ export function WeeklyHistoryStaff({ student }) {
                   Confirmed by {who[r.ack_by] || "a parent"} on {longDate(r.ack_at)}{r.ack_note ? ` · “${r.ack_note}”` : ""}
                 </p>
               )}
+              <StaffPrintButtons rowId={r.id} grade={student.grade} name={firstName(student.name) || student.name} />
             </div>
           )}
         </div>
