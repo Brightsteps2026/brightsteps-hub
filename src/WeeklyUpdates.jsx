@@ -97,12 +97,16 @@ function addDays(s, n) {
   d.setDate(d.getDate() + n);
   return iso(d);
 }
+// First week of weekly updates (Monday). Nothing earlier is shown.
+const FIRST_WEEK = "2026-10-26";
 // Monday of the school week: on a weekend, the week that just ended.
+// Before weekly updates begin, this is the first week.
 function currentMonday() {
   const d = new Date();
   const dow = d.getDay();
   d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
-  return iso(d);
+  const monday = iso(d);
+  return monday < FIRST_WEEK ? FIRST_WEEK : monday;
 }
 function weekDays(monday) {
   return [0, 1, 2, 3, 4].map((i) => addDays(monday, i));
@@ -209,7 +213,7 @@ export default function WeeklyUpdatesTab({ profile, data }) {
           </h1>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button style={ghostBtn} onClick={() => setWeek(addDays(week, -7))}>‹ Previous week</button>
+          <button style={{ ...ghostBtn, opacity: week <= FIRST_WEEK ? 0.5 : 1 }} disabled={week <= FIRST_WEEK} onClick={() => setWeek(addDays(week, -7))}>‹ Previous week</button>
           <button style={{ ...ghostBtn, opacity: week >= thisWeek ? 0.5 : 1 }} disabled={week >= thisWeek} onClick={() => setWeek(addDays(week, 7))}>Next week ›</button>
         </div>
       </div>
