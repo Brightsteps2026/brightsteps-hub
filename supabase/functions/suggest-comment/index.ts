@@ -1,6 +1,6 @@
 // BrightSteps Hub: suggest-comment
 // Writes a starter draft for a report card comment in the Gradebook
-// ("Suggest a starter draft"). The teacher always reads and edits the draft:
+// ("Suggest a starter draft"), a weekly update, or a Portfolio entry. The teacher always reads and edits the draft:
 // nothing is saved until they leave the box.
 //
 // Privacy: the Hub sends only the term results (levels, letters, skill ratings).
@@ -90,6 +90,33 @@ async function weekly(kind: string, body: Record<string, unknown>) {
   }
 }
 
+// Portfolio entry: turns the teacher's quick notes about one learning moment
+// into a short, warm note for the family. Only the teacher's notes, the grade
+// and the focus area are sent; the child is STUDENT, never named.
+async function portfolio(body: Record<string, unknown>) {
+  try {
+    const grade = String(body.grade || "");
+    const notes = String(body.current || "").slice(0, 1200).trim();
+    if (!notes) return { error: "Write a few words about what happened first." };
+    const prompt = [
+      `You are helping a teacher at BrightSteps International School (Côte d'Ivoire) write a portfolio entry about one learning moment for a child in ${grade}. Families read these entries on the school portal. The school uses inquiry-based learning.`,
+      body.tag ? `Focus area: ${String(body.tag).slice(0, 60)}.` : "",
+      EARLY.includes(grade)
+        ? "This is an early years class: simple, warm, everyday words for parents of a young child."
+        : "Older pupil: you may mention thinking, effort and independence where the notes show it.",
+      "Write 2 to 3 sentences: what STUDENT did, what it shows about their learning, and, if it fits naturally, a small idea the family could try at home.",
+      "Rules: American English spelling; call the child STUDENT and do not use he/she/him/her (write STUDENT again or rephrase); use ONLY what the teacher's notes say and never invent details, materials, words spoken or results; no grades or percentages; no greeting or sign-off.",
+      "",
+      `The teacher's notes: ${notes}`,
+      "",
+      "Reply with the entry text only.",
+    ].filter((x) => x !== "").join("\n");
+    return { draft: await askClaude(prompt, 400) };
+  } catch (e) {
+    return { error: String((e as Error)?.message || e) };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
@@ -104,6 +131,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { kind, grade, term, subject, facts, current } = body;
     if (kind === "weekly" || kind === "translate") return json(await weekly(kind, body));
+    if (kind === "portfolio") return json(await portfolio(body));
     if (!KINDS[kind]) return json({ error: "Unknown comment type" }, 400);
 
     const prompt = [

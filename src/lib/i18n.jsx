@@ -114,6 +114,12 @@ const translations = {
   "portfolio.saveEntry": { en: "Save entry", fr: "Enregistrer l'entrée" },
   "portfolio.errorChooseStudent": { en: "Please choose a student before saving.", fr: "Veuillez choisir un élève avant d'enregistrer." },
   "portfolio.errorAddNote": { en: "Please add a note before saving.", fr: "Veuillez ajouter une remarque avant d'enregistrer." },
+  "portfolio.starterButton": { en: "Suggest a starter draft", fr: "Proposer un premier jet" },
+  "portfolio.starterBusy": { en: "Writing a draft…", fr: "Rédaction en cours…" },
+  "portfolio.starterNeedsNotes": { en: "Write a few quick words about what happened first.", fr: "Écrivez d'abord quelques mots sur ce qui s'est passé." },
+  "portfolio.starterConfirm": { en: "Turn your notes into a starter draft? Your notes will be replaced by the draft.", fr: "Transformer vos notes en premier jet ? Vos notes seront remplacées par le texte proposé." },
+  "portfolio.starterFailed": { en: "Couldn't make a draft.", fr: "Impossible de proposer un texte." },
+  "portfolio.starterReview": { en: "Starter draft: read it and change anything that isn't quite right before saving.", fr: "Premier jet : relisez-le et corrigez ce qui ne convient pas avant d'enregistrer." },
 
   // Focus area tags, shared with Portfolio and other tabs
   "tag.Inquiry": { en: "Inquiry", fr: "Investigation" },

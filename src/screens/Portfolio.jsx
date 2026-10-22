@@ -5,6 +5,46 @@ import { useLanguage, pluralKey } from "../lib/i18n";
 import { TAGS } from "../data/constants";
 import { uid, formatDateLong } from "../lib/format";
 import { Field, Modal, StudentThumb } from "../ui/common";
+import { supabase } from "../lib/supabaseClient";
+
+// "Suggest a starter draft" (AI) for teacher notes. Only the teacher's notes,
+// the grade and the focus area are sent: the child's name is swapped for
+// STUDENT before sending and put back afterwards.
+function PortfolioStarter({ student, tag, note, onDraft }) {
+  const { t } = useLanguage();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  async function go() {
+    if (busy) return;
+    setErr("");
+    if (!student) { setErr(t("portfolio.errorChooseStudent")); return; }
+    if (!note.trim()) { setErr(t("portfolio.starterNeedsNotes")); return; }
+    if (!window.confirm(t("portfolio.starterConfirm"))) return;
+    setBusy(true);
+    try {
+      const first = (student.firstName || student.name || "").trim().split(/\s+/)[0] || "Your child";
+      const parts = (student.name || "").trim().split(/\s+/).filter((p) => p.length > 1);
+      let notes = note;
+      parts.forEach((p) => { notes = notes.split(p).join("STUDENT"); });
+      const { data: res, error } = await supabase.functions.invoke("suggest-comment", {
+        body: { kind: "portfolio", grade: student.grade, tag, current: notes }
+      });
+      if (error || res?.error || !res?.draft) throw new Error(res?.error || error?.message || "No draft came back.");
+      onDraft(res.draft.replace(/STUDENT/g, first));
+    } catch (e) {
+      setErr(t("portfolio.starterFailed") + " " + (e?.message || ""));
+    }
+    setBusy(false);
+  }
+  return (
+    <div style={{ marginTop: 4 }}>
+      <button type="button" className="bsf-textbtn" onClick={go} disabled={busy}>
+        {busy ? t("portfolio.starterBusy") : t("portfolio.starterButton")}
+      </button>
+      {err && <span className="bsf-formerror" style={{ marginLeft: 8 }}>{err}</span>}
+    </div>
+  );
+}
 
 function PortfolioTab({ data, persist, profile }) {
   const { t, language } = useLanguage();
@@ -16,6 +56,7 @@ function PortfolioTab({ data, persist, profile }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ studentId: "", tag: TAGS[0], note: "", author: "teacher", files: [] });
   const [formError, setFormError] = useState("");
+  const [aiDraft, setAiDraft] = useState(false);
 
   const myStudentId = isStudent ? linkedIds[0] : null;
   const myStudent = myStudentId ? data.students.find((s) => s.id === myStudentId) : null;
@@ -60,6 +101,7 @@ function PortfolioTab({ data, persist, profile }) {
     persist({ ...data, portfolio: [...data.portfolio, entry] });
     setForm({ studentId: "", tag: TAGS[0], note: "", author: "teacher", files: [] });
     setFormError("");
+    setAiDraft(false);
     setShowAdd(false);
   };
 
@@ -148,7 +190,7 @@ function PortfolioTab({ data, persist, profile }) {
 
       <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
         <span />
-        {!isParent && !isStudent && <button className="bsf-btn" onClick={() => { setFormError(""); setShowAdd(true); }} disabled={data.students.length === 0}><Plus size={16} /> {t("common.add")}</button>}
+        {!isParent && !isStudent && <button className="bsf-btn" onClick={() => { setFormError(""); setAiDraft(false); setShowAdd(true); }} disabled={data.students.length === 0}><Plus size={16} /> {t("common.add")}</button>}
         {isStudent && myStudent && <button className="bsf-btn" onClick={openAddAsStudent}><Plus size={16} /> Add my reflection</button>}
       </div>
 
@@ -212,6 +254,15 @@ function PortfolioTab({ data, persist, profile }) {
               onChange={(e) => setForm({ ...form, note: e.target.value })}
               placeholder={isStudent ? "Tell us about your work..." : (form.author === "student" ? t("portfolio.placeholderStudentWords") : t("portfolio.placeholderLearningMoment"))}
             />
+            {!isStudent && form.author === "teacher" && (
+              <PortfolioStarter
+                student={data.students.find((s) => s.id === form.studentId)}
+                tag={form.tag}
+                note={form.note}
+                onDraft={(draft) => { setForm((f) => ({ ...f, note: draft })); setAiDraft(true); }}
+              />
+            )}
+            {aiDraft && form.author === "teacher" && <p className="bsf-muted" style={{ margin: "4px 0 0", fontSize: 12 }}>{t("portfolio.starterReview")}</p>}
           </Field>
           <Field label={isStudent ? "Add a photo" : t("portfolio.attachmentsOptional")}>
             <AttachmentField folder="portfolio" files={form.files} onChange={(files) => setForm({ ...form, files })} />
