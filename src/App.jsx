@@ -140,7 +140,7 @@ function BrightStepsHubInner() {
   if (!loaded) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, background: "#FBF7F3", fontFamily: "'Work Sans', system-ui, sans-serif" }}>
-        <img src="/logo.png" alt="" style={{ width: 64, height: 64, borderRadius: 14 }} />
+        <img src="/logo.png" alt="" style={{ width: 160, maxWidth: "45vw", height: "auto" }} />
         <p style={{ color: "#5F6B6D", fontSize: 15, margin: 0 }}>{t("top.loading")}</p>
       </div>
     );
