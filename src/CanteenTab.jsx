@@ -3,17 +3,19 @@ import { supabase } from "./lib/supabaseClient";
 import { useLanguage } from "./lib/i18n";
 import { COLORS, RADIUS, card as cardToken, chip, chipOn, primaryBtn as primaryToken, input, pill } from "./ui/tokens";
 
-const PRICES = { day: 2700, week: 13000, month: 50000, term: 140000 };
-// A term pass is 3 months (150 000) less a 10 000 discount.
-const TERM_DISCOUNT = 3 * PRICES.month - PRICES.term;
-// Passes can be ordered by the day, the month or the term (week passes removed Oct 2026).
+// Prices set by Myri, Oct 2026. Year = 450 000 (by the month it is about 500 000).
+const PRICES = { day: 2700, week: 13000, month: 50000, term: 150000, year: 450000 };
+// Parents order by the day, the month or the term (week passes removed Oct 2026).
 const PARENT_PASS_TYPES = ["day", "month", "term"];
+// The office can also record a full school year.
+const OFFICE_PASS_TYPES = ["day", "month", "term", "year"];
 // 2026–2027 terms (same dates as the school calendar).
 const TERMS = [
   { name: { en: "Term 1", fr: "1er trimestre" }, start: "2026-09-07", end: "2026-12-15" },
   { name: { en: "Term 2", fr: "2e trimestre" }, start: "2027-01-11", end: "2027-03-19" },
   { name: { en: "Term 3", fr: "3e trimestre" }, start: "2027-03-30", end: "2027-06-08" }
 ];
+const SCHOOL_YEAR = { label: "2026–2027 school year", start: "2026-09-07", end: "2027-06-08" };
 // The term a date falls in, or the next one if the date is in a break.
 function termFor(dateStr) {
   return TERMS.find((t) => dateStr <= t.end) || TERMS[TERMS.length - 1];
@@ -28,8 +30,8 @@ const T = {
   week: { en: "Week", fr: "Semaine" },
   month: { en: "Month", fr: "Mois" },
   term: { en: "Term", fr: "Trimestre" },
+  year: { en: "Year", fr: "Année" },
   termHint: { en: "All school days of the term", fr: "Tous les jours de classe du trimestre" },
-  termSave: { en: "You save", fr: "Vous économisez" },
   dayHint: { en: "Pick a day", fr: "Choisissez un jour" },
   weekHint: { en: "Monday to Friday", fr: "Du lundi au vendredi" },
   monthHint: { en: "All school days", fr: "Tous les jours de classe" },
@@ -77,6 +79,10 @@ function rangeFor(type, dateStr) {
   if (type === "term") {
     const t = termFor(dateStr);
     return { start: t.start, end: t.end };
+  }
+  if (type === "year") {
+    // From the chosen date (or the first day of school) to the last day of school.
+    return { start: dateStr > SCHOOL_YEAR.start ? dateStr : SCHOOL_YEAR.start, end: SCHOOL_YEAR.end };
   }
   if (type === "week") {
     const dow = d.getDay();
@@ -365,7 +371,6 @@ export default function CanteenTab({ profile }) {
 
           <p style={{ fontSize: 13, color: COLORS.muted, margin: "0 0 8px" }}>
             {passType === "day" ? tr("dayHint") : passType === "week" ? tr("weekHint") : passType === "term" ? tr("termHint") : tr("monthHint")}
-            {passType === "term" && <span style={{ color: COLORS.ok }}> · {tr("termSave")} {money(TERM_DISCOUNT)} FCFA</span>}
           </p>
 
           {options.length === 0 ? (
@@ -443,13 +448,17 @@ export default function CanteenTab({ profile }) {
       ? parseISO(staffDate).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "long" })
       : passType === "term"
       ? termFor(staffDate).name.en
+      : passType === "year"
+      ? SCHOOL_YEAR.label
       : parseISO(periodRange.start).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   const coversPeriod = (p) =>
     passType === "day"
       ? true // any paid pass that includes that day
+      : passType === "year"
+      ? p.pass_type === "year"
       : passType === "term"
-      ? p.pass_type === "term"
-      : p.pass_type === "month" || p.pass_type === "term";
+      ? p.pass_type === "term" || p.pass_type === "year"
+      : p.pass_type === "month" || p.pass_type === "term" || p.pass_type === "year";
   const paidMonthIds = new Set(
     passes
       .filter((p) => p.paid && coversPeriod(p) && p.start_date <= periodRange.end && p.end_date >= periodRange.start)
@@ -528,7 +537,7 @@ export default function CanteenTab({ profile }) {
           />
 
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 13, color: COLORS.muted }}>
-            {PARENT_PASS_TYPES.map((t) => (
+            {OFFICE_PASS_TYPES.map((t) => (
               <button key={t} onClick={() => setPassType(t)} style={{ ...(passType === t ? chipOn : chip), padding: "4px 10px" }}>
                 {tr(t)}
               </button>
@@ -588,7 +597,7 @@ export default function CanteenTab({ profile }) {
               </div>
 
               <div style={{ display: "flex", gap: 7, marginBottom: 12, flexWrap: "wrap" }}>
-                {PARENT_PASS_TYPES.map((t) => (
+                {OFFICE_PASS_TYPES.map((t) => (
                   <button key={t} onClick={() => setPassType(t)} style={passType === t ? chipOn : chip}>
                     {tr(t)} · {money(PRICES[t])} FCFA
                   </button>
@@ -604,7 +613,6 @@ export default function CanteenTab({ profile }) {
 
               <p style={{ margin: "0 0 12px", fontSize: 13, color: COLORS.muted }}>
                 {passType === "term" && `${termFor(staffDate).name.en} · `}Covers {rangeFor(passType, staffDate).start} to {rangeFor(passType, staffDate).end}
-                {passType === "term" && ` · 10 000 discount included`}
               </p>
 
               <button style={primaryBtn} disabled={saving} onClick={() => createPass(selected.id, passType, staffDate, true)}>
@@ -658,7 +666,7 @@ function PassesList({ passes, students }) {
 
   const label = monthStart.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   const move = (n) => setMonthStart(new Date(monthStart.getFullYear(), monthStart.getMonth() + n, 1));
-  const kindLabel = { day: "Day", week: "Week", month: "Month", term: "Term" };
+  const kindLabel = { day: "Day", week: "Week", month: "Month", term: "Term", year: "Year" };
 
   return (
     <div style={card}>
@@ -671,7 +679,7 @@ function PassesList({ passes, students }) {
       </div>
 
       <div style={{ display: "flex", gap: 7, marginBottom: 10, flexWrap: "wrap" }}>
-        {["all", "day", "month", "term"].map((k) => (
+        {["all", "day", "month", "term", "year"].map((k) => (
           <button key={k} onClick={() => setKind(k)} style={kind === k ? chipOn : chip}>
             {k === "all" ? "All" : kindLabel[k]}
           </button>
@@ -721,7 +729,7 @@ function ParentLunchStatus({ students, passes, tr, locale }) {
       {students.map((s) => {
         const mine = passes.filter((p) => p.student_id === s.id && p.start_date <= last && p.end_date >= first);
         // A term pass covers the whole month too.
-        const monthPass = mine.find((p) => p.pass_type === "month" || p.pass_type === "term");
+        const monthPass = mine.find((p) => ["month", "term", "year"].includes(p.pass_type));
         let text, ok;
         if (monthPass && monthPass.paid) {
           ok = true; text = `${tr("lunchPaidFor")} ${ofMonth}`;
