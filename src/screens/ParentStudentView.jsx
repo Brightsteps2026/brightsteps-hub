@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { WeeklyUpdatesFamily, WeeklyHistoryStaff } from "../WeeklyUpdates";
 import { useLanguage } from "../lib/i18n";
 import AttachmentField from "../AttachmentField";
-import { getLevelColor, DEFAULT_SETTINGS, isStaffOnlyEvent } from "../data/constants";
+import { getLevelColor, DEFAULT_SETTINGS, isStaffOnlyEvent, isBaselineAssessment } from "../data/constants";
 import { todayStr, formatDateLong, gradeLabel, tLabel, attendanceCountsForRange } from "../lib/format";
 import { EventRow, Modal, StudentThumb } from "../ui/common";
 import { StudentMessages, AbsenceNotices } from "./Messages";
@@ -32,7 +32,7 @@ function FamilyViewModal({ student, data, onClose, hideContacts = false, showMes
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const assessments = [...(data.assessments || [])]
-    .filter((a) => a.studentId === student.id)
+    .filter((a) => a.studentId === student.id && !isBaselineAssessment(a))
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const events = [...(data.events || [])]
@@ -296,7 +296,7 @@ function ParentStudentView({ data, persist, profile }) {
     : [];
 
   const assessments = activeStudent
-    ? [...(data.assessments || [])].filter((a) => a.studentId === activeStudent.id).sort((a, b) => b.date.localeCompare(a.date))
+    ? [...(data.assessments || [])].filter((a) => a.studentId === activeStudent.id && !isBaselineAssessment(a)).sort((a, b) => b.date.localeCompare(a.date))
     : [];
 
   const events = activeStudent

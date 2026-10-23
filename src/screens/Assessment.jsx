@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useLanguage, pluralKey } from "../lib/i18n";
-import { GRADES, ASSESS_LEVELS, getLevelColor } from "../data/constants";
+import { GRADES, ASSESS_LEVELS, getLevelColor, isBaselineAssessment } from "../data/constants";
 import { uid, formatDateLong, gradeLabel, tLabel } from "../lib/format";
 import { Field, Modal, StudentThumb } from "../ui/common";
 
@@ -206,6 +206,7 @@ function AssessmentTab({ data, persist, profile }) {
 
   const assessments = [...(data.assessments || [])]
     .filter((a) => !isSelfOnly || linkedIds.includes(a.studentId))
+    .filter((a) => !isSelfOnly || !isBaselineAssessment(a))
     .filter((a) => !isStaffScoped || myAssignedGrades.includes(a.grade))
     .sort((a, b) => b.date.localeCompare(a.date));
   const filtered = assessments
@@ -333,7 +334,7 @@ function AssessmentTab({ data, persist, profile }) {
         <h2>{t("common.filterByType")}</h2>
         <div className="bsf-chiprow">
           <button className={`bsf-chip ${typeFilter === null ? "active" : ""}`} onClick={() => setTypeFilter(null)}>{t("common.all")}</button>
-          {ASSESSMENT_TYPES.map((tp) => (
+          {ASSESSMENT_TYPES.filter((tp) => !isSelfOnly || tp !== "Baseline Assessment").map((tp) => (
             <button key={tp} className={`bsf-chip ${typeFilter === tp ? "active" : ""}`} onClick={() => setTypeFilter(tp)}>{tLabel(t, "assessType.", tp)}</button>
           ))}
         </div>
@@ -406,6 +407,9 @@ function AssessmentTab({ data, persist, profile }) {
                   <button key={t} type="button" className={`bsf-chip ${form.assessmentType === t ? "active" : ""}`} onClick={() => setForm({ ...form, assessmentType: t })}>{t}</button>
                 ))}
               </div>
+              {form.assessmentType === "Baseline Assessment" && (
+                <p className="bsf-muted" style={{ marginTop: 6 }}>Staff only: teachers and admin see baselines, families do not.</p>
+              )}
             </Field>
           )}
           <Field label="Linked unit plan (optional)">

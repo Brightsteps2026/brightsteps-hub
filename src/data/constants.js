@@ -68,6 +68,8 @@ const EVENT_TYPE_COLOR = { Academic: "#2F6B7A", Holiday: "#8A6420", Staff: "#6E4
 // A calendar event is staff only when it is marked so, or (older events with no
 // setting) when its type is "Staff". Parents and students never see these; the
 // database also removes them before the data reaches a parent's or student's screen.
+// Baseline assessments are for teachers and admin only, never parents or students.
+const isBaselineAssessment = (a) => a?.assessmentType === "Baseline Assessment";
 const isStaffOnlyEvent = (e) => e?.audience === "staff" || (!e?.audience && e?.type === "Staff");
 
 const ADMISSION_STAGES = ["Inquiry", "Tour Scheduled", "Application Submitted", "Enrolled", "Declined"];
@@ -218,4 +220,4 @@ const SHORT_GRADE_LABEL = {
 
 const GENDERS = ["Female", "Male", "Prefer not to say"];
 
-export { CORE_GRADES, GRADES, TAGS, THEMES, PLAN_TEMPLATE, ASSESS_LEVELS, getLevelColor, BRIGHTSTEPS_LOGO_DATA_URI, usesOldBuiltinLogo, DEFAULT_SETTINGS, EVENT_TYPES, EVENT_TYPE_COLOR, isStaffOnlyEvent, ADMISSION_STAGES, ADMISSION_STAGE_COLOR, ADMISSION_SOURCES, BEHAVIOR_TYPES, SCHOOL_VALUES, BEHAVIOR_CATEGORIES_POSITIVE, BEHAVIOR_CATEGORIES_CONCERN, behaviorGradesFor, LETTER_GRADES, LETTER_GRADE_MEANING, LEARNING_PROGRESS_BAND, letterFromScore, LETTER_GRADE_COLOR, STAFF_ROLES, RESOURCE_CATEGORIES, PARENT_RESOURCE_CATEGORIES, ACCRED_STATUSES, ACCRED_STATUS_COLOR, DEFAULT_MILESTONES, emptyData, syncGlobalsFromSettings, ACTIVITY_AREA_LABELS, SHORT_GRADE_LABEL, GENDERS };
+export { CORE_GRADES, GRADES, TAGS, THEMES, PLAN_TEMPLATE, ASSESS_LEVELS, getLevelColor, BRIGHTSTEPS_LOGO_DATA_URI, usesOldBuiltinLogo, DEFAULT_SETTINGS, EVENT_TYPES, EVENT_TYPE_COLOR, isStaffOnlyEvent, isBaselineAssessment, ADMISSION_STAGES, ADMISSION_STAGE_COLOR, ADMISSION_SOURCES, BEHAVIOR_TYPES, SCHOOL_VALUES, BEHAVIOR_CATEGORIES_POSITIVE, BEHAVIOR_CATEGORIES_CONCERN, behaviorGradesFor, LETTER_GRADES, LETTER_GRADE_MEANING, LEARNING_PROGRESS_BAND, letterFromScore, LETTER_GRADE_COLOR, STAFF_ROLES, RESOURCE_CATEGORIES, PARENT_RESOURCE_CATEGORIES, ACCRED_STATUSES, ACCRED_STATUS_COLOR, DEFAULT_MILESTONES, emptyData, syncGlobalsFromSettings, ACTIVITY_AREA_LABELS, SHORT_GRADE_LABEL, GENDERS };

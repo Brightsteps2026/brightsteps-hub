@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useLanguage, pluralKey } from "../lib/i18n";
-import { GRADES, ASSESS_LEVELS, getLevelColor, DEFAULT_SETTINGS, LETTER_GRADE_MEANING, LEARNING_PROGRESS_BAND, LETTER_GRADE_COLOR } from "../data/constants";
+import { GRADES, ASSESS_LEVELS, getLevelColor, DEFAULT_SETTINGS, LETTER_GRADE_MEANING, LEARNING_PROGRESS_BAND, LETTER_GRADE_COLOR, isBaselineAssessment } from "../data/constants";
 import { uid, todayStr, formatDateLong, gradeLabel, tLabel, attendanceCountsForRange, isWeekendStr } from "../lib/format";
 import { Field, Modal } from "../ui/common";
 import { TermReportsStaff, TermReportsFamily } from "../TermReports";
@@ -101,8 +101,8 @@ function ReportViewModal({ report, data, onClose, onRemove }) {
 
           <hr className="bsf-divider" />
           <h3 className="bsf-subheading">{t("child.assessments")}</h3>
-          {report.assessments.length === 0 && <p className="bsf-empty">{t("reports.noAssessments")}</p>}
-          {report.assessments.map((a, i) => (
+          {report.assessments.filter((a) => !isBaselineAssessment(a)).length === 0 && <p className="bsf-empty">{t("reports.noAssessments")}</p>}
+          {report.assessments.filter((a) => !isBaselineAssessment(a)).map((a, i) => (
             <div key={i} className="bsf-comment">
               <div className="bsf-row-head">
                 <strong>{a.subject || t("reports.general")}</strong>
@@ -437,7 +437,7 @@ function ReportsTab({ data, persist, profile }) {
       }
     });
 
-    const assessments = (data.assessments || []).filter((a) => a.studentId === student.id && a.date >= start && a.date <= end);
+    const assessments = (data.assessments || []).filter((a) => a.studentId === student.id && a.date >= start && a.date <= end && !isBaselineAssessment(a));
     const portfolio = data.portfolio.filter((p) => p.studentId === student.id && p.date >= start && p.date <= end);
     const grades = (data.gradeEntries || []).filter((g) => g.studentId === student.id && g.date >= start && g.date <= end);
 
