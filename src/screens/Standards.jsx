@@ -23,6 +23,67 @@ function pctColor(p) {
   return { bg: "#FBE9E7", fg: "#B23A2B" };
 }
 
+// One-click load of the full ELA and Math standard lists for every grade (admin only).
+// Pre-N: Head Start ELOF infant/toddler goals; PreK: ELOF preschool goals;
+// Kindergarten to Grade 7: Common Core State Standards. Anything already in the
+// library (same grade and code, in any written form) is skipped, so it is safe to run again.
+const normCode = (c) => {
+  let x = String(c || "").toUpperCase().replace(/\s+/g, "").replace(/^CCSS\./, "").replace(/^(MATH\.CONTENT|MATH\.PRACTICE|ELA-LITERACY)\./, "");
+  const m = x.match(/^(\w+)\.([A-Z]+)\.[A-Z]\.(\d+[A-Z]?)$/); // 3.NF.A.1 -> 3.NF.1
+  if (m) x = `${m[1]}.${m[2]}.${m[3]}`;
+  return x;
+};
+
+function LoadStandardLists({ onDone }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+  const run = async () => {
+    if (!window.confirm("Add the full ELA and Math standard lists for every grade, Pre-N to Grade 7? Standards already in the library are skipped.")) return;
+    setBusy(true); setMsg(""); setErr("");
+    try {
+      const catalog = (await import("../data/standardsCatalog.json")).default;
+      const { data: existing, error: e1 } = await supabase.from("gb_standards").select("grade, code");
+      if (e1) throw e1;
+      const have = new Set();
+      const everyGrade = new Set();
+      (existing || []).forEach((s) => {
+        if (!s.code) return;
+        if (s.grade) have.add(`${s.grade}|${normCode(s.code)}`); else everyGrade.add(normCode(s.code));
+      });
+      const rows = catalog
+        .filter(([grade, , code]) => !have.has(`${grade}|${normCode(code)}`) && !everyGrade.has(normCode(code)))
+        .map(([grade, subject, code, description, sort]) => ({ grade, subject, code, description, sort }));
+      for (let i = 0; i < rows.length; i += 200) {
+        const { error: e2 } = await supabase.from("gb_standards").insert(rows.slice(i, i + 200));
+        if (e2) throw e2;
+        setMsg(`Adding… ${Math.min(i + 200, rows.length)} of ${rows.length}`);
+      }
+      const skipped = catalog.length - rows.length;
+      setMsg(rows.length
+        ? `Added ${rows.length} standards.${skipped ? ` ${skipped} were already in the library.` : ""}`
+        : "Every standard was already in the library. Nothing to add.");
+      onDone();
+    } catch (e) {
+      console.error(e);
+      setErr("Could not finish loading. Anything already added is kept; press the button again to add the rest.");
+    }
+    setBusy(false);
+  };
+  return (
+    <section className="bsf-card">
+      <h2>Standard lists</h2>
+      <p className="bsf-muted" style={{ marginTop: 0 }}>
+        Load every ELA and Math standard for each grade, so teachers only tick the ones they teach.
+        Pre-N and PreK use early-years goals; Kindergarten to Grade 7 use the Common Core.
+      </p>
+      <button className="bsf-btn" disabled={busy} onClick={run}>{busy ? "Loading…" : "Load ELA and Math standards (all grades)"}</button>
+      {msg && <p style={{ margin: "8px 0 0", fontSize: 13, color: "#2E7D4F", fontWeight: 600 }}>{msg}</p>}
+      {err && <p className="bsf-formerror">{err}</p>}
+    </section>
+  );
+}
+
 function StandardsTab({ profile }) {
   const role = profile?.role;
   const canEditAll = role === "admin";
@@ -88,6 +149,12 @@ function StandardsTab({ profile }) {
 
   const subjStandards = standards.filter((s) => (s.subject || "") === subject);
   const subjAssessments = assessments.filter((a) => a.subject === subject);
+  // Progress columns: only standards some assessment checks (the full lists are long).
+  const linkedIds = new Set(links.map((l) => l.standard_id));
+  const progressStandards = subjStandards.filter((s) => linkedIds.has(s.id));
+  const [libQuery, setLibQuery] = useState("");
+  const libNeedle = libQuery.trim().toLowerCase();
+  const libShown = libNeedle ? subjStandards.filter((s) => `${s.code || ""} ${s.description}`.toLowerCase().includes(libNeedle)) : subjStandards;
   const progressMap = useMemo(() => Object.fromEntries(progress.map((p) => [`${p.standard_id}:${p.student_id}`, p])), [progress]);
   const usedSubjects = [...new Set([...SUBJECTS, ...standards.map((s) => s.subject).filter(Boolean)])];
 
@@ -119,6 +186,8 @@ function StandardsTab({ profile }) {
         </div>
       </section>
 
+      {canEditAll && <LoadStandardLists onDone={reload} />}
+
       {error && <p className="bsf-formerror">{error}</p>}
       {loading && <p className="bsf-muted">Loading…</p>}
 
@@ -128,13 +197,15 @@ function StandardsTab({ profile }) {
             <h2>Progress</h2>
             {subjStandards.length === 0 ? (
               <p className="bsf-empty">No {subject} standards for {grade} yet. Add them in the library below.</p>
+            ) : progressStandards.length === 0 ? (
+              <p className="bsf-empty">No {subject} assessment is linked to a standard yet. Link one below to see progress here.</p>
             ) : (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ borderCollapse: "collapse", fontSize: 13, minWidth: "100%" }}>
                   <thead>
                     <tr>
                       <th style={{ textAlign: "left", padding: "6px 8px", position: "sticky", left: 0, background: "#fff" }}>Student</th>
-                      {subjStandards.map((s) => (
+                      {progressStandards.map((s) => (
                         <th key={s.id} title={s.description} style={{ padding: "6px 8px", whiteSpace: "nowrap", fontWeight: 600 }}>{s.code || s.description.slice(0, 12)}</th>
                       ))}
                     </tr>
@@ -143,7 +214,7 @@ function StandardsTab({ profile }) {
                     {students.map((stu) => (
                       <tr key={stu.id} style={{ borderTop: "1px solid #F0E8E2" }}>
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap", position: "sticky", left: 0, background: "#fff" }}>{stu.full_name}</td>
-                        {subjStandards.map((s) => {
+                        {progressStandards.map((s) => {
                           const p = progressMap[`${s.id}:${stu.id}`];
                           if (!p || (p.avg_pct == null && !p.latest_level)) return <td key={s.id} style={{ textAlign: "center", color: "#B9AAA0" }}>—</td>;
                           const c = early && p.latest_level ? LEVEL[p.latest_level] : pctColor(p.avg_pct);
@@ -194,12 +265,22 @@ function StandardsTab({ profile }) {
               {canEdit && <button className="bsf-textbtn" onClick={() => setShowAdd(true)}><Plus size={14} /> Add standards</button>}
             </div>
             {subjStandards.length === 0 && <p className="bsf-muted">None yet.</p>}
-            {subjStandards.map((s) => (
+            {subjStandards.length > 8 && (
+              <input value={libQuery} onChange={(e) => setLibQuery(e.target.value)} placeholder={`Search ${subjStandards.length} standards by code or words`}
+                aria-label="Search the standards library" style={{ width: "100%", boxSizing: "border-box", marginBottom: 6 }} />
+            )}
+            <div style={{ maxHeight: 420, overflowY: "auto" }}>
+            {libShown.map((s) => (
               <div key={s.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "8px 0", borderBottom: "1px solid #F0E8E2" }}>
                 <span><strong>{s.code}</strong> {s.description}</span>
                 {canEdit && <button className="bsf-iconbtn" onClick={() => removeStandard(s)} aria-label="Delete"><Trash2 size={15} /></button>}
               </div>
             ))}
+            </div>
+            <p className="bsf-muted" style={{ fontSize: 11, marginTop: 10 }}>
+              Kindergarten to Grade 7: Common Core State Standards. © Copyright 2010. National Governors Association Center for Best Practices and Council of Chief State School Officers. All rights reserved.
+              {" "}Pre-N and PreK: Head Start Early Learning Outcomes Framework: Ages Birth to Five (2015).
+            </p>
           </section>
         </>
       )}
@@ -224,7 +305,10 @@ function LinkModal({ assessment, standards, linkedIds, onClose, onSaved }) {
   const [chosen, setChosen] = useState(linkedIds);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [q, setQ] = useState("");
   const toggle = (id) => setChosen((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
+  const needle = q.trim().toLowerCase();
+  const shown = standards.filter((s) => chosen.includes(s.id) || !needle || `${s.code || ""} ${s.description}`.toLowerCase().includes(needle));
 
   const save = async () => {
     setSaving(true);
@@ -240,7 +324,12 @@ function LinkModal({ assessment, standards, linkedIds, onClose, onSaved }) {
 
   return (
     <Modal title={`Standards for "${assessment.title}"`} onClose={onClose}>
-      {standards.map((s) => (
+      {standards.length > 8 && (
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by code or words" aria-label="Search standards"
+          style={{ width: "100%", boxSizing: "border-box", marginBottom: 6 }} />
+      )}
+      <p className="bsf-muted" style={{ margin: "0 0 4px", fontSize: 12 }}>{chosen.length} chosen</p>
+      {shown.map((s) => (
         <label key={s.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "6px 0" }}>
           <input type="checkbox" checked={chosen.includes(s.id)} onChange={() => toggle(s.id)} />
           <span><strong>{s.code}</strong> {s.description}</span>
