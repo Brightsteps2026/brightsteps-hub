@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { supabase } from "./lib/supabaseClient";
 import { getAttachmentUrl } from "./lib/attachments";
 import { gradeLabel } from "./lib/format";
 import { COLORS, chip, chipOn, ghostBtn, input } from "./ui/tokens";
@@ -425,7 +426,22 @@ export function EarlyYearsEditor({ report, data, onSave }) {
   const [ey, setEy] = useState(() => report.content?.ey || {});
   useEffect(() => { setEy(report.content?.ey || {}); }, [report.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const options = useMemo(() => portfolioPhotos(data, report.hub_student_id, report.content?.period), [data?.portfolio, report.hub_student_id, report.content?.period]); // eslint-disable-line react-hooks/exhaustive-deps
+  // This child's observations this term (Assessment → Early years).
+  const [obs, setObs] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    supabase.from("ey_observations").select("id, area, note, level, photo, observed_on, created_by_name")
+      .eq("student_id", report.student_id).eq("term", report.term).eq("school_year", report.school_year)
+      .order("observed_on", { ascending: false })
+      .then(({ data: d, error }) => { if (alive && !error) setObs(d || []); });
+    return () => { alive = false; };
+  }, [report.student_id, report.term, report.school_year]);
+
+  const options = useMemo(() => {
+    const fromObs = obs.filter((o) => o.photo?.path).map((o) => ({ path: o.photo.path, caption: (o.note || "").slice(0, 90), area: o.area }));
+    const seen = new Set(fromObs.map((o) => o.path));
+    return [...fromObs, ...portfolioPhotos(data, report.hub_student_id, report.content?.period).filter((p) => !seen.has(p.path))];
+  }, [obs, data?.portfolio, report.hub_student_id, report.content?.period]); // eslint-disable-line react-hooks/exhaustive-deps
   const urls = usePhotoUrls([...options.map((o) => o.path)]);
 
   const save = (next) => { setEy(next); onSave({ ey: next }); };
@@ -438,9 +454,23 @@ export function EarlyYearsEditor({ report, data, onSave }) {
 
   const areaBlock = (a, group, withLevel, withTeacher) => {
     const x = part(group, a.id);
+    const mine = obs.filter((o) => o.area === a.id);
+    const lastLevel = mine.find((o) => o.level)?.level;
     return (
       <div key={a.id} style={box}>
         <span style={lab}>{a.en}</span>
+        {mine.length > 0 && (
+          <details style={{ marginBottom: 8, background: COLORS.bg, borderRadius: 10, padding: "8px 10px" }}>
+            <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#5A4447" }}>
+              {mine.length} observation{mine.length > 1 ? "s" : ""} this term{withLevel && lastLevel ? ` · latest level: ${EY_LEVELS.find((l) => l.id === lastLevel)?.en}` : ""}
+            </summary>
+            {mine.map((o) => (
+              <p key={o.id} style={{ margin: "6px 0 0", fontSize: 13, lineHeight: 1.45 }}>
+                <span style={{ color: COLORS.muted }}>{o.observed_on}{o.level && withLevel ? ` · ${EY_LEVELS.find((l) => l.id === o.level)?.en}` : ""} · </span>{o.note || "(photo)"}
+              </p>
+            ))}
+          </details>
+        )}
         {withLevel && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
             {EY_LEVELS.map((l) => (

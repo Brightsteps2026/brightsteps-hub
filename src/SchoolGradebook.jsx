@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 import { COLORS, FONT, TONES, card as cardToken, chip, chipOn, primaryBtn, ghostBtn, input, label, pill } from "./ui/tokens";
 import { AssessmentTab } from "./screens/Assessment";
+import EarlyYearsAssessment from "./EarlyYearsAssessment";
+import { TermReportsStaff } from "./TermReports";
+import { EY_GRADES } from "./data/earlyYears";
 
 // Staff screen, English only.
 // Gradebook backed by the gb_* tables (see gradebook-setup.sql and
@@ -161,18 +164,21 @@ export default function SchoolGradebook({ profile, data, persist }) {
     : Array.from(new Set([...editGrades, ...assistantOf, ...(role === "learning_assistant" ? assigned : [])]));
 
   const myUpper = UPPER.filter((g) => viewGrades.includes(g));
-  const myEarly = EARLY.filter((g) => viewGrades.includes(g));
+  const myEY = EY_GRADES.filter((g) => viewGrades.includes(g));
+  const myEarly = EARLY.filter((g) => viewGrades.includes(g) && !EY_GRADES.includes(g));
   const myAll = ALL_GRADES.filter((g) => viewGrades.includes(g));
   const hasNotes = !!data && !!persist;
 
-  const [section, setSection] = useState(myUpper.length ? "academic" : myEarly.length ? "early" : hasNotes ? "notes" : "skills");
-
+  // Youngest classes first.
   const sections = [
+    myEY.length > 0 && { id: "ey", label: "Early years · Pre-N–KG" },
+    myEarly.length > 0 && { id: "early", label: "Levels · Grade 1–2" },
     myUpper.length > 0 && { id: "academic", label: "Gradebook · Grade 3–7" },
-    myEarly.length > 0 && { id: "early", label: "Levels · Pre-N–Grade 2" },
     myAll.length > 0 && { id: "skills", label: "ATL · SEL · Life skills" },
+    myAll.length > 0 && { id: "reports", label: "Report cards" },
     hasNotes && { id: "notes", label: "Student notes" }
   ].filter(Boolean);
+  const [section, setSection] = useState(sections[0]?.id || "skills");
 
   return (
     <div style={{ padding: "16px 16px 90px", color: COLORS.ink }}>
@@ -185,6 +191,10 @@ export default function SchoolGradebook({ profile, data, persist }) {
       {myAll.length === 0 && section !== "notes" && (
         <div style={card}>No class is assigned to your account yet. Please ask the school office to add your grades.</div>
       )}
+      {section === "ey" && myEY.length > 0 && (
+        <EarlyYearsAssessment grades={myEY} editGrades={editGrades} profile={profile} data={data} persist={persist} SubjectComments={SubjectComments} />
+      )}
+      {section === "reports" && myAll.length > 0 && <TermReportsStaff profile={profile} data={data} />}
       {section === "academic" && myUpper.length > 0 && <ClassGradebook key="academic" grades={myUpper} editGrades={editGrades} early={false} />}
       {section === "early" && myEarly.length > 0 && <ClassGradebook key="early" grades={myEarly} editGrades={editGrades} early />}
       {section === "skills" && myAll.length > 0 && <SkillsGradebook grades={myAll} editGrades={editGrades} />}

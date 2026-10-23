@@ -80,3 +80,21 @@ export function eyPhotoTags(grade) {
   if (!isEarlyYears(grade)) return [];
   return [...eyAreas(grade), ...eyEnrichment(grade)].map((a) => ({ id: a.id, label: a.en }));
 }
+
+// What an observation can be about, for one grade (areas, then enrichment or
+// specialist subjects; Pre-Nursery also has care and routines).
+export function eyObservationAreas(grade) {
+  if (!isEarlyYears(grade)) return [];
+  return [
+    ...eyAreas(grade),
+    ...(grade === "Pre-N" ? [{ id: "care", en: "Care and routines", fr: "Soins et routines" }] : []),
+    ...eyEnrichment(grade)
+  ];
+}
+
+// Portfolio "focus area" that best matches each observation area.
+export const EY_TO_PORTFOLIO_TAG = {
+  psed: "Social Emotional", comm: "Literacy", gross: "Physical", fine: "Physical", lit: "Literacy",
+  math: "Numeracy", world: "Inquiry", create: "Creative Arts", care: "Social Emotional",
+  music: "Creative Arts", art: "Creative Arts", pe: "Physical", swim: "Physical", french: "Literacy", tech: "Inquiry"
+};
