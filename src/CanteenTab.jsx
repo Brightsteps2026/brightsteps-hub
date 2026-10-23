@@ -523,9 +523,7 @@ export default function CanteenTab({ profile }) {
         </div>
       )}
 
-      <StaffMealsOffice />
-
-      <MyStaffMeals />
+      <StaffMealsPanel />
 
       {canEdit && <PassesList passes={passes} students={students} />}
 
@@ -782,9 +780,12 @@ function staffMealDays() {
 }
 
 // Any staff member: order and follow their own meals.
-function MyStaffMeals() {
+// Compact on purpose (Oct 2026): staff order one day at a time, so a single
+// day picker replaces the long row of day buttons. `embedded` drops the card
+// frame when it sits inside the admin's Staff meals panel.
+function MyStaffMeals({ embedded = false }) {
   const [orders, setOrders] = useState([]);
-  const [picked, setPicked] = useState([]);
+  const [picked, setPicked] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
@@ -812,19 +813,19 @@ function MyStaffMeals() {
 
   const booked = orders.map((o) => o.meal_date);
   const days = staffMealDays().filter((d) => !booked.includes(d.value));
-  const toggle = (iso) => setPicked(picked.includes(iso) ? picked.filter((x) => x !== iso) : [...picked, iso]);
+  const day = days.some((d) => d.value === picked) ? picked : (days[0]?.value || "");
 
   async function order() {
-    if (picked.length === 0) { setStatus("Tick at least one day."); return; }
+    if (!day) return;
     setSaving(true);
     setStatus("");
     const { error } = await supabase
       .from("staff_meal_orders")
-      .insert(picked.map((d) => ({ staff_id: me, meal_date: d, amount: STAFF_MEAL_PRICE, paid: false })));
+      .insert({ staff_id: me, meal_date: day, amount: STAFF_MEAL_PRICE, paid: false });
     setSaving(false);
     if (error) { setStatus(error.message); return; }
-    setStatus(`Ordered ${picked.length} meal${picked.length === 1 ? "" : "s"}. Please pay at the school office to confirm.`);
-    setPicked([]);
+    setStatus("Ordered. Please pay at the school office to confirm.");
+    setPicked("");
     load();
   }
 
@@ -834,58 +835,86 @@ function MyStaffMeals() {
     load();
   }
 
-  if (loading) return <div style={card}>Loading…</div>;
+  const shortDate = (iso) => parseISO(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const frame = embedded ? {} : card;
+
+  if (loading) return <div style={frame}>Loading…</div>;
 
   return (
-    <>
-      <div style={card}>
-        <p style={{ margin: "0 0 2px", fontSize: 15, fontWeight: 600 }}>My staff meals</p>
-        <p style={{ margin: "0 0 12px", fontSize: 13, color: COLORS.muted }}>{money(STAFF_MEAL_PRICE)} FCFA per meal · order by 18:00 the day before</p>
-
-        {days.length === 0 ? (
-          <p style={{ fontSize: 14, color: COLORS.muted, margin: 0 }}>No days open to order right now.</p>
-        ) : (
-          <>
-            <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 14 }}>
-              {days.map((d) => (
-                <button key={d.value} onClick={() => toggle(d.value)} style={picked.includes(d.value) ? chipOn : chip}>
-                  {d.label}
-                </button>
-              ))}
-            </div>
-            <button style={primaryBtn} disabled={saving || picked.length === 0} onClick={order}>
-              {saving ? "Sending…" : `Order ${picked.length || ""} meal${picked.length === 1 ? "" : "s"} · ${money(STAFF_MEAL_PRICE * picked.length)} FCFA`}
-            </button>
-          </>
-        )}
-        {status && <p style={{ fontSize: 13, marginTop: 10, marginBottom: 0 }}>{status}</p>}
+    <div style={frame}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+        <p style={{ margin: 0, fontSize: embedded ? 14 : 15, fontWeight: 600 }}>My staff meals</p>
+        <span style={{ fontSize: 12, color: COLORS.muted }}>{money(STAFF_MEAL_PRICE)} FCFA · order by 18:00 the day before</span>
       </div>
 
+      {days.length === 0 ? (
+        <p style={{ fontSize: 13, color: COLORS.muted, margin: 0 }}>No days open to order right now.</p>
+      ) : (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <select value={day} onChange={(e) => setPicked(e.target.value)} style={{ ...input, width: "auto", flex: "1 1 150px" }}>
+            {days.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+          </select>
+          <button style={{ ...primaryBtn, width: "auto", flex: "0 0 auto" }} disabled={saving || !day} onClick={order}>
+            {saving ? "Sending…" : "Order"}
+          </button>
+        </div>
+      )}
+
       {orders.length > 0 && (
-        <div style={card}>
-          <p style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 600 }}>My upcoming meals</p>
+        <div style={{ marginTop: 10 }}>
           {orders.map((o) => (
-            <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${COLORS.line}`, fontSize: 14 }}>
-              <span>{parseISO(o.meal_date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · {money(o.amount)}</span>
-              <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <span style={{ ...pill(o.paid ? "ok" : "bad"), padding: "4px 10px" }}>
-                  {o.paid ? "Paid" : "Awaiting payment"}
+            <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "6px 0", borderTop: `1px solid ${COLORS.line}`, fontSize: 13 }}>
+              <span>{shortDate(o.meal_date)}</span>
+              <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <span style={{ ...pill(o.paid ? "ok" : "bad"), padding: "2px 8px", fontSize: 12 }}>
+                  {o.paid ? "Paid" : "Unpaid"}
                 </span>
                 {!o.paid && isOpen("day", o.meal_date) && (
-                  <button onClick={() => cancel(o.id)} style={{ ...chip, borderColor: "#F09595", color: COLORS.bad, padding: "4px 10px" }}>Cancel</button>
+                  <button onClick={() => cancel(o.id)} style={{ ...chip, borderColor: "#F09595", color: COLORS.bad, padding: "2px 8px", fontSize: 12 }}>Cancel</button>
                 )}
               </span>
             </div>
           ))}
         </div>
       )}
-    </>
+      {status && <p style={{ fontSize: 13, marginTop: 8, marginBottom: 0 }}>{status}</p>}
+    </div>
+  );
+}
+
+// Admin / accountant: everything about staff meals in ONE card that stays
+// folded to a single line until opened (Oct 2026 — it was taking the page).
+function StaffMealsPanel() {
+  const [open, setOpen] = useState(false);
+  const [summary, setSummary] = useState({ tomorrow: 0, awaiting: 0 });
+  const bits = [`${summary.tomorrow} tomorrow`];
+  if (summary.awaiting > 0) bits.push(`${summary.awaiting} unpaid`);
+  return (
+    <div style={card}>
+      <button
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        style={{ all: "unset", cursor: "pointer", display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center", gap: 10 }}
+      >
+        <span style={{ fontSize: 15, fontWeight: 600 }}>Staff meals</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: summary.awaiting > 0 ? COLORS.bad : COLORS.muted }}>
+          {bits.join(" · ")}
+          <span style={{ color: COLORS.muted, fontSize: 14 }}>{open ? "▲" : "▼"}</span>
+        </span>
+      </button>
+      <div style={{ display: open ? "block" : "none", marginTop: 12 }}>
+        <StaffMealsOffice onSummary={setSummary} />
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${COLORS.line}` }}>
+          <MyStaffMeals embedded />
+        </div>
+      </div>
+    </div>
   );
 }
 
 // Admin / accountant: tomorrow's staff count, payments to confirm,
 // and a staff meal paid at the office on the day (daily payment).
-function StaffMealsOffice() {
+function StaffMealsOffice({ onSummary }) {
   const [orders, setOrders] = useState([]);
   const [names, setNames] = useState({});
   const [error, setError] = useState("");
@@ -966,28 +995,32 @@ function StaffMealsOffice() {
   const awaiting = orders.filter((o) => !o.paid);
   const nameOf = (id) => names[id] || "Staff member";
 
+  useEffect(() => {
+    if (onSummary) onSummary({ tomorrow: eating.length, awaiting: awaiting.length });
+  }, [eating.length, awaiting.length]);
+
   return (
-    <div style={card}>
-      <p style={{ margin: "0 0 2px", fontSize: 15, fontWeight: 600 }}>Staff meals tomorrow</p>
-      <p style={{ margin: "0 0 8px", fontSize: 13, color: COLORS.muted }}>{tomorrow}</p>
+    <div>
       {error ? (
         <p style={{ margin: 0, fontSize: 13, color: COLORS.bad }}>Could not load staff meals: {error}</p>
       ) : (
         <>
-          <p style={{ margin: "0 0 8px", fontSize: 30, fontWeight: 600 }}>{eating.length}</p>
-          {eating.length > 0 && (
-            <p style={{ margin: "0 0 8px", fontSize: 14 }}>{eating.map((o) => nameOf(o.staff_id)).join(", ")}</p>
-          )}
+          <p style={{ margin: 0, fontSize: 14 }}>
+            <strong>Tomorrow ({eating.length}):</strong>{" "}
+            <span style={{ color: eating.length ? "inherit" : COLORS.muted }}>
+              {eating.length ? eating.map((o) => nameOf(o.staff_id)).join(", ") : "nobody yet"}
+            </span>
+          </p>
           {awaiting.length > 0 && (
             <div style={{ marginTop: 10 }}>
-              <p style={{ margin: "0 0 6px", fontSize: 13, color: COLORS.muted }}>Awaiting payment ({awaiting.length})</p>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: COLORS.muted }}>Awaiting payment ({awaiting.length})</p>
               {awaiting.map((o) => (
-                <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${COLORS.line}`, fontSize: 14 }}>
+                <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "6px 0", borderTop: `1px solid ${COLORS.line}`, fontSize: 13 }}>
                   <span>
                     <strong>{nameOf(o.staff_id)}</strong>
                     <span style={{ color: COLORS.muted }}> · {o.meal_date} · {money(o.amount)}</span>
                   </span>
-                  <button onClick={() => confirm(o.id)} style={{ ...chip, borderColor: COLORS.ok, color: COLORS.ok }}>Confirm payment</button>
+                  <button onClick={() => confirm(o.id)} style={{ ...chip, borderColor: COLORS.ok, color: COLORS.ok, padding: "2px 10px", fontSize: 12 }}>Confirm</button>
                 </div>
               ))}
             </div>
@@ -995,10 +1028,9 @@ function StaffMealsOffice() {
         </>
       )}
 
-      <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${COLORS.line}` }}>
-        <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 600 }}>Record a staff meal paid today</p>
-        <p style={{ margin: "0 0 10px", fontSize: 13, color: COLORS.muted }}>Daily payment at the office · {money(STAFF_MEAL_PRICE)} FCFA</p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+      <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${COLORS.line}` }}>
+        <p style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 600 }}>Record a meal paid at the office <span style={{ fontWeight: 400, fontSize: 12, color: COLORS.muted }}>· {money(STAFF_MEAL_PRICE)} FCFA</span></p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <select value={who} onChange={(e) => setWho(e.target.value)} style={{ ...input, width: "auto", flex: "1 1 180px" }}>
             <option value="">Staff member…</option>
             {staffList.map((p) => (
@@ -1006,10 +1038,10 @@ function StaffMealsOffice() {
             ))}
           </select>
           <input type="date" value={mealDate} onChange={(e) => setMealDate(e.target.value)} style={{ ...input, width: "auto" }} />
+          <button style={{ ...primaryBtn, width: "auto", flex: "0 0 auto" }} disabled={saving || !who} onClick={recordPaid}>
+            {saving ? "Saving…" : "Paid"}
+          </button>
         </div>
-        <button style={primaryBtn} disabled={saving || !who} onClick={recordPaid}>
-          {saving ? "Saving…" : `Record as paid · ${money(STAFF_MEAL_PRICE)} FCFA`}
-        </button>
         {note && <p style={{ fontSize: 13, marginTop: 10, marginBottom: 0 }}>{note}</p>}
       </div>
     </div>
