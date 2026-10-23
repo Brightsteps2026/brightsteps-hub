@@ -543,10 +543,16 @@ function TermReportsStaff({ profile, data }) {
     try {
       const src = await loadClassSources(grade, term);
       const targets = src.students.filter((s) => !onlyStudentId || s.id === onlyStudentId);
+      // Read the saved report cards again, so text a teacher just saved is kept.
+      const fresh = await supabase.from("term_reports").select("id, student_id, status, content")
+        .eq("grade", grade).eq("term", term).eq("school_year", SCHOOL_YEAR);
+      if (fresh.error) throw fresh.error;
+      const latest = {};
+      (fresh.data || []).forEach((r) => { latest[r.student_id] = r; });
       let made = 0, refreshed = 0, skipped = 0;
       const inserts = [];
       for (const s of targets) {
-        const existing = reports[s.id];
+        const existing = latest[s.id] || reports[s.id];
         if (existing?.status === "published") { skipped += 1; continue; }
         const content = buildContent(s, grade, term, src, data, existing?.content);
         if (existing) {
@@ -726,7 +732,7 @@ function StaffReportModal({ report, student, data, isAdmin, canEdit, busy, onClo
       )}
 
       {picking && editable && c.kind !== "early-years" && <PhotoPicker report={report} data={data} onSave={onSave} />}
-      {editable && c.kind === "early-years" && <EarlyYearsEditor report={report} data={data} onSave={onSave} />}
+      {editable && c.kind === "early-years" && <EarlyYearsEditor key={`${report.id}:${c.builtAt || ""}`} report={report} data={data} onSave={onSave} />}
 
       {isAdmin && report.term === 3 && (
         <div style={{ ...card, background: COLORS.surface2 }}>

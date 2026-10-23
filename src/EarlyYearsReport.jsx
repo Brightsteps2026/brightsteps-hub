@@ -84,7 +84,7 @@ export function earlyYearsDefaults(grade, prev, subjectComment, homeroomNote) {
 // ---------------------------------------------------------------------------
 
 const DOC_CSS = `
-.bs-ey { font-family: 'Work Sans', sans-serif; color: ${COLORS.ink}; background: #fff; }
+.bs-ey { font-family: 'Work Sans', sans-serif; color: ${COLORS.ink}; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .bs-ey h2, .bs-ey h3, .bs-ey p, .bs-ey figure { margin: 0; }
 .bs-ey-keep { break-inside: avoid; page-break-inside: avoid; }
 .bs-ey-h { font-family: ${serif}; font-weight: 500; font-size: 20px; color: ${COLORS.brand}; }
@@ -299,7 +299,7 @@ export function EarlyYearsDocument({ report, lang, logoUrl }) {
                 <div key={a} style={{ background: COLORS.bg, borderRadius: 10, padding: "11px 13px", display: "flex", flexDirection: "column", gap: 6 }}>
                   <div className="bs-ey-label">{w.skillAreas[a]}</div>
                   {c.skills.filter((k) => k.area === a).map((k) => (
-                    <div key={k.en} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, lineHeight: 1.35 }}>
+                    <div key={`${a}:${k.en}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, lineHeight: 1.35 }}>
                       <span>{lang === "fr" ? k.fr : k.en}</span>
                       <span style={{ fontWeight: 600, color: "#5A4447", whiteSpace: "nowrap" }}>{w.ratings[k.rating]}</span>
                     </div>
