@@ -159,7 +159,7 @@ export default function SchoolGradebook({ profile, data, persist }) {
   const assistantOf = listOf(profile?.assistant_grades);
 
   const editGrades = isAdmin ? ALL_GRADES : role === "teacher" ? assigned.filter((g) => !assistantOf.includes(g)) : [];
-  const viewGrades = isAdmin
+  const viewGrades = isAdmin || role === "viewer"
     ? ALL_GRADES
     : Array.from(new Set([...editGrades, ...assistantOf, ...(role === "learning_assistant" ? assigned : [])]));
 

@@ -35,7 +35,9 @@ create index if not exists ey_obs_student on public.ey_observations (student_id,
 create or replace function public.ey_obs_check()
 returns trigger language plpgsql security definer set search_path = public as $fn$
 begin
-  if public.gb_student_grade(new.student_id) is distinct from new.grade then
+  -- Checked when an observation is added (a child may move up a grade later).
+  if (tg_op = 'INSERT' or new.student_id <> old.student_id or new.grade <> old.grade)
+     and public.gb_student_grade(new.student_id) is distinct from new.grade then
     raise exception 'This child is not in %', new.grade;
   end if;
   new.updated_at := now();

@@ -121,10 +121,16 @@ export default function EarlyYearsAssessment({ grades, editGrades, profile, data
     let entryId = o.portfolio_entry_id;
     if (next && !entryId) {
       const entry = portfolioEntryFor(o, student);
+      const ok = await persist({ ...data, portfolio: [...(data.portfolio || []), entry] });
+      if (ok === false) { setStatus("Not shared: the portfolio could not be saved. Try again."); return; }
       entryId = entry.id;
-      persist({ ...data, portfolio: [...(data.portfolio || []), entry] });
-    } else if (!next && entryId) {
-      persist({ ...data, portfolio: (data.portfolio || []).filter((p) => p.id !== entryId) });
+    } else if (!next) {
+      // Find the portfolio copy (by its id, or by child + area + note for older rows).
+      const match = (p) => (entryId ? p.id === entryId : p.studentId === student.legacy_id && p.eyArea === o.area && (p.note || "") === (o.note || ""));
+      if ((data.portfolio || []).some(match)) {
+        const ok = await persist({ ...data, portfolio: (data.portfolio || []).filter((p) => !match(p)) });
+        if (ok === false) { setStatus("Not changed: the portfolio could not be saved. Try again."); return; }
+      }
       entryId = null;
     }
     const { error: e } = await supabase.from("ey_observations").update({ shared: next, portfolio_entry_id: entryId }).eq("id", o.id);
@@ -135,9 +141,9 @@ export default function EarlyYearsAssessment({ grades, editGrades, profile, data
 
   async function removeObs(o) {
     if (!window.confirm("Delete this observation? This cannot be undone.")) return;
-    if (o.portfolio_entry_id && persist && data) persist({ ...data, portfolio: (data.portfolio || []).filter((p) => p.id !== o.portfolio_entry_id) });
     const { error: e } = await supabase.from("ey_observations").delete().eq("id", o.id);
     if (e) { setStatus(`Not deleted: ${e.message}`); return; }
+    if (o.portfolio_entry_id && persist && data) await persist({ ...data, portfolio: (data.portfolio || []).filter((p) => p.id !== o.portfolio_entry_id) });
     setObs((list) => list.filter((x) => x.id !== o.id));
   }
 
@@ -186,12 +192,23 @@ export default function EarlyYearsAssessment({ grades, editGrades, profile, data
                 entries.push(e);
                 updates.push({ id: o.id, entryId: e.id });
               });
+              let sharedCount = 0;
               if (entries.length) {
-                persist({ ...data, portfolio: [...(data.portfolio || []), ...entries] });
-                for (const u of updates) await supabase.from("ey_observations").update({ portfolio_entry_id: u.entryId }).eq("id", u.id);
+                const ok = await persist({ ...data, portfolio: [...(data.portfolio || []), ...entries] });
+                if (ok !== false) {
+                  for (const u of updates) {
+                    const { error: e } = await supabase.from("ey_observations").update({ shared: true, portfolio_entry_id: u.entryId }).eq("id", u.id);
+                    if (!e) sharedCount += 1;
+                  }
+                }
               }
+              setStatus(sharedCount === rows.length
+                ? `${rows.length} observation${rows.length > 1 ? "s" : ""} saved and shared in the portfolio.`
+                : `${rows.length} observation${rows.length > 1 ? "s" : ""} saved. ${sharedCount ? `Only ${sharedCount} could be shared` : "Sharing in the portfolio did not work"}: use "Share in portfolio" in the list to try again.`);
+              load();
+              return;
             }
-            setStatus(`${rows.length} observation${rows.length > 1 ? "s" : ""} saved${share ? " and shared in the portfolio" : ""}.`);
+            setStatus(`${rows.length} observation${rows.length > 1 ? "s" : ""} saved.`);
             load();
           }}
         />
@@ -335,7 +352,7 @@ function ObservationForm({ grade, term, students, areas, preset, canShare, profi
     const rows = kids.map((sid) => ({
       school_year: SCHOOL_YEAR, term, grade, student_id: sid, area,
       note: note.trim() || null, level: preN ? null : level, photo: photo ? { path: photo.path, name: photo.name, type: photo.type } : null,
-      observed_on: date || todayISO(), shared: canShare && share, created_by_name: who
+      observed_on: date || todayISO(), shared: false, created_by_name: who
     }));
     const { data: saved, error } = await supabase.from("ey_observations").insert(rows).select("*");
     setSaving(false);
