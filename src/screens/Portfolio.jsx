@@ -3,6 +3,7 @@ import { Plus, Trash2 } from "lucide-react";
 import AttachmentField from "../AttachmentField";
 import { useLanguage, pluralKey } from "../lib/i18n";
 import { TAGS } from "../data/constants";
+import { eyPhotoTags, isEarlyYears } from "../data/earlyYears";
 import { uid, formatDateLong } from "../lib/format";
 import { Field, Modal, StudentThumb } from "../ui/common";
 import { supabase } from "../lib/supabaseClient";
@@ -93,6 +94,7 @@ function PortfolioTab({ data, persist, profile }) {
       studentId: student.id,
       studentName: student.name,
       tag: form.tag,
+      ...(form.eyArea && isEarlyYears(student.grade) ? { eyArea: form.eyArea } : {}),
       note: form.note,
       author: isStudent ? "student" : form.author,
       files: form.files,
@@ -247,6 +249,19 @@ function PortfolioTab({ data, persist, profile }) {
               {TAGS.map((tg) => <option key={tg} value={tg}>{t(`tag.${tg}`)}</option>)}
             </select>
           </Field>
+          {!isStudent && (() => {
+            const g = data.students.find((s) => s.id === form.studentId)?.grade;
+            const tags = eyPhotoTags(g);
+            if (!tags.length) return null;
+            return (
+              <Field label="Report card area (for the term report photos)">
+                <select value={form.eyArea || ""} onChange={(e) => setForm({ ...form, eyArea: e.target.value })}>
+                  <option value="">Not for the report card</option>
+                  {tags.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+                </select>
+              </Field>
+            );
+          })()}
           <Field label={isStudent ? "Write about it (optional if you're adding a photo)" : (form.author === "student" ? t("portfolio.whatStudentWrote") : t("portfolio.whatDidTheyDo"))}>
             <textarea
               rows={4}

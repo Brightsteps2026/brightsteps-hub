@@ -7,6 +7,8 @@ import { gradeLabel } from "./lib/format";
 import { Modal } from "./ui/common";
 import { COLORS, FONT, TONES, card as cardToken, chip, chipOn, primaryBtn, ghostBtn, input, pill } from "./ui/tokens";
 import { SCHOOL_YEAR, EARLY, SUBJECTS, SPECIALS, COMMENT_GRADES, termFor, termLevelFor } from "./SchoolGradebook";
+import { isEarlyYears } from "./data/earlyYears";
+import { EarlyYearsDocument, EarlyYearsEditor, earlyYearsDefaults } from "./EarlyYearsReport";
 
 // Term report cards, built from the Gradebook (gb_* tables) and saved in
 // term_reports (see supabase/term-reports.sql).
@@ -18,6 +20,8 @@ import { SCHOOL_YEAR, EARLY, SUBJECTS, SPECIALS, COMMENT_GRADES, termFor, termLe
 const ALL_GRADES = ["Pre-N", "PreK", "Kindergarten", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6", "Grade 7"];
 const PRINCIPAL = "Myriam Aoussou";
 const MAX_HIGHLIGHTS = 3;
+// The school logo always appears, even if no logo was set in Settings.
+const logoOf = (data) => data?.settings?.branding?.logoUrl || "/logo.png";
 
 const card = { ...cardToken, marginBottom: 14 };
 const serif = "'Fraunces', serif";
@@ -201,7 +205,17 @@ function buildContent(stu, grade, term, src, data, keep) {
     .filter((k) => k.rating);
 
   const dates = termDates(data?.settings, term);
+  const homeroomNote = (src.notes.find((n) => n.student_id === stu.id)?.note || "").trim() || null;
+  const early_years = isEarlyYears(grade)
+    ? {
+        kind: "early-years",
+        ey: earlyYearsDefaults(grade, keep?.ey,
+          (subject) => src.comments.find((c) => c.student_id === stu.id && c.subject === subject)?.comment || "",
+          homeroomNote)
+      }
+    : {};
   return {
+    ...early_years,
     version: 1,
     builtAt: new Date().toISOString(),
     student: {
@@ -218,7 +232,7 @@ function buildContent(stu, grade, term, src, data, keep) {
     core,
     specials,
     skills,
-    homeroomNote: (src.notes.find((n) => n.student_id === stu.id)?.note || "").trim() || null,
+    homeroomNote,
     highlights: keep?.highlights || [],
     principalComment: keep?.principalComment || null
   };
@@ -287,6 +301,11 @@ function ResultCell({ row, w }) {
 }
 
 function TermReportDocument({ report, lang, logoUrl }) {
+  if (report?.content?.kind === "early-years") return <><style>{PRINT_CSS}</style><EarlyYearsDocument report={report} lang={lang} logoUrl={logoUrl || "/logo.png"} /></>;
+  return <StandardReportDocument report={report} lang={lang} logoUrl={logoUrl} />;
+}
+
+function StandardReportDocument({ report, lang, logoUrl }) {
   const w = W[lang] || W.en;
   const c = report.content || {};
   const photos = usePhotoUrls([c.student?.photoPath, ...(c.highlights || []).map((h) => h.path)]);
@@ -618,7 +637,7 @@ function TermReportsStaff({ profile, data }) {
               <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
                 <PrintableReport
                   reports={students.map((st) => reports[st.id]).filter(Boolean)}
-                  lang={printLang} logoUrl={data?.settings?.branding?.logoUrl}
+                  lang={printLang} logoUrl={logoOf(data)}
                   label={`Print whole class (${printLang === "fr" ? "French" : "English"})`} disabled={busy} />
                 <button style={printLang === "en" ? chipOn : chip} onClick={() => setPrintLang("en")}>EN</button>
                 <button style={printLang === "fr" ? chipOn : chip} onClick={() => setPrintLang("fr")}>FR</button>
@@ -696,8 +715,8 @@ function StaffReportModal({ report, student, data, isAdmin, canEdit, busy, onClo
 
       <div className="bsf-noprint" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
         {editable && !published && <button style={ghostBtn} disabled={busy} onClick={onRefresh}>Refresh from Gradebook</button>}
-        {editable && c.early && <button style={ghostBtn} onClick={() => setPicking((p) => !p)}>{picking ? "Done choosing photos" : "Choose photos"}</button>}
-        <PrintableReport report={report} lang={lang} logoUrl={data?.settings?.branding?.logoUrl} label="Print" />
+        {editable && c.early && c.kind !== "early-years" && <button style={ghostBtn} onClick={() => setPicking((p) => !p)}>{picking ? "Done choosing photos" : "Choose photos"}</button>}
+        <PrintableReport report={report} lang={lang} logoUrl={logoOf(data)} label="Print" />
         {isAdmin && !published && <button style={primaryBtn} disabled={busy} onClick={() => onStatus("published")}>{report.emailed_at ? "Publish again (no new email)" : "Publish and email family"}</button>}
         {isAdmin && published && <button style={ghostBtn} disabled={busy} onClick={() => onStatus("draft")}>Unpublish</button>}
       </div>
@@ -706,7 +725,8 @@ function StaffReportModal({ report, student, data, isAdmin, canEdit, busy, onClo
         <p style={{ margin: "0 0 12px", fontSize: 13, color: COLORS.muted }}>This report card is published. Ask the office to unpublish it if something needs changing.</p>
       )}
 
-      {picking && editable && <PhotoPicker report={report} data={data} onSave={onSave} />}
+      {picking && editable && c.kind !== "early-years" && <PhotoPicker report={report} data={data} onSave={onSave} />}
+      {editable && c.kind === "early-years" && <EarlyYearsEditor report={report} data={data} onSave={onSave} />}
 
       {isAdmin && report.term === 3 && (
         <div style={{ ...card, background: COLORS.surface2 }}>
@@ -717,7 +737,7 @@ function StaffReportModal({ report, student, data, isAdmin, canEdit, busy, onClo
         </div>
       )}
 
-      <TermReportDocument report={report} lang={lang} logoUrl={data?.settings?.branding?.logoUrl} />
+      <TermReportDocument report={report} lang={lang} logoUrl={logoOf(data)} />
       <p className="bsf-noprint" style={{ margin: "10px 0 0", fontSize: 12, color: COLORS.muted }}>
         Built from the Gradebook {c.builtAt ? `on ${longDate(c.builtAt, "en")}` : ""}. Marks, levels and comments are changed in Assessment, then refreshed here.
       </p>
@@ -811,9 +831,9 @@ function TermReportsFamily({ hubStudentId, data, otherCount = 0, emptyText = "" 
       {open && (
         <Modal title={`${open.content?.student?.name || ""} · ${w.title(open.term)}`} onClose={() => setOpenId(null)}>
           <div className="bsf-noprint" style={{ marginBottom: 12 }}>
-            <PrintableReport report={open} lang={lang} logoUrl={data?.settings?.branding?.logoUrl} label={w.print} />
+            <PrintableReport report={open} lang={lang} logoUrl={logoOf(data)} label={w.print} />
           </div>
-          <TermReportDocument report={open} lang={lang} logoUrl={data?.settings?.branding?.logoUrl} />
+          <TermReportDocument report={open} lang={lang} logoUrl={logoOf(data)} />
         </Modal>
       )}
     </>
