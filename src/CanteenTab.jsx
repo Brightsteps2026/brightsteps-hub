@@ -415,13 +415,25 @@ export default function CanteenTab({ profile }) {
   });
 
   const term = search.trim().toLowerCase();
-  // Students whose month is already paid (by a month or term pass) are hidden from "Record a pass",
-  // so the same name is not recorded twice. The month follows the chosen date.
-  const monthRange = rangeFor("month", staffDate);
-  const monthName = parseISO(monthRange.start).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  // Once a student is recorded as paid, the name leaves "Record a pass" for
+  // that period, so nobody is recorded twice. The period follows the chosen
+  // pass type and date: Day = that day, Month = that month, Term = that term.
+  const periodRange = rangeFor(passType, staffDate);
+  const monthName =
+    passType === "day"
+      ? parseISO(staffDate).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "long" })
+      : passType === "term"
+      ? termFor(staffDate).name.en
+      : parseISO(periodRange.start).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const coversPeriod = (p) =>
+    passType === "day"
+      ? true // any paid pass that includes that day
+      : passType === "term"
+      ? p.pass_type === "term"
+      : p.pass_type === "month" || p.pass_type === "term";
   const paidMonthIds = new Set(
     passes
-      .filter((p) => p.paid && (p.pass_type === "month" || p.pass_type === "term") && p.start_date <= monthRange.end && p.end_date >= monthRange.start)
+      .filter((p) => p.paid && coversPeriod(p) && p.start_date <= periodRange.end && p.end_date >= periodRange.start)
       .map((p) => p.student_id)
   );
   const matching = term ? students.filter((s) => (s.full_name || "").toLowerCase().includes(term)) : students;
@@ -491,11 +503,15 @@ export default function CanteenTab({ profile }) {
           />
 
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 13, color: COLORS.muted }}>
-            <span>Month:</span>
+            {PARENT_PASS_TYPES.map((t) => (
+              <button key={t} onClick={() => setPassType(t)} style={{ ...(passType === t ? chipOn : chip), padding: "4px 10px" }}>
+                {tr(t)}
+              </button>
+            ))}
             <input
-              type="month"
-              value={staffDate.slice(0, 7)}
-              onChange={(e) => e.target.value && setStaffDate(e.target.value + "-01")}
+              type="date"
+              value={staffDate}
+              onChange={(e) => e.target.value && setStaffDate(e.target.value)}
               style={{ ...input, width: "auto", padding: "4px 8px" }}
             />
             <span>
