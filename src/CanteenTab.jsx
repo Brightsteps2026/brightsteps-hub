@@ -197,6 +197,9 @@ export default function CanteenTab({ profile }) {
   const [selected, setSelected] = useState(null);
   const [staffDate, setStaffDate] = useState(toISO(new Date()));
   const [showPaidMonth, setShowPaidMonth] = useState(false);
+  // Students who don't eat at school (office list only).
+  const [noLunch, setNoLunch] = useState(new Set());
+  const [showNoLunch, setShowNoLunch] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -210,7 +213,23 @@ export default function CanteenTab({ profile }) {
     if (p.error) { setError(p.error.message); setLoading(false); return; }
     setStudents(s.data || []);
     setPasses(p.data || []);
+    if (role === "admin" || role === "accountant") {
+      const n = await supabase.from("canteen_no_lunch").select("student_id");
+      if (!n.error) setNoLunch(new Set((n.data || []).map((r) => r.student_id)));
+    }
     setLoading(false);
+  }
+
+  async function setEatsAtSchool(studentId, eats) {
+    const { error: err } = eats
+      ? await supabase.from("canteen_no_lunch").delete().eq("student_id", studentId)
+      : await supabase.from("canteen_no_lunch").insert({ student_id: studentId });
+    if (err) { setStatus(err.message); return; }
+    const who = students.find((x) => x.id === studentId)?.full_name || "";
+    setStatus(eats ? `${who} is back on the list.` : `${who} removed from the list (doesn't eat at school).`);
+    setSelected(null);
+    setSearch("");
+    load();
   }
 
   // Teachers and learning assistants never load the children's passes.
@@ -437,8 +456,14 @@ export default function CanteenTab({ profile }) {
       .map((p) => p.student_id)
   );
   const matching = term ? students.filter((s) => (s.full_name || "").toLowerCase().includes(term)) : students;
-  const hiddenPaid = matching.filter((s) => paidMonthIds.has(s.id));
-  const shown = showPaidMonth ? matching : matching.filter((s) => !paidMonthIds.has(s.id));
+  // A "doesn't eat at school" student comes back by themselves as soon as
+  // they have a pass for today or later (e.g. a parent orders lunch).
+  const todayISO = toISO(new Date());
+  const isNoLunch = (id) => noLunch.has(id) && !passes.some((p) => p.student_id === id && p.end_date >= todayISO);
+  const noLunchCount = students.filter((s) => isNoLunch(s.id)).length;
+  const afterNoLunch = showNoLunch || term ? matching : matching.filter((s) => !isNoLunch(s.id));
+  const hiddenPaid = afterNoLunch.filter((s) => paidMonthIds.has(s.id));
+  const shown = showPaidMonth ? afterNoLunch : afterNoLunch.filter((s) => !paidMonthIds.has(s.id));
   const selectedPasses = selected ? passes.filter((p) => p.student_id === selected.id) : [];
   const awaiting = passes.filter((p) => !p.paid);
 
@@ -522,6 +547,11 @@ export default function CanteenTab({ profile }) {
                 {showPaidMonth ? "Hide paid" : "Show paid"}
               </button>
             ) : null}
+            {noLunchCount > 0 && (
+              <button onClick={() => setShowNoLunch(!showNoLunch)} style={{ ...chip, padding: "4px 10px" }}>
+                {showNoLunch ? "Hide" : "Show"} {noLunchCount} not eating at school
+              </button>
+            )}
           </div>
 
           <div style={{ maxHeight: 160, overflowY: "auto", border: `1px solid ${COLORS.line}`, borderRadius: 8, marginBottom: 14 }}>
@@ -534,6 +564,7 @@ export default function CanteenTab({ profile }) {
                 {s.full_name}
                 <span style={{ color: COLORS.faint, marginLeft: 8, fontSize: 13 }}>{s.grade}</span>
                 {paidMonthIds.has(s.id) && <span style={{ color: COLORS.ok, marginLeft: 8, fontSize: 13 }}>· paid for {monthName}</span>}
+                {isNoLunch(s.id) && <span style={{ color: COLORS.muted, marginLeft: 8, fontSize: 13 }}>· doesn't eat at school</span>}
               </div>
             ))}
             {shown.length === 0 && (
@@ -547,7 +578,14 @@ export default function CanteenTab({ profile }) {
 
           {selected && (
             <>
-              <p style={{ margin: "0 0 10px", fontSize: 14 }}>Selected: <strong>{selected.full_name}</strong></p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "0 0 10px" }}>
+                <p style={{ margin: 0, fontSize: 14 }}>Selected: <strong>{selected.full_name}</strong></p>
+                {noLunch.has(selected.id) ? (
+                  <button onClick={() => setEatsAtSchool(selected.id, true)} style={{ ...chip, padding: "4px 10px" }}>Eats at school again</button>
+                ) : (
+                  <button onClick={() => setEatsAtSchool(selected.id, false)} style={{ ...chip, padding: "4px 10px", color: COLORS.muted }}>Doesn't eat at school</button>
+                )}
+              </div>
 
               <div style={{ display: "flex", gap: 7, marginBottom: 12, flexWrap: "wrap" }}>
                 {PARENT_PASS_TYPES.map((t) => (
