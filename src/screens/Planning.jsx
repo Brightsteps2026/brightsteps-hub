@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import AttachmentField from "../AttachmentField";
 import { GRADES } from "../data/constants";
-import UnitPlanner, { STATUS, isMiddleUnit, planSubjects } from "./UnitPlanner";
+import UnitPlanner, { STATUS, isMiddleUnit, planSubjects, openCount } from "./UnitPlanner";
 import { uid, todayStr } from "../lib/format";
 import { Field, Modal } from "../ui/common";
 
@@ -292,7 +292,7 @@ function PlanningTab({ data, persist, profile }) {
                     : (p.grades || []).join(", ") || p.grade}
                 </span>
                 {planSubjects(p) && <span className="bsf-muted">{planSubjects(p)}</span>}
-                {(() => { const st = STATUS[p.status] || STATUS.draft; return <span style={{ background: st.bg, color: st.fg, borderRadius: 999, padding: "2px 10px", fontSize: 12, fontWeight: 600 }}>{st.label}</span>; })()}
+                {(() => { const st = STATUS[p.status] || STATUS.draft; const n = openCount(p); return <span style={{ background: st.bg, color: st.fg, borderRadius: 999, padding: "2px 10px", fontSize: 12, fontWeight: 600 }}>{st.label}{n > 0 ? ` · ${n} to fix` : ""}</span>; })()}
               </div>
               {isMiddleUnit(p.grades) && p.globalContext
                 ? <p className="bsf-muted">Global context: {p.globalContext}</p>
