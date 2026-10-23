@@ -31,7 +31,7 @@ const T = {
   month: { en: "Month", fr: "Mois" },
   term: { en: "Term", fr: "Trimestre" },
   year: { en: "Year", fr: "Année" },
-  termHint: { en: "All school days of the term", fr: "Tous les jours de classe du trimestre" },
+  termHint: { en: "From the first to the last day of the term. School holidays are not included.", fr: "Du premier au dernier jour du trimestre. Les vacances scolaires ne sont pas incluses." },
   dayHint: { en: "Pick a day", fr: "Choisissez un jour" },
   weekHint: { en: "Monday to Friday", fr: "Du lundi au vendredi" },
   monthHint: { en: "All school days", fr: "Tous les jours de classe" },
@@ -116,6 +116,11 @@ function isOpen(type, startISO) {
   return new Date() < deadlineFor(type, startISO);
 }
 
+// "7 September 2026" / "7 septembre 2026"
+function longDate(iso, locale) {
+  return parseISO(iso).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
+}
+
 function money(n) {
   return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
@@ -156,7 +161,7 @@ function upcomingOptions(type, locale) {
 
   if (type === "term") {
     const fr = locale.startsWith("fr");
-    const short = (iso) => parseISO(iso).toLocaleDateString(locale, { day: "numeric", month: "short" });
+    const short = (iso) => longDate(iso, locale);
     TERMS.filter((t) => isOpen("term", t.start)).slice(0, 2).forEach((t) => {
       out.push({ value: t.start, label: `${fr ? t.name.fr : t.name.en} · ${short(t.start)} – ${short(t.end)}` });
     });
@@ -409,7 +414,7 @@ export default function CanteenTab({ profile }) {
                 {p.pass_type === "month"
                   ? `${tr("month")} · ${parseISO(p.start_date).toLocaleDateString(locale, { month: "long", year: "numeric" })}`
                   : p.pass_type === "term"
-                  ? `${termFor(p.start_date).name[language === "fr" ? "fr" : "en"]} · ${p.start_date} → ${p.end_date}`
+                  ? `${termFor(p.start_date).name[language === "fr" ? "fr" : "en"]} · ${longDate(p.start_date, locale)} → ${longDate(p.end_date, locale)}`
                   : `${tr(p.pass_type)} · ${p.start_date}${p.end_date !== p.start_date ? ` → ${p.end_date}` : ""}`}
               </span>
               <span style={{ ...pill(p.paid ? "ok" : "bad"), padding: "4px 10px" }}>
@@ -612,7 +617,7 @@ export default function CanteenTab({ profile }) {
               />
 
               <p style={{ margin: "0 0 12px", fontSize: 13, color: COLORS.muted }}>
-                {passType === "term" && `${termFor(staffDate).name.en} · `}Covers {rangeFor(passType, staffDate).start} to {rangeFor(passType, staffDate).end}
+                {passType === "term" && `${termFor(staffDate).name.en} · `}Covers {longDate(rangeFor(passType, staffDate).start, "en-GB")} to {longDate(rangeFor(passType, staffDate).end, "en-GB")}
               </p>
 
               <button style={primaryBtn} disabled={saving} onClick={() => createPass(selected.id, passType, staffDate, true)}>
