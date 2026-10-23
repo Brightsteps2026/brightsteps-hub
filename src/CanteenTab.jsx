@@ -217,10 +217,16 @@ export default function CanteenTab({ profile }) {
     setError("");
     const s = await supabase.from("students").select("id, full_name, grade").order("full_name");
     if (s.error) { setError(s.error.message); setLoading(false); return; }
-    const p = await supabase
+    const cols = "id, student_id, pass_type, start_date, end_date, amount, paid";
+    let p = await supabase
       .from("canteen_passes")
-      .select("id, student_id, pass_type, start_date, end_date, amount, paid")
+      .select(cols + ", receipt_no, paid_at")
       .order("start_date", { ascending: false });
+    // Before canteen-receipts.sql is run the receipt columns do not exist yet:
+    // load without them so the page still works (no Receipt buttons until then).
+    if (p.error && /receipt_no|paid_at/.test(p.error.message)) {
+      p = await supabase.from("canteen_passes").select(cols).order("start_date", { ascending: false });
+    }
     if (p.error) { setError(p.error.message); setLoading(false); return; }
     setStudents(s.data || []);
     setPasses(p.data || []);
@@ -265,19 +271,20 @@ export default function CanteenTab({ profile }) {
     if (overlapFor(studentId, start, end)) { setStatus(tr("covered")); return; }
     setSaving(true);
     setStatus("");
-    const { error: err } = await supabase.from("canteen_passes").insert({
+    const { data: row, error: err } = await supabase.from("canteen_passes").insert({
       student_id: studentId,
       pass_type: type,
       start_date: start,
       end_date: end,
       amount: PRICES[type],
       paid: markPaid
-    });
+    }).select("id").single();
     setSaving(false);
     if (err) { setStatus(err.message); return; }
     if (markPaid) {
       const who = students.find((x) => x.id === studentId)?.full_name || "";
-      setStatus(`Saved for ${who}. ${start} to ${end}.`);
+      setStatus(`Saved for ${who}. ${start} to ${end}. Sending the receipt…`);
+      emailReceipt(row.id, `Saved for ${who}. ${start} to ${end}.`);
       // Paid: close this student so the name leaves the list.
       setSelected(null);
       setSearch("");
@@ -308,7 +315,20 @@ export default function CanteenTab({ profile }) {
   async function setPaid(id, value) {
     const { error: err } = await supabase.from("canteen_passes").update({ paid: value }).eq("id", id);
     if (err) { setStatus(err.message); return; }
+    if (value) {
+      const who = students.find((x) => x.id === passes.find((p) => p.id === id)?.student_id)?.full_name || "";
+      setStatus(`Payment confirmed${who ? ` for ${who}` : ""}. Sending the receipt…`);
+      emailReceipt(id, `Payment confirmed${who ? ` for ${who}` : ""}.`);
+    }
     load();
+  }
+
+  // Office: email the receipt to the child's parents as soon as a payment is recorded.
+  async function emailReceipt(id, prefix) {
+    const { data, error: err } = await supabase.functions.invoke("notify-canteen-receipt", { body: { id } });
+    if (err || data?.error) { setStatus(`${prefix} The receipt email could not be sent: ${data?.error || err.message}`); return; }
+    if (!data?.sent) { setStatus(`${prefix} No parent email on file, so no receipt was sent.`); return; }
+    setStatus(`${prefix} Receipt emailed to ${data.sent} parent${data.sent === 1 ? "" : "s"}.`);
   }
 
   async function removePass(id) {
@@ -417,8 +437,15 @@ export default function CanteenTab({ profile }) {
                   ? `${termFor(p.start_date).name[language === "fr" ? "fr" : "en"]} · ${longDate(p.start_date, locale)} → ${longDate(p.end_date, locale)}`
                   : `${tr(p.pass_type)} · ${p.start_date}${p.end_date !== p.start_date ? ` → ${p.end_date}` : ""}`}
               </span>
-              <span style={{ ...pill(p.paid ? "ok" : "bad"), padding: "4px 10px" }}>
-                {p.paid ? tr("paid") : tr("awaiting")}
+              <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {p.paid && p.receipt_no && (
+                  <button onClick={() => printReceipt(p, students.find((s) => s.id === p.student_id))} style={{ ...chip, padding: "4px 10px" }}>
+                    Receipt / Reçu
+                  </button>
+                )}
+                <span style={{ ...pill(p.paid ? "ok" : "bad"), padding: "4px 10px" }}>
+                  {p.paid ? tr("paid") : tr("awaiting")}
+                </span>
               </span>
             </div>
           ))}
@@ -758,6 +785,47 @@ function ParentLunchStatus({ students, passes, tr, locale }) {
       })}
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Canteen receipt: one short receipt, labels in English / French, same as the email.
+const RECEIPT_PASS = { day: "Day / Journée", week: "Week / Semaine", month: "Month / Mois", term: "Term / Trimestre", year: "Year / Année" };
+
+function printReceipt(p, student) {
+  const esc = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const d = (iso) => new Date(iso.length === 10 ? iso + "T12:00:00" : iso).toLocaleDateString("en-GB");
+  const no = `BIS-C-${String(p.receipt_no).padStart(4, "0")}`;
+  const period = p.start_date === p.end_date ? d(p.start_date) : `${d(p.start_date)} – ${d(p.end_date)}`;
+  const who = student ? `${student.full_name}${student.grade ? ` · ${student.grade}` : ""}` : "";
+  const row = (k, v) => `<tr><td class="k">${k}</td><td>${esc(v)}</td></tr>`;
+  const w = window.open("", "_blank", "width=480,height=600");
+  if (!w) return;
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${no}</title>
+    <style>
+      body{font-family:Arial,sans-serif;color:#241012;font-size:14px;max-width:380px;margin:28px auto;padding:0 16px}
+      h1{font-family:Georgia,serif;font-size:19px;color:#801524;margin:0}
+      .sub{margin:2px 0 12px;font-size:13px}.muted{color:#7A5A5E}
+      table{width:100%;border-collapse:collapse;border-top:1px solid #EAD7DA}
+      td{padding:5px 0;text-align:right}td.k{text-align:left;color:#7A5A5E}
+      tr.t td{border-top:1px solid #EAD7DA;padding-top:9px;font-weight:bold;color:#241012}
+      button{margin-top:18px;padding:8px 16px;border:1px solid #801524;background:#fff;color:#801524;border-radius:8px;cursor:pointer}
+      @media print{button{display:none}}
+    </style></head><body>
+    <h1>BrightSteps International School</h1>
+    <p class="sub">Canteen receipt / Reçu de cantine · <span class="muted">${no}</span></p>
+    <table>
+      ${row("Student / Élève", who)}
+      ${row("Pass / Formule", RECEIPT_PASS[p.pass_type] || p.pass_type)}
+      ${row("Period / Période", period)}
+      ${row("Paid / Payé le", d(p.paid_at || new Date().toISOString()))}
+      <tr class="t"><td class="k" style="color:#241012">Total</td><td>${money(p.amount)} FCFA</td></tr>
+    </table>
+    <p class="muted" style="font-size:12px;margin-top:12px">Thank you / Merci</p>
+    <button id="print">Print / Imprimer</button>
+    </body></html>`);
+  w.document.close();
+  // The Hub blocks inline scripts, so the button is wired from here.
+  w.document.getElementById("print")?.addEventListener("click", () => w.print());
 }
 
 // ---------------------------------------------------------------------------
