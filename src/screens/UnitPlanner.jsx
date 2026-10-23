@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Plus, X } from "lucide-react";
 import AttachmentField from "../AttachmentField";
 import { useAuth } from "../LoginGate";
 import { GRADES, THEMES } from "../data/constants";
 import { uid } from "../lib/format";
 import { Field } from "../ui/common";
+import { supabase } from "../lib/supabaseClient";
 
 // Unit planner (staff screen, English only).
 // Four stages: Understand, Assess, Inquire, Reflect.
@@ -296,6 +297,90 @@ function Stage({ n, title, sub, children }) {
   );
 }
 
+// Standards picker. Reads the same library as the Standards screen (gb_standards),
+// limited to the unit's grades. Units saved before keep their picks: an older pick is
+// matched through legacy_id, and anything only in the old list still shows.
+function StandardsPicker({ grades, selected, oldList, onChange }) {
+  const [lib, setLib] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [subject, setSubject] = useState("");
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    let live = true;
+    supabase.from("gb_standards").select("id, legacy_id, code, subject, grade, description, sort")
+      .order("grade").order("subject").order("sort").order("code")
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) { console.error(error); setFailed(true); setLib([]); } else setLib(data || []);
+      });
+    return () => { live = false; };
+  }, []);
+
+  const legacyIds = useMemo(() => new Set((lib || []).map((s) => s.legacy_id).filter(Boolean)), [lib]);
+  const all = useMemo(() => [
+    ...(lib || []),
+    ...(oldList || []).filter((s) => !legacyIds.has(s.id)).map((s) => ({ ...s, legacy_id: s.id, older: true }))
+  ], [lib, oldList, legacyIds]);
+  const isOn = (s) => selected.includes(s.id) || (s.legacy_id && selected.includes(s.legacy_id));
+  const toggle = (s) => onChange(isOn(s)
+    ? selected.filter((x) => x !== s.id && x !== s.legacy_id)
+    : [...selected, s.id]);
+
+  if (lib === null) return <p className="bsf-muted">Loading standards…</p>;
+  if (!grades.length) return <p className="bsf-empty">Choose grades in Stage 1 to see their standards.</p>;
+
+  const forGrades = all.filter((s) => !s.grade || grades.includes(s.grade));
+  const chosen = all.filter(isOn);
+  const subjects = [...new Set(forGrades.map((s) => s.subject || "Other"))].sort();
+  const needle = q.trim().toLowerCase();
+  const shown = forGrades.filter((s) => (!subject || (s.subject || "Other") === subject)
+    && (!needle || `${s.code || ""} ${s.description || ""}`.toLowerCase().includes(needle)));
+  const multiGrade = grades.length > 1;
+
+  return (
+    <div>
+      {failed && <p className="bsf-muted" style={{ fontSize: 12 }}>Could not load the Standards library; showing the older list only.</p>}
+      {chosen.length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 600 }}>Chosen · {chosen.length}</p>
+          <div className="bsf-chiprow">
+            {chosen.map((s) => (
+              <button key={s.id} type="button" className="bsf-chip active" title={s.description} onClick={() => toggle(s)}>
+                {s.code || (s.description || "").slice(0, 28)} ✕
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {forGrades.length === 0
+        ? <p className="bsf-empty">No standards for {grades.join(", ")} yet. Add them on the Standards screen.</p>
+        : <>
+            <div className="bsf-two-col">
+              <select value={subject} onChange={(e) => setSubject(e.target.value)} aria-label="Filter standards by subject">
+                <option value="">All subjects ({forGrades.length})</option>
+                {subjects.map((x) => <option key={x} value={x}>{x} ({forGrades.filter((s) => (s.subject || "Other") === x).length})</option>)}
+              </select>
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search code or words" aria-label="Search standards" />
+            </div>
+            <div style={{ maxHeight: 300, overflowY: "auto", border: "1px solid #EAD7DA", borderRadius: 10, marginTop: 8 }}>
+              {shown.length === 0 && <p className="bsf-empty" style={{ padding: 10 }}>No standards match.</p>}
+              {shown.map((s) => (
+                <label key={s.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 10px", borderBottom: "1px solid #F3E9EB", cursor: "pointer", background: isOn(s) ? "#F5E4E6" : "transparent", fontSize: 13 }}>
+                  <input type="checkbox" checked={!!isOn(s)} onChange={() => toggle(s)} style={{ marginTop: 3 }} />
+                  <span>
+                    <strong>{s.code || "—"}</strong>{" "}{s.description}
+                    <span className="bsf-muted" style={{ display: "block", fontSize: 11 }}>
+                      {[s.subject, multiGrade ? s.grade : "", s.older ? "older list" : ""].filter(Boolean).join(" · ")}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </>}
+    </div>
+  );
+}
+
 export default function UnitPlanner({ plan, data, onSave, onClose, initialStage = 0 }) {
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
@@ -531,15 +616,8 @@ export default function UnitPlanner({ plan, data, onSave, onClose, initialStage 
                 : "Gradebook: enter this task as a Summative assessment (70%) with a score once students have done it."}
           </div>
           <Group label="Standards addressed">
-            {standards.length === 0
-              ? <p className="bsf-empty">No standards in your library yet. Add some from Assessment → Standards.</p>
-              : <div className="bsf-chiprow">
-                  {standards.map((s) => (
-                    <button key={s.id} type="button" className={`bsf-chip ${(u.standardIds || []).includes(s.id) ? "active" : ""}`} onClick={() => toggleIn("standardIds", s.id)}>
-                      {s.code || s.description.slice(0, 24)}
-                    </button>
-                  ))}
-                </div>}
+            <StandardsPicker grades={u.grades || []} selected={u.standardIds || []} oldList={standards}
+              onChange={(ids) => set("standardIds", ids)} />
           </Group>
           {pin("standardIds")}
           <Field label="ATL focus"><input value={u.atlSkills} onChange={(e) => set("atlSkills", e.target.value)} placeholder="e.g. Communication, research" /></Field>
