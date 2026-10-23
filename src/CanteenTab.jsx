@@ -3,9 +3,21 @@ import { supabase } from "./lib/supabaseClient";
 import { useLanguage } from "./lib/i18n";
 import { COLORS, RADIUS, card as cardToken, chip, chipOn, primaryBtn as primaryToken, input, pill } from "./ui/tokens";
 
-const PRICES = { day: 2700, week: 13000, month: 50000 };
-// Passes can be ordered by the day or the month only (week passes removed Oct 2026).
-const PARENT_PASS_TYPES = ["day", "month"];
+const PRICES = { day: 2700, week: 13000, month: 50000, term: 140000 };
+// A term pass is 3 months (150 000) less a 10 000 discount.
+const TERM_DISCOUNT = 3 * PRICES.month - PRICES.term;
+// Passes can be ordered by the day, the month or the term (week passes removed Oct 2026).
+const PARENT_PASS_TYPES = ["day", "month", "term"];
+// 2026–2027 terms (same dates as the school calendar).
+const TERMS = [
+  { name: { en: "Term 1", fr: "1er trimestre" }, start: "2026-09-07", end: "2026-12-15" },
+  { name: { en: "Term 2", fr: "2e trimestre" }, start: "2027-01-11", end: "2027-03-19" },
+  { name: { en: "Term 3", fr: "3e trimestre" }, start: "2027-03-30", end: "2027-06-08" }
+];
+// The term a date falls in, or the next one if the date is in a break.
+function termFor(dateStr) {
+  return TERMS.find((t) => dateStr <= t.end) || TERMS[TERMS.length - 1];
+}
 const STAFF_MEAL_PRICE = 2500;
 const STAFF_ROLES = ["admin", "teacher", "learning_assistant", "accountant"];
 
@@ -15,6 +27,9 @@ const T = {
   day: { en: "Day", fr: "Journée" },
   week: { en: "Week", fr: "Semaine" },
   month: { en: "Month", fr: "Mois" },
+  term: { en: "Term", fr: "Trimestre" },
+  termHint: { en: "All school days of the term", fr: "Tous les jours de classe du trimestre" },
+  termSave: { en: "You save", fr: "Vous économisez" },
   dayHint: { en: "Pick a day", fr: "Choisissez un jour" },
   weekHint: { en: "Monday to Friday", fr: "Du lundi au vendredi" },
   monthHint: { en: "All school days", fr: "Tous les jours de classe" },
@@ -59,6 +74,10 @@ function parseISO(s) {
 function rangeFor(type, dateStr) {
   const d = parseISO(dateStr);
   if (type === "day") return { start: dateStr, end: dateStr };
+  if (type === "term") {
+    const t = termFor(dateStr);
+    return { start: t.start, end: t.end };
+  }
   if (type === "week") {
     const dow = d.getDay();
     const offset = dow === 0 ? 1 : 1 - dow;
@@ -77,6 +96,9 @@ function deadlineFor(type, startISO) {
   const start = parseISO(startISO);
   if (type === "month") {
     return new Date(start.getFullYear(), start.getMonth(), 1, 0, 0, 0);
+  }
+  if (type === "term") {
+    return new Date(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0);
   }
   const d = new Date(start.getFullYear(), start.getMonth(), start.getDate());
   d.setDate(d.getDate() - 1);
@@ -123,6 +145,15 @@ function upcomingOptions(type, locale) {
         label: `${s.toLocaleDateString(locale, { day: "numeric", month: "short" })} – ${e.toLocaleDateString(locale, { day: "numeric", month: "short" })}`
       });
     }
+    return out;
+  }
+
+  if (type === "term") {
+    const fr = locale.startsWith("fr");
+    const short = (iso) => parseISO(iso).toLocaleDateString(locale, { day: "numeric", month: "short" });
+    TERMS.filter((t) => isOpen("term", t.start)).slice(0, 2).forEach((t) => {
+      out.push({ value: t.start, label: `${fr ? t.name.fr : t.name.en} · ${short(t.start)} – ${short(t.end)}` });
+    });
     return out;
   }
 
@@ -314,7 +345,8 @@ export default function CanteenTab({ profile }) {
           </div>
 
           <p style={{ fontSize: 13, color: COLORS.muted, margin: "0 0 8px" }}>
-            {passType === "day" ? tr("dayHint") : passType === "week" ? tr("weekHint") : tr("monthHint")}
+            {passType === "day" ? tr("dayHint") : passType === "week" ? tr("weekHint") : passType === "term" ? tr("termHint") : tr("monthHint")}
+            {passType === "term" && <span style={{ color: COLORS.ok }}> · {tr("termSave")} {money(TERM_DISCOUNT)} FCFA</span>}
           </p>
 
           {options.length === 0 ? (
@@ -352,6 +384,8 @@ export default function CanteenTab({ profile }) {
                 {students.length > 1 && <strong>{nameOf(p.student_id)} · </strong>}
                 {p.pass_type === "month"
                   ? `${tr("month")} · ${parseISO(p.start_date).toLocaleDateString(locale, { month: "long", year: "numeric" })}`
+                  : p.pass_type === "term"
+                  ? `${termFor(p.start_date).name[language === "fr" ? "fr" : "en"]} · ${p.start_date} → ${p.end_date}`
                   : `${tr(p.pass_type)} · ${p.start_date}${p.end_date !== p.start_date ? ` → ${p.end_date}` : ""}`}
               </span>
               <span style={{ ...pill(p.paid ? "ok" : "bad"), padding: "4px 10px" }}>
@@ -381,13 +415,13 @@ export default function CanteenTab({ profile }) {
   });
 
   const term = search.trim().toLowerCase();
-  // Students whose month is already paid are hidden from "Record a pass",
+  // Students whose month is already paid (by a month or term pass) are hidden from "Record a pass",
   // so the same name is not recorded twice. The month follows the chosen date.
   const monthRange = rangeFor("month", staffDate);
   const monthName = parseISO(monthRange.start).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   const paidMonthIds = new Set(
     passes
-      .filter((p) => p.paid && p.pass_type === "month" && p.start_date <= monthRange.end && p.end_date >= monthRange.start)
+      .filter((p) => p.paid && (p.pass_type === "month" || p.pass_type === "term") && p.start_date <= monthRange.end && p.end_date >= monthRange.start)
       .map((p) => p.student_id)
   );
   const matching = term ? students.filter((s) => (s.full_name || "").toLowerCase().includes(term)) : students;
@@ -515,7 +549,8 @@ export default function CanteenTab({ profile }) {
               />
 
               <p style={{ margin: "0 0 12px", fontSize: 13, color: COLORS.muted }}>
-                Covers {rangeFor(passType, staffDate).start} to {rangeFor(passType, staffDate).end}
+                {passType === "term" && `${termFor(staffDate).name.en} · `}Covers {rangeFor(passType, staffDate).start} to {rangeFor(passType, staffDate).end}
+                {passType === "term" && ` · 10 000 discount included`}
               </p>
 
               <button style={primaryBtn} disabled={saving} onClick={() => createPass(selected.id, passType, staffDate, true)}>
@@ -569,7 +604,7 @@ function PassesList({ passes, students }) {
 
   const label = monthStart.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   const move = (n) => setMonthStart(new Date(monthStart.getFullYear(), monthStart.getMonth() + n, 1));
-  const kindLabel = { day: "Day", week: "Week", month: "Month" };
+  const kindLabel = { day: "Day", week: "Week", month: "Month", term: "Term" };
 
   return (
     <div style={card}>
@@ -582,7 +617,7 @@ function PassesList({ passes, students }) {
       </div>
 
       <div style={{ display: "flex", gap: 7, marginBottom: 10, flexWrap: "wrap" }}>
-        {["all", "day", "month"].map((k) => (
+        {["all", "day", "month", "term"].map((k) => (
           <button key={k} onClick={() => setKind(k)} style={kind === k ? chipOn : chip}>
             {k === "all" ? "All" : kindLabel[k]}
           </button>
@@ -631,7 +666,8 @@ function ParentLunchStatus({ students, passes, tr, locale }) {
       <p style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 600 }}>{tr("lunchThisMonth")}</p>
       {students.map((s) => {
         const mine = passes.filter((p) => p.student_id === s.id && p.start_date <= last && p.end_date >= first);
-        const monthPass = mine.find((p) => p.pass_type === "month");
+        // A term pass covers the whole month too.
+        const monthPass = mine.find((p) => p.pass_type === "month" || p.pass_type === "term");
         let text, ok;
         if (monthPass && monthPass.paid) {
           ok = true; text = `${tr("lunchPaidFor")} ${ofMonth}`;
@@ -780,11 +816,17 @@ function MyStaffMeals() {
   );
 }
 
-// Admin / accountant: tomorrow's staff count and payments to confirm.
+// Admin / accountant: tomorrow's staff count, payments to confirm,
+// and a staff meal paid at the office on the day (daily payment).
 function StaffMealsOffice() {
   const [orders, setOrders] = useState([]);
   const [names, setNames] = useState({});
   const [error, setError] = useState("");
+  const [staffList, setStaffList] = useState([]);
+  const [who, setWho] = useState("");
+  const [mealDate, setMealDate] = useState(toISO(new Date()));
+  const [saving, setSaving] = useState(false);
+  const [note, setNote] = useState("");
 
   async function load() {
     const today = toISO(new Date());
@@ -804,7 +846,45 @@ function StaffMealsOffice() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  async function loadStaff() {
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, full_name, email, role")
+      .in("role", STAFF_ROLES)
+      .order("full_name");
+    setStaffList(data || []);
+  }
+
+  useEffect(() => { load(); loadStaff(); }, []);
+
+  // Record a meal paid today (or any day). If the person already ordered
+  // that day, the order is simply marked as paid.
+  async function recordPaid() {
+    if (!who) { setNote("Choose a staff member."); return; }
+    setSaving(true);
+    setNote("");
+    const { data: existing } = await supabase
+      .from("staff_meal_orders")
+      .select("id, paid")
+      .eq("staff_id", who)
+      .eq("meal_date", mealDate)
+      .maybeSingle();
+    let err = null;
+    if (existing) {
+      if (existing.paid) { setSaving(false); setNote("Already paid for that day."); return; }
+      ({ error: err } = await supabase.from("staff_meal_orders").update({ paid: true }).eq("id", existing.id));
+    } else {
+      ({ error: err } = await supabase
+        .from("staff_meal_orders")
+        .insert({ staff_id: who, meal_date: mealDate, amount: STAFF_MEAL_PRICE, paid: true }));
+    }
+    setSaving(false);
+    if (err) { setNote(err.message); return; }
+    const person = staffList.find((p) => p.id === who);
+    setNote(`Saved: ${person?.full_name || person?.email || "staff member"} · ${mealDate} · ${money(STAFF_MEAL_PRICE)} FCFA paid.`);
+    setWho("");
+    load();
+  }
 
   async function confirm(id) {
     const { error: err } = await supabase.from("staff_meal_orders").update({ paid: true }).eq("id", id);
@@ -847,6 +927,24 @@ function StaffMealsOffice() {
           )}
         </>
       )}
+
+      <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${COLORS.line}` }}>
+        <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 600 }}>Record a staff meal paid today</p>
+        <p style={{ margin: "0 0 10px", fontSize: 13, color: COLORS.muted }}>Daily payment at the office · {money(STAFF_MEAL_PRICE)} FCFA</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          <select value={who} onChange={(e) => setWho(e.target.value)} style={{ ...input, width: "auto", flex: "1 1 180px" }}>
+            <option value="">Staff member…</option>
+            {staffList.map((p) => (
+              <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+            ))}
+          </select>
+          <input type="date" value={mealDate} onChange={(e) => setMealDate(e.target.value)} style={{ ...input, width: "auto" }} />
+        </div>
+        <button style={primaryBtn} disabled={saving || !who} onClick={recordPaid}>
+          {saving ? "Saving…" : `Record as paid · ${money(STAFF_MEAL_PRICE)} FCFA`}
+        </button>
+        {note && <p style={{ fontSize: 13, marginTop: 10, marginBottom: 0 }}>{note}</p>}
+      </div>
     </div>
   );
 }
