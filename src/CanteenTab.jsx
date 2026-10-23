@@ -3,8 +3,8 @@ import { supabase } from "./lib/supabaseClient";
 import { useLanguage } from "./lib/i18n";
 import { COLORS, RADIUS, card as cardToken, chip, chipOn, primaryBtn as primaryToken, input, pill } from "./ui/tokens";
 
-// Prices set by Myri, Oct 2026. Year = 450 000 (by the month it is about 500 000).
-const PRICES = { day: 2700, week: 13000, month: 50000, term: 150000, year: 450000 };
+// Prices set by Myri, 23 Oct 2026: term = 3 months less 5 000; year = 430 000 (by the month about 500 000).
+const PRICES = { day: 2700, week: 13000, month: 50000, term: 145000, year: 430000 };
 // Parents order by the day, the month or the term (week passes removed Oct 2026).
 const PARENT_PASS_TYPES = ["day", "month", "term"];
 // The office can also record a full school year.
