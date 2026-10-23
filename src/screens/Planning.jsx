@@ -328,7 +328,7 @@ function PlanningTab({ data, persist, profile }) {
   );
 }
 
-const CURRICULUM_SUBJECTS = ["English Language Arts", "Math", "Unit of Inquiry", "French", "Art", "Music", "Physical Education", "Baseline Assessment"];
+const CURRICULUM_SUBJECTS = ["English Language Arts", "Math", "Unit of Inquiry", "French", "Art", "Music", "Physical Education", "SEL", "Life Skills", "Baseline Assessment"];
 
 // Social Studies and Science were folded into Unit of Inquiry, and the catch-all
 // "Other" was replaced by Baseline Assessment. Documents already filed under the
