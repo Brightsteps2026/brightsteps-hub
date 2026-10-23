@@ -8,6 +8,7 @@ import LeaveTab, { LeaveIcon } from "./LeaveTab";
 import WeeklyUpdatesTab from "./WeeklyUpdates";
 import StaffCheckinTab, { CheckinIcon, CheckinBanner } from "./StaffCheckinTab";
 import SchoolGradebook from "./SchoolGradebook";
+import { FamilyGradesTab } from "./FamilyGrades";
 import { GRADES, DEFAULT_SETTINGS, ACTIVITY_AREA_LABELS } from "./data/constants";
 import { useSchoolData } from "./data/useSchoolData";
 import { uid } from "./lib/format";
@@ -22,7 +23,6 @@ import { PortfolioTab } from "./screens/Portfolio";
 import { PlanningTab } from "./screens/Planning";
 import { UpdatesTab } from "./screens/Updates";
 import { AttendanceTab } from "./screens/Attendance";
-import { AssessmentTab } from "./screens/Assessment";
 import { CalendarTab } from "./screens/Calendar";
 import { AdmissionsTab } from "./screens/Admissions";
 import { AssignmentsTab } from "./screens/Assignments";
@@ -287,7 +287,7 @@ function BrightStepsHubInner() {
         </div>
       )}
       {tab === "assessment" && (isParent || isStudent
-        ? <AssessmentTab data={data} persist={persist} profile={profile} />
+        ? <FamilyGradesTab data={data} profile={profile} />
         : <SchoolGradebook profile={profile} data={data} persist={persist} />)}
       {tab === "gradebook" && isStudent && isUpperStudent && <GradebookTab data={data} persist={persist} profile={profile} onNavigate={goTo} />}
       {tab === "planning" && !isParent && !isLearningAssistant && <PlanningTab data={data} persist={persist} profile={profile} />}

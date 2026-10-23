@@ -79,6 +79,14 @@ function shortDate(d) {
   return new Date(d + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
+function NoteIcon({ filled }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
 function LevelChip({ level }) {
   const l = levelOf(level);
   if (!l) return <span style={{ color: COLORS.muted }}>—</span>;
@@ -212,11 +220,12 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
 
-  const blankForm = () => ({ title: "", assess_type: "quiz", kind: "formative", grading: early ? "level" : "marks", max_points: "", assessed_on: todayISO() });
+  const blankForm = () => ({ title: "", assess_type: "quiz", kind: "formative", grading: early ? "level" : "marks", max_points: "", assessed_on: todayISO(), shared: false });
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(blankForm());
   const [saving, setSaving] = useState(false);
+  const [canShare, setCanShare] = useState(true);
 
   const canEdit = editGrades.includes(grade);
 
@@ -241,12 +250,16 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
     setError("");
     const st = await supabase.from("students").select("id, full_name, grade").eq("grade", grade).order("full_name");
     if (st.error) { setError(st.error.message); setLoading(false); return; }
-    const as = await supabase
+    const pickAssessments = (cols) => supabase
       .from("gb_assessments")
-      .select("id, title, kind, max_points, assessed_on, created_at, assess_type, grading")
+      .select(cols)
       .eq("grade", grade).eq("subject", subject).eq("term", term).eq("school_year", SCHOOL_YEAR)
       .order("assessed_on", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true });
+    let as = await pickAssessments("id, title, kind, max_points, assessed_on, created_at, assess_type, grading, shared_with_families");
+    const sharingReady = !(as.error && /shared_with_families/.test(as.error.message));
+    if (!sharingReady) as = await pickAssessments("id, title, kind, max_points, assessed_on, created_at, assess_type, grading");
+    setCanShare(sharingReady);
     if (as.error) {
       setError(/assess_type|grading/.test(as.error.message)
         ? "The gradebook update hasn't been switched on yet. Please ask the office to run the latest gradebook script."
@@ -257,7 +270,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
     let m = {};
     const ids = (as.data || []).map((a) => a.id);
     if (ids.length) {
-      const mk = await supabase.from("gb_marks").select("assessment_id, student_id, points, excused, letter, level").in("assessment_id", ids);
+      const mk = await supabase.from("gb_marks").select("assessment_id, student_id, points, excused, letter, level, note").in("assessment_id", ids);
       if (mk.error) { setError(mk.error.message); setLoading(false); return; }
       (mk.data || []).forEach((r) => { m[`${r.assessment_id}:${r.student_id}`] = r; });
     }
@@ -316,7 +329,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
       .from("gb_marks")
       .upsert({ assessment_id: a.id, student_id: studentId, points, excused: false }, { onConflict: "assessment_id,student_id" });
     if (err) { setStatus(`Not saved: ${err.message}`); return; }
-    setMarks((m) => ({ ...m, [key]: { assessment_id: a.id, student_id: studentId, points, excused: false } }));
+    setMarks((m) => ({ ...m, [key]: { ...(m[key] || {}), assessment_id: a.id, student_id: studentId, points, excused: false } }));
     dropDraft(key);
     setStatus("");
   }
@@ -330,7 +343,22 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
     const { error: err } = await supabase.from("gb_marks").upsert(row, { onConflict: "assessment_id,student_id" });
     if (err) { setStatus(`Not saved: ${err.message}`); return; }
     const points = field === "letter" && v ? LETTER_POINTS[v] : null;
-    setMarks((m) => ({ ...m, [key]: { ...row, points } }));
+    setMarks((m) => ({ ...m, [key]: { ...(m[key] || {}), ...row, points } }));
+    setStatus("");
+  }
+
+  // A short comment for one child on one assessment (families see it once the assessment is shared).
+  async function editNote(a, s) {
+    const key = `${a.id}:${s.id}`;
+    const before = marks[key]?.note || "";
+    const next = window.prompt(`Comment for ${s.full_name} on "${a.title}" (families see it when the assessment is shared):`, before);
+    if (next === null) return;
+    const note = next.trim() || null;
+    if ((note || "") === before) return;
+    const { error: err } = await supabase.from("gb_marks")
+      .upsert({ assessment_id: a.id, student_id: s.id, note }, { onConflict: "assessment_id,student_id" });
+    if (err) { setStatus(`Comment not saved: ${err.message}`); return; }
+    setMarks((m) => ({ ...m, [key]: { excused: false, ...(m[key] || {}), assessment_id: a.id, student_id: s.id, note } }));
     setStatus("");
   }
 
@@ -352,7 +380,8 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
       kind: a.kind,
       grading: a.grading || (early ? "level" : "marks"),
       max_points: a.grading === "marks" || !a.grading ? String(Number(a.max_points)) : "",
-      assessed_on: a.assessed_on || ""
+      assessed_on: a.assessed_on || "",
+      shared: !!a.shared_with_families
     });
     setFormOpen(true);
     setStatus("");
@@ -383,7 +412,8 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
       kind: early ? "formative" : form.kind,
       grading: form.grading,
       max_points: max,
-      assessed_on: form.assessed_on || null
+      assessed_on: form.assessed_on || null,
+      ...(canShare ? { shared_with_families: !!form.shared } : {})
     };
     const { error: err } = editingId
       ? await supabase.from("gb_assessments").update(row).eq("id", editingId)
@@ -628,6 +658,21 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
             </div>
           </div>
 
+          {canShare ? (
+            <label style={{ display: "flex", gap: 12, alignItems: "flex-start", marginTop: 14, padding: 14, borderRadius: 12, background: COLORS.tint, cursor: "pointer" }}>
+              <input type="checkbox" checked={!!form.shared} onChange={(e) => setForm({ ...form, shared: e.target.checked })}
+                style={{ width: 22, height: 22, margin: 0, accentColor: COLORS.brand, flex: "0 0 auto" }} />
+              <span>
+                <span style={{ display: "block", fontWeight: 600, fontSize: 15 }}>Share with families</span>
+                <span style={{ display: "block", fontSize: 13, color: COLORS.text2, marginTop: 3, lineHeight: 1.45 }}>
+                  Parents see each child's result and your comment. Tick when all marks are checked. You can untick it later.
+                </span>
+              </span>
+            </label>
+          ) : (
+            <p style={{ margin: "14px 0 0", fontSize: 12, color: COLORS.muted }}>Sharing with families isn't switched on yet. Please ask the office to run the latest gradebook script.</p>
+          )}
+
           {status && <p style={{ margin: "10px 0 0", fontSize: 13, color: COLORS.bad }}>{status}</p>}
 
           <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
@@ -677,6 +722,13 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
                         <div style={{ fontWeight: 500, marginTop: 3, color: !early && a.kind === "summative" ? COLORS.brand : COLORS.info }}>
                           {columnSub(a)}
                         </div>
+                        {canShare && (
+                          <div style={{ marginTop: 5 }}>
+                            <span style={{ ...pill(a.shared_with_families ? TONES.ok : TONES.warn), fontSize: 11, padding: "2px 8px" }}>
+                              {a.shared_with_families ? "Shared" : "Not shared yet"}
+                            </span>
+                          </div>
+                        )}
                       </th>
                     ))}
                     {early ? (
@@ -697,7 +749,20 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
                       <tr key={s.id}>
                         <td style={nameCell}>{s.full_name}</td>
                         {assessments.map((a) => (
-                          <td key={a.id} style={td}>{renderCell(a, s)}</td>
+                          <td key={a.id} style={td}>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                              {renderCell(a, s)}
+                              {canEdit ? (
+                                <button onClick={() => editNote(a, s)} aria-label={`Comment for ${s.full_name} on ${a.title}`}
+                                  title={marks[`${a.id}:${s.id}`]?.note || "Add a comment"}
+                                  style={{ background: "none", border: "none", padding: 6, cursor: "pointer", color: marks[`${a.id}:${s.id}`]?.note ? COLORS.brand : "#C9B5B8", display: "inline-flex" }}>
+                                  <NoteIcon filled={!!marks[`${a.id}:${s.id}`]?.note} />
+                                </button>
+                              ) : marks[`${a.id}:${s.id}`]?.note ? (
+                                <span title={marks[`${a.id}:${s.id}`].note} style={{ color: COLORS.brand, display: "inline-flex", padding: 6 }}><NoteIcon filled /></span>
+                              ) : null}
+                            </span>
+                          </td>
                         ))}
                         {early ? (
                           <td style={td}><LevelChip level={r.level} /></td>

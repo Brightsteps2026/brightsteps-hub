@@ -2,13 +2,14 @@ import { useState, useEffect, useMemo } from "react";
 import { WeeklyUpdatesFamily, WeeklyHistoryStaff } from "../WeeklyUpdates";
 import { useLanguage } from "../lib/i18n";
 import AttachmentField from "../AttachmentField";
-import { getLevelColor, DEFAULT_SETTINGS, isStaffOnlyEvent, isBaselineAssessment } from "../data/constants";
+import { DEFAULT_SETTINGS, isStaffOnlyEvent } from "../data/constants";
 import { todayStr, formatDateLong, gradeLabel, tLabel, attendanceCountsForRange } from "../lib/format";
 import { EventRow, Modal, StudentThumb } from "../ui/common";
 import { StudentMessages, AbsenceNotices } from "./Messages";
 import { pending } from "../data/pending";
 import { TermReportsFamily } from "../TermReports";
 import { useAssignmentsDue } from "./Assignments";
+import { FamilyGrades } from "../FamilyGrades";
 
 function FamilyViewModal({ student, data, onClose, hideContacts = false, showMessages = false }) {
   const today = todayStr();
@@ -29,10 +30,6 @@ function FamilyViewModal({ student, data, onClose, hideContacts = false, showMes
 
   const portfolioEntries = [...data.portfolio]
     .filter((p) => p.studentId === student.id)
-    .sort((a, b) => b.date.localeCompare(a.date));
-
-  const assessments = [...(data.assessments || [])]
-    .filter((a) => a.studentId === student.id && !isBaselineAssessment(a))
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const events = [...(data.events || [])]
@@ -172,37 +169,7 @@ function FamilyViewModal({ student, data, onClose, hideContacts = false, showMes
         ))}
       </section>
 
-      <section className="bsf-card">
-        <h2>Assessments</h2>
-        {assessments.length === 0 && <p className="bsf-empty">No assessments recorded yet.</p>}
-        {assessments.map((a) => (
-          <div key={a.id} className="bsf-row">
-            {a.rows && a.rows.length > 0 ? (
-              <span className="bsf-tag">{a.rubricName || "Rubric"}</span>
-            ) : (
-              <span className="bsf-status-pill" style={{ background: `${getLevelColor(a.level)}1A`, color: getLevelColor(a.level) }}>
-                {a.level}
-              </span>
-            )}
-            <div>
-              <p className="bsf-muted">{a.date}{a.subject ? ` · ${a.subject}` : ""}</p>
-              {a.rows && a.rows.length > 0 ? (
-                <div className="bsf-rubric-rows">
-                  {a.rows.map((r, i) => (
-                    <div key={i} className="bsf-rubric-row">
-                      <span>{r.text}</span>
-                      <span className="bsf-status-pill" style={{ background: `${getLevelColor(r.level)}1A`, color: getLevelColor(r.level) }}>{r.level}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p>{a.criteria}</p>
-              )}
-              {a.feedback && <p className="bsf-muted">{a.feedback}</p>}
-            </div>
-          </div>
-        ))}
-      </section>
+      <FamilyGrades student={student} />
 
       <section className="bsf-card">
         <h2>Family updates</h2>
@@ -293,10 +260,6 @@ function ParentStudentView({ data, persist, profile }) {
 
   const portfolioEntries = activeStudent
     ? [...data.portfolio].filter((p) => p.studentId === activeStudent.id).sort((a, b) => b.date.localeCompare(a.date))
-    : [];
-
-  const assessments = activeStudent
-    ? [...(data.assessments || [])].filter((a) => a.studentId === activeStudent.id && !isBaselineAssessment(a)).sort((a, b) => b.date.localeCompare(a.date))
     : [];
 
   const events = activeStudent
@@ -435,37 +398,7 @@ function ParentStudentView({ data, persist, profile }) {
             ))}
           </section>
 
-          <section className="bsf-card">
-            <h2>{t("child.assessments")}</h2>
-            {assessments.length === 0 && <p className="bsf-empty">{t("child.noAssessments")}</p>}
-            {assessments.map((a) => (
-              <div key={a.id} className="bsf-row">
-                {a.rows && a.rows.length > 0 ? (
-                  <span className="bsf-tag">{a.rubricName || t("common.rubric")}</span>
-                ) : (
-                  <span className="bsf-status-pill" style={{ background: `${getLevelColor(a.level)}1A`, color: getLevelColor(a.level) }}>
-                    {tLabel(t, "level.", a.level)}
-                  </span>
-                )}
-                <div>
-                  <p className="bsf-muted">{formatDateLong(a.date, language)}{a.subject ? ` · ${a.subject}` : ""}</p>
-                  {a.rows && a.rows.length > 0 ? (
-                    <div className="bsf-rubric-rows">
-                      {a.rows.map((r, i) => (
-                        <div key={i} className="bsf-rubric-row">
-                          <span>{r.text}</span>
-                          <span className="bsf-status-pill" style={{ background: `${getLevelColor(r.level)}1A`, color: getLevelColor(r.level) }}>{tLabel(t, "level.", r.level)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p>{a.criteria}</p>
-                  )}
-                  {a.feedback && <p className="bsf-muted">{a.feedback}</p>}
-                </div>
-              </div>
-            ))}
-          </section>
+          <FamilyGrades student={activeStudent} />
 
           <section className="bsf-card">
             <h2>{t("nav.reports")}</h2>
