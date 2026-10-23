@@ -207,7 +207,6 @@ export default function CanteenTab({ profile }) {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(null);
   const [staffDate, setStaffDate] = useState(toISO(new Date()));
-  const [showPaidMonth, setShowPaidMonth] = useState(false);
   // Students who don't eat at school (office list only).
   const [noLunch, setNoLunch] = useState(new Set());
   const [showNoLunch, setShowNoLunch] = useState(false);
@@ -504,7 +503,7 @@ export default function CanteenTab({ profile }) {
   const noLunchCount = students.filter((s) => isNoLunch(s.id)).length;
   const afterNoLunch = showNoLunch || term ? matching : matching.filter((s) => !isNoLunch(s.id));
   const hiddenPaid = afterNoLunch.filter((s) => paidMonthIds.has(s.id));
-  const shown = showPaidMonth ? afterNoLunch : afterNoLunch.filter((s) => !paidMonthIds.has(s.id));
+  const shown = afterNoLunch.filter((s) => !paidMonthIds.has(s.id));
   const selectedPasses = selected ? passes.filter((p) => p.student_id === selected.id) : [];
   const awaiting = passes.filter((p) => !p.paid);
 
@@ -578,14 +577,6 @@ export default function CanteenTab({ profile }) {
               onChange={(e) => e.target.value && setStaffDate(e.target.value)}
               style={{ ...input, width: "auto", padding: "4px 8px" }}
             />
-            <span>
-              {paidMonthIds.size} paid for {monthName}{!showPaidMonth && paidMonthIds.size > 0 ? " (hidden)" : ""}
-            </span>
-            {hiddenPaid.length > 0 || showPaidMonth ? (
-              <button onClick={() => setShowPaidMonth(!showPaidMonth)} style={{ ...chip, padding: "4px 10px" }}>
-                {showPaidMonth ? "Hide paid" : "Show paid"}
-              </button>
-            ) : null}
             {noLunchCount > 0 && (
               <button onClick={() => setShowNoLunch(!showNoLunch)} style={{ ...chip, padding: "4px 10px" }}>
                 {showNoLunch ? "Hide" : "Show"} {noLunchCount} not eating at school
@@ -612,6 +603,42 @@ export default function CanteenTab({ profile }) {
               </div>
             )}
           </div>
+
+          {/* Recorded students move here: who has paid for the chosen day, month or term. */}
+          {(() => {
+            const paidList = students
+              .filter((s) => paidMonthIds.has(s.id))
+              .map((s) => {
+                const p = passes.find((x) => x.student_id === s.id && x.paid && coversPeriod(x) && x.start_date <= periodRange.end && x.end_date >= periodRange.start);
+                return { s, p };
+              });
+            return (
+              <div style={{ marginBottom: 14 }}>
+                <p style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 600, color: COLORS.ok }}>
+                  Paid for {monthName} ({paidList.length})
+                </p>
+                {paidList.length === 0 ? (
+                  <p style={{ margin: 0, fontSize: 13, color: COLORS.muted }}>Nobody recorded yet.</p>
+                ) : (
+                  <div style={{ maxHeight: 200, overflowY: "auto", border: `1px solid ${COLORS.line}`, borderRadius: 8 }}>
+                    {paidList.map(({ s, p }) => (
+                      <div
+                        key={s.id}
+                        onClick={() => { setSelected(s); setStatus(""); }}
+                        style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "8px 10px", cursor: "pointer", fontSize: 14, background: selected?.id === s.id ? COLORS.tint : "transparent", borderBottom: "1px solid #F4EFEF" }}
+                      >
+                        <span>
+                          <span style={{ color: COLORS.ok }}>✓ </span>{s.full_name}
+                          <span style={{ color: COLORS.faint, marginLeft: 8, fontSize: 13 }}>{s.grade}</span>
+                        </span>
+                        {p && <span style={{ color: COLORS.muted, fontSize: 13 }}>{tr(p.pass_type)} · {money(p.amount)}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {!selected && status && <p style={{ fontSize: 13, margin: "0 0 10px", color: COLORS.ok }}>{status}</p>}
 
