@@ -825,9 +825,8 @@ function printReceipt(p, student) {
   const period = p.start_date === p.end_date ? d(p.start_date) : `${d(p.start_date)} – ${d(p.end_date)}`;
   const who = student ? `${student.full_name}${student.grade ? ` · ${student.grade}` : ""}` : "";
   const row = (k, v) => `<tr><td class="k">${k}</td><td>${esc(v)}</td></tr>`;
-  const w = window.open("", "_blank", "width=480,height=600");
-  if (!w) return;
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${no}</title>
+  // Shown inside the Hub (not a new tab), with a Close button to come back.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${no}</title>
     <style>
       body{font-family:Arial,sans-serif;color:#241012;font-size:14px;max-width:380px;margin:28px auto;padding:0 16px}
       h1{font-family:Georgia,serif;font-size:19px;color:#801524;margin:0}
@@ -835,8 +834,6 @@ function printReceipt(p, student) {
       table{width:100%;border-collapse:collapse;border-top:1px solid #EAD7DA}
       td{padding:5px 0;text-align:right}td.k{text-align:left;color:#7A5A5E}
       tr.t td{border-top:1px solid #EAD7DA;padding-top:9px;font-weight:bold;color:#241012}
-      button{margin-top:18px;padding:8px 16px;border:1px solid #801524;background:#fff;color:#801524;border-radius:8px;cursor:pointer}
-      @media print{button{display:none}}
     </style></head><body>
     <h1>BrightSteps International School</h1>
     <p class="sub">Canteen receipt / Reçu de cantine · <span class="muted">${no}</span></p>
@@ -848,11 +845,51 @@ function printReceipt(p, student) {
       <tr class="t"><td class="k" style="color:#241012">Total</td><td>${money(p.amount)} FCFA</td></tr>
     </table>
     <p class="muted" style="font-size:12px;margin-top:12px">Thank you / Merci</p>
-    <button id="print">Print / Imprimer</button>
-    </body></html>`);
-  w.document.close();
-  // The Hub blocks inline scripts, so the button is wired from here.
-  w.document.getElementById("print")?.addEventListener("click", () => w.print());
+    </body></html>`;
+
+  document.getElementById("bis-receipt")?.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "bis-receipt";
+  Object.assign(overlay.style, {
+    position: "fixed", inset: "0", zIndex: "9999", background: "rgba(36,16,18,0.55)",
+    display: "flex", alignItems: "center", justifyContent: "center", padding: "16px"
+  });
+  const box = document.createElement("div");
+  Object.assign(box.style, {
+    background: "#fff", borderRadius: "14px", width: "100%", maxWidth: "440px",
+    maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden",
+    boxShadow: "0 10px 40px rgba(0,0,0,0.25)"
+  });
+  const frame = document.createElement("iframe");
+  frame.title = "Receipt";
+  Object.assign(frame.style, { border: "0", width: "100%", height: "380px", flex: "1 1 auto" });
+  const bar = document.createElement("div");
+  Object.assign(bar.style, { display: "flex", gap: "8px", padding: "12px 16px", borderTop: "1px solid #EAD7DA" });
+  const mkBtn = (label, primary) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    Object.assign(b.style, {
+      flex: "1", padding: "10px 14px", borderRadius: "8px", cursor: "pointer", fontSize: "14px",
+      border: "1px solid #801524", background: primary ? "#801524" : "#fff", color: primary ? "#fff" : "#801524"
+    });
+    return b;
+  };
+  const closeBtn = mkBtn("✕ Close / Fermer", false);
+  const printBtn = mkBtn("Print / Imprimer", true);
+  bar.append(closeBtn, printBtn);
+  box.append(frame, bar);
+  overlay.append(box);
+  document.body.append(overlay);
+
+  const fd = frame.contentDocument;
+  fd.open(); fd.write(html); fd.close();
+
+  const close = () => { overlay.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  closeBtn.addEventListener("click", close);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  document.addEventListener("keydown", onKey);
+  printBtn.addEventListener("click", () => { frame.contentWindow.focus(); frame.contentWindow.print(); });
 }
 
 // ---------------------------------------------------------------------------
