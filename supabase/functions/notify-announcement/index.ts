@@ -20,8 +20,33 @@ const LOWER = ["Pre-N", "PreK", "Kindergarten", "Grade 1", "Grade 2", "Grade 3",
 const UPPER = ["Grade 6", "Grade 7"];
 
 const esc = (s: string) =>
-  String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-const para = (s: string) => esc(s).replace(/\n/g, "<br>");
+  String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+// Web links and email addresses in the message become real links in the email
+// (same rules as the Hub's LinkedText). Everything else stays escaped text.
+const TOKEN = /(https?:\/\/[^\s<>"]+|www\.[^\s<>"]+|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/g;
+const TRAILING = /[.,;:!?)\]'"»]+$/;
+const LINK_STYLE = "color:#801524;font-weight:bold;text-decoration:underline";
+function linkify(s: string) {
+  const source = String(s ?? "");
+  let out = "";
+  let last = 0;
+  for (const m of source.matchAll(TOKEN)) {
+    let raw = m[0];
+    let tail = (raw.match(TRAILING) || [""])[0];
+    if (tail.startsWith(")") && raw.includes("(")) tail = tail.slice(1);
+    if (tail) raw = raw.slice(0, raw.length - tail.length);
+    if (!raw) continue;
+    const start = m.index ?? 0;
+    out += esc(source.slice(last, start));
+    const isEmail = !/^(https?:\/\/|www\.)/i.test(raw);
+    const href = isEmail ? `mailto:${raw}` : /^www\./i.test(raw) ? `https://${raw}` : raw;
+    out += `<a href="${esc(href)}" style="${LINK_STYLE}">${esc(raw)}</a>`;
+    last = start + raw.length;
+  }
+  return out + esc(source.slice(last));
+}
+const para = (s: string) => linkify(s).replace(/\n/g, "<br>");
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });

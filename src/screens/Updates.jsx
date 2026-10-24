@@ -6,6 +6,7 @@ import { useLanguage, pluralKey } from "../lib/i18n";
 import { GRADES } from "../data/constants";
 import { uid, formatDateLong } from "../lib/format";
 import { Field, Modal } from "../ui/common";
+import { LinkedText } from "../ui/LinkedText";
 
 function UpdatesTab({ data, persist }) {
   const { profile } = useAuth();
@@ -21,6 +22,9 @@ function UpdatesTab({ data, persist }) {
   const [formError, setFormError] = useState("");
   const [translatingId, setTranslatingId] = useState(null);
   const [translateForm, setTranslateForm] = useState({ titleFr: "", bodyFr: "" });
+  // Show the post as families will see it, before publishing (new post and French translation).
+  const [showPreview, setShowPreview] = useState(false);
+  const [showFrPreview, setShowFrPreview] = useState(false);
 
   const allPosts = [...data.announcements].sort((a, b) => b.date.localeCompare(a.date));
   const posts = isParent
@@ -44,8 +48,21 @@ function UpdatesTab({ data, persist }) {
     persist({ ...data, announcements: [...data.announcements, post] });
     setForm({ titleEn: "", bodyEn: "", titleFr: "", bodyFr: "", grades: [], files: [], filesFr: [] });
     setFormError("");
+    setShowPreview(false);
     setShowAdd(false);
   };
+
+  const previewCard = (title, body, lang) => (
+    <div className="bsf-preview" aria-live="polite">
+      <p className="bsf-preview-label" style={{ marginBottom: 10 }}>Preview · how families will see it</p>
+      <div className="bsf-preview-card">
+        <span className="bsf-muted">{formatDateLong(new Date().toISOString().slice(0, 10), lang)}</span>
+        <strong style={{ display: "block" }}>{title || <span className="bsf-muted">(No title yet)</span>}</strong>
+        {body.trim() ? <LinkedText text={body} /> : <p className="bsf-muted">(No message yet)</p>}
+      </div>
+      <p className="bsf-preview-note">Tap the links above to check they open correctly. Nothing has been posted yet.</p>
+    </div>
+  );
 
   const setPostFiles = (id, key, files) => persist({
     ...data,
@@ -60,6 +77,7 @@ function UpdatesTab({ data, persist }) {
 
   const openTranslate = (post) => {
     setTranslateForm({ titleFr: post.titleFr || "", bodyFr: post.bodyFr || "" });
+    setShowFrPreview(false);
     setTranslatingId(post.id);
   };
 
@@ -90,7 +108,7 @@ function UpdatesTab({ data, persist }) {
 
       <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
         <span />
-        {!isParent && <button className="bsf-btn" onClick={() => { setFormError(""); setForm({ titleEn: "", bodyEn: "", titleFr: "", bodyFr: "", grades: [], files: [], filesFr: [] }); setShowAdd(true); }}><Plus size={16} /> Post</button>}
+        {!isParent && <button className="bsf-btn" onClick={() => { setFormError(""); setForm({ titleEn: "", bodyEn: "", titleFr: "", bodyFr: "", grades: [], files: [], filesFr: [] }); setShowPreview(false); setShowAdd(true); }}><Plus size={16} /> Post</button>}
       </div>
 
       <section className="bsf-list">
@@ -103,7 +121,7 @@ function UpdatesTab({ data, persist }) {
                 <div>
                   <span className="bsf-muted">{formatDateLong(a.date, language)}</span>
                   <strong>{showFrench ? a.titleFr : a.titleEn}</strong>
-                  <p style={{ whiteSpace: "pre-wrap" }}>{showFrench ? a.bodyFr : a.bodyEn}</p>
+                  <LinkedText text={showFrench ? a.bodyFr : a.bodyEn} />
                   {(() => {
                     const postFiles = language === "fr" && (a.filesFr || []).length > 0 ? a.filesFr : (a.files || []).length > 0 ? a.files : a.filesFr || [];
                     return postFiles.length > 0 && (
@@ -122,7 +140,7 @@ function UpdatesTab({ data, persist }) {
                   <span className="bsf-tag">{audienceLabel(a)}</span>
                 </div>
                 <strong>{a.titleEn}</strong>
-                <p style={{ whiteSpace: "pre-wrap" }}>{a.bodyEn}</p>
+                <LinkedText text={a.bodyEn} />
                 <div style={{ marginTop: 6 }}>
                   <p className="bsf-muted" style={{ marginBottom: 2 }}>File (English)</p>
                   <AttachmentField folder="resources" files={a.files || []} onChange={(files) => setPostFiles(a.id, "files", files)} />
@@ -134,7 +152,7 @@ function UpdatesTab({ data, persist }) {
                 {a.titleFr && (
                   <div className="bsf-fr-block">
                     <strong>{a.titleFr}</strong>
-                    <p style={{ whiteSpace: "pre-wrap" }}>{a.bodyFr}</p>
+                    <LinkedText text={a.bodyFr} />
                   </div>
                 )}
                 <button className="bsf-textbtn" onClick={() => openTranslate(a)} style={{ marginTop: 6 }}>
@@ -204,6 +222,10 @@ function UpdatesTab({ data, persist }) {
           <p className="bsf-muted" style={{ marginBottom: 12 }}>
             You can add the French translation afterward, once it's ready, from the post itself.
           </p>
+          {showPreview && previewCard(form.titleEn, form.bodyEn, "en")}
+          <button type="button" className="bsf-textbtn" style={{ marginBottom: 12 }} onClick={() => setShowPreview(!showPreview)}>
+            {showPreview ? "Hide preview" : "Preview"}
+          </button>
           <button className="bsf-btn bsf-btn-block" onClick={addPost}>Publish update</button>
           {formError && <p className="bsf-formerror">{formError}</p>}
         </Modal>
@@ -220,6 +242,10 @@ function UpdatesTab({ data, persist }) {
           <Field label="Message (Français)">
             <textarea rows={8} value={translateForm.bodyFr} onChange={(e) => setTranslateForm({ ...translateForm, bodyFr: e.target.value })} />
           </Field>
+          {showFrPreview && previewCard(translateForm.titleFr, translateForm.bodyFr, "fr")}
+          <button type="button" className="bsf-textbtn" style={{ marginBottom: 12 }} onClick={() => setShowFrPreview(!showFrPreview)}>
+            {showFrPreview ? "Hide preview" : "Preview"}
+          </button>
           <button className="bsf-btn bsf-btn-block" onClick={saveTranslation}>Save translation</button>
         </Modal>
       )}

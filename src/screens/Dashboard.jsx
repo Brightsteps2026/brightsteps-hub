@@ -10,6 +10,7 @@ import { StaffToSignCard } from "./Resources";
 import { GRADES, DEFAULT_SETTINGS, isStaffOnlyEvent } from "../data/constants";
 import { uid, formatEventWhen, todayStr, lunchWeekLabel, isThisSchoolWeek, useTodayWeekday, formatCurrency, formatDateLong, formatTimestampDate, gradeLabel, tLabel, computeFeeBreakdown, feeCategoryIcon, attendanceCountsForRange } from "../lib/format";
 import { EventRow, Field, Modal, EnrollmentStairs, SignaturePad, StudentThumb } from "../ui/common";
+import { LinkedText } from "../ui/LinkedText";
 import { pending } from "../data/pending";
 
 function Dashboard({ data, profile, persist, onNavigate }) {
@@ -41,6 +42,8 @@ function Dashboard({ data, profile, persist, onNavigate }) {
   const [emailingAnnId, setEmailingAnnId] = useState(null);
   const [showAllAnn, setShowAllAnn] = useState(false);
 const [postingAnn, setPostingAnn] = useState(false);
+  // Preview of the announcement being written: null (closed), "en" or "fr".
+  const [annPreview, setAnnPreview] = useState(null);
 // Email an announcement to the parents who can see it (once per announcement).
 const emailAnnouncement = async (id) => {
   setEmailingAnnId(id);
@@ -53,13 +56,14 @@ const emailAnnouncement = async (id) => {
   else alert(`Emailed to ${res?.sent || 0} parent${res?.sent === 1 ? "" : "s"}.`);
   return true;
 };
-const openNewAnnouncement = () => { setEditingAnnId(null); setAnnForm(emptyAnnForm); setShowAnnForm(true); };
+const openNewAnnouncement = () => { setEditingAnnId(null); setAnnForm(emptyAnnForm); setAnnPreview(null); setShowAnnForm(true); };
 const openEditAnnouncement = (a) => {
   setEditingAnnId(a.id);
+  setAnnPreview(null);
   setAnnForm({ title: a.title || "", title_fr: a.title_fr || "", body: a.body || "", body_fr: a.body_fr || "", audience: a.audience || "school", show_staff: a.show_staff !== false, email: false });
   setShowAnnForm(true);
 };
-const closeAnnForm = () => { setShowAnnForm(false); setEditingAnnId(null); setAnnForm(emptyAnnForm); };
+const closeAnnForm = () => { setShowAnnForm(false); setEditingAnnId(null); setAnnForm(emptyAnnForm); setAnnPreview(null); };
 const postAnnouncement = async () => {
   if (!annForm.title.trim() || !annForm.body.trim() || postingAnn) return;
   setPostingAnn(true);
@@ -527,7 +531,7 @@ const saveLunchMenu = async () => {
               <div key={a.id} className="bsf-row">
                 <div>
                   <strong>{showFrench ? a.titleFr : a.titleEn}</strong>
-                  <p style={{ whiteSpace: "pre-wrap" }}>{showFrench ? a.bodyFr : a.bodyEn}</p>
+                  <LinkedText text={showFrench ? a.bodyFr : a.bodyEn} />
                   {(() => {
                     const postFiles = language === "fr" && (a.filesFr || []).length > 0 ? a.filesFr : (a.files || []).length > 0 ? a.files : a.filesFr || [];
                     return postFiles.length > 0 && (
@@ -575,8 +579,40 @@ const saveLunchMenu = async () => {
       </label>
     )}
     {editingAnnId && <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 12px" }}>Saving changes updates the announcement on the Hub. Parents are not notified again.</p>}
-    <div style={{ display: "flex", gap: 8 }}>
+    {annPreview && (() => {
+      const fr = annPreview === "fr";
+      const title = fr && annForm.title_fr.trim() ? annForm.title_fr : annForm.title;
+      const body = fr && annForm.body_fr.trim() ? annForm.body_fr : annForm.body;
+      const audience = annForm.audience === "school" ? (fr ? "Toute l'école" : "Whole school")
+        : annForm.audience === "lower" ? (fr ? "Maternelle et primaire" : "Lower school")
+        : annForm.audience === "upper" ? (fr ? "Collège" : "Upper school")
+        : gradeLabel(annForm.audience, fr ? "fr" : "en");
+      return (
+        <div className="bsf-preview" aria-live="polite">
+          <div className="bsf-preview-head">
+            <p className="bsf-preview-label">Preview · how families will see it</p>
+            <div className="bsf-chiprow">
+              <button type="button" className={`bsf-chip ${!fr ? "active" : ""}`} onClick={() => setAnnPreview("en")}>English</button>
+              <button type="button" className={`bsf-chip ${fr ? "active" : ""}`} onClick={() => setAnnPreview("fr")}>Français</button>
+            </div>
+          </div>
+          <div className="bsf-preview-card">
+            <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 4px" }}>{audience} · {formatTimestampDate(new Date().toISOString(), fr ? "fr" : "en")}</p>
+            <p style={{ fontSize: 14, fontWeight: 500, margin: "0 0 2px" }}>{title || <span style={{ color: "#6B7578" }}>(No title yet)</span>}</p>
+            {body.trim()
+              ? <LinkedText text={body} style={{ fontSize: 13, color: "#3B4A4C", margin: 0, lineHeight: 1.6 }} />
+              : <p style={{ fontSize: 13, color: "#6B7578", margin: 0 }}>(No message yet)</p>}
+          </div>
+          {fr && !annForm.body_fr.trim() && (
+            <p className="bsf-preview-note">There is no French message yet, so French-speaking families will see the English text.</p>
+          )}
+          <p className="bsf-preview-note">Tap the links above to check they open correctly. Nothing has been posted yet.</p>
+        </div>
+      );
+    })()}
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
       <button className="bsf-btn" onClick={postAnnouncement} disabled={postingAnn}>{postingAnn ? (editingAnnId ? "Saving…" : "Posting…") : (editingAnnId ? "Save changes" : "Post announcement")}</button>
+      <button className="bsf-textbtn" onClick={() => setAnnPreview(annPreview ? null : "en")}>{annPreview ? "Hide preview" : "Preview"}</button>
       <button className="bsf-textbtn" onClick={closeAnnForm}>Cancel</button>
     </div>
   </div>
@@ -589,7 +625,7 @@ const saveLunchMenu = async () => {
           ? `${a.audience === "school" || !a.audience ? t("common.wholeSchool") : a.audience === "lower" ? t("dash.audienceLower") : a.audience === "upper" ? t("dash.audienceUpper") : gradeLabel(a.audience, language)} · ${formatTimestampDate(a.created_at, language)}`
           : `${a.audience === "school" ? "Whole school" : a.audience === "lower" ? "Lower school" : a.audience === "upper" ? "Upper school" : a.audience} · ${formatTimestampDate(a.created_at, "en")}${a.edited_at ? " · Edited" : ""}${isAdmin && a.emailed_at ? " · Emailed" : ""}`}</p>
         <p style={{ fontSize: 14, fontWeight: 500, margin: "0 0 2px" }}>{language === "fr" && a.title_fr ? a.title_fr : a.title}</p>
-        <p style={{ fontSize: 13, color: "#3B4A4C", margin: 0, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{language === "fr" && a.body_fr ? a.body_fr : a.body}</p>
+        <LinkedText text={language === "fr" && a.body_fr ? a.body_fr : a.body} style={{ fontSize: 13, color: "#3B4A4C", margin: 0, lineHeight: 1.6 }} />
         {isAdmin && (
   <div style={{ display: "flex", gap: 14, marginTop: 6 }}>
     <button className="bsf-textbtn" style={{ fontSize: 12 }} onClick={() => openEditAnnouncement(a)}>Edit</button>

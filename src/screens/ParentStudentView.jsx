@@ -5,6 +5,7 @@ import AttachmentField from "../AttachmentField";
 import { DEFAULT_SETTINGS, isStaffOnlyEvent } from "../data/constants";
 import { todayStr, formatDateLong, gradeLabel, tLabel, attendanceCountsForRange } from "../lib/format";
 import { EventRow, Modal, StudentThumb } from "../ui/common";
+import { LinkedText } from "../ui/LinkedText";
 import { StudentMessages, AbsenceNotices } from "./Messages";
 import { pending } from "../data/pending";
 import { TermReportsFamily } from "../TermReports";
@@ -178,7 +179,7 @@ function FamilyViewModal({ student, data, onClose, hideContacts = false, showMes
           <div key={a.id} className="bsf-row">
             <div>
               <strong>{a.titleEn}</strong>
-              <p style={{ whiteSpace: "pre-wrap" }}>{a.bodyEn}</p>
+              <LinkedText text={a.bodyEn} />
             </div>
           </div>
         ))}
