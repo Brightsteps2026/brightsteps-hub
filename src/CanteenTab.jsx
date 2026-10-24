@@ -622,16 +622,27 @@ export default function CanteenTab({ profile }) {
                 ) : (
                   <div style={{ maxHeight: 200, overflowY: "auto", border: `1px solid ${COLORS.line}`, borderRadius: 8 }}>
                     {paidList.map(({ s, p }) => (
+                      // Tap a paid name to open its receipt; "Edit" opens the student below.
                       <div
                         key={s.id}
-                        onClick={() => { setSelected(s); setStatus(""); }}
-                        style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "8px 10px", cursor: "pointer", fontSize: 14, background: selected?.id === s.id ? COLORS.tint : "transparent", borderBottom: "1px solid #F4EFEF" }}
+                        onClick={() => { if (p && p.receipt_no) printReceipt(p, s); else { setSelected(s); setStatus(""); } }}
+                        title={p && p.receipt_no ? "Open receipt" : ""}
+                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 10px", cursor: "pointer", fontSize: 14, background: selected?.id === s.id ? COLORS.tint : "transparent", borderBottom: "1px solid #F4EFEF" }}
                       >
                         <span>
                           <span style={{ color: COLORS.ok }}>✓ </span>{s.full_name}
                           <span style={{ color: COLORS.faint, marginLeft: 8, fontSize: 13 }}>{s.grade}</span>
                         </span>
-                        {p && <span style={{ color: COLORS.muted, fontSize: 13 }}>{tr(p.pass_type)} · {money(p.amount)}</span>}
+                        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {p && <span style={{ color: COLORS.muted, fontSize: 13 }}>{tr(p.pass_type)} · {money(p.amount)}</span>}
+                          {p && p.receipt_no && <span style={{ ...chip, padding: "3px 9px", fontSize: 12 }}>Receipt</span>}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setSelected(s); setStatus(""); }}
+                            style={{ ...chip, padding: "3px 9px", fontSize: 12, color: COLORS.muted }}
+                          >
+                            Edit
+                          </button>
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -687,9 +698,16 @@ export default function CanteenTab({ profile }) {
                         {tr(p.pass_type)} · {p.start_date} → {p.end_date} · {money(p.amount)}
                         {!p.paid && <span style={{ color: COLORS.bad }}> · unpaid</span>}
                       </span>
-                      <button onClick={() => removePass(p.id)} style={{ ...chip, borderColor: "#F09595", color: COLORS.bad, padding: "4px 10px" }}>
-                        Remove
-                      </button>
+                      <span style={{ display: "flex", gap: 6 }}>
+                        {p.paid && p.receipt_no && (
+                          <button onClick={() => printReceipt(p, selected)} style={{ ...chip, padding: "4px 10px" }}>
+                            Receipt
+                          </button>
+                        )}
+                        <button onClick={() => removePass(p.id)} style={{ ...chip, borderColor: "#F09595", color: COLORS.bad, padding: "4px 10px" }}>
+                          Remove
+                        </button>
+                      </span>
                     </div>
                   ))}
                 </div>
