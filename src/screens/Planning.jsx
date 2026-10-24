@@ -5,6 +5,7 @@ import { GRADES } from "../data/constants";
 import UnitPlanner, { STATUS, isMiddleUnit, planSubjects, openCount } from "./UnitPlanner";
 import { uid, todayStr } from "../lib/format";
 import { Field, Modal } from "../ui/common";
+import { LoadCurriculumFiles, CurriculumStandards } from "./CurriculumExtras";
 
 // "Whole school" documents appear in every grade.
 const WHOLE = "Whole school";
@@ -167,6 +168,8 @@ function PlanningTab({ data, persist, profile }) {
             </section>
           )}
 
+          {isAdmin && <LoadCurriculumFiles data={data} persist={persist} />}
+
           <section className="bsf-card">
             <h2>Grade</h2>
             <div className="bsf-chiprow">
@@ -186,6 +189,8 @@ function PlanningTab({ data, persist, profile }) {
               ))}
             </div>
           </section>
+
+          <CurriculumStandards grade={docGrade} subject={docSubjectFilter} />
 
           <section className="bsf-list">
             {filteredDocs.length === 0 && (
