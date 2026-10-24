@@ -65,6 +65,7 @@ function TimetableTab({ data, profile }) {
   const [editSlot, setEditSlot] = useState(null);
   const [editPeriod, setEditPeriod] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [showPeriods, setShowPeriods] = useState(false);
   const reload = () => setReloadKey((k) => k + 1);
 
   useEffect(() => {
@@ -176,8 +177,10 @@ function TimetableTab({ data, profile }) {
         <section className="bsf-card">
           <div className="bsf-row-head">
             <h2>Periods of the school day</h2>
-            <button className="bsf-textbtn" onClick={() => setEditPeriod({})}><Plus size={14} /> Add period</button>
+            <button className="bsf-textbtn" onClick={() => setShowPeriods(!showPeriods)}><Pencil size={14} /> {showPeriods ? "Hide" : "Edit periods"}</button>
           </div>
+          {showPeriods && <>
+          <button className="bsf-textbtn" onClick={() => setEditPeriod({})}><Plus size={14} /> Add period</button>
           {periods.length === 0 && <p className="bsf-muted">For example: Period 1, 07:45–08:30. Add breaks and lunch too. A period can apply to some days only (e.g. a Tuesday-only late period).</p>}
           {view !== "mine" && <p className="bsf-muted" style={{ fontSize: 12 }}>Showing the periods of {view}.</p>}
           {periods.filter((p) => view === "mine" || forGrade(p, view)).map((p) => (
@@ -188,6 +191,7 @@ function TimetableTab({ data, profile }) {
               </span>
             </div>
           ))}
+          </>}
         </section>
       )}
 
