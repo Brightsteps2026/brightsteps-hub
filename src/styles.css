@@ -664,3 +664,70 @@
         .bsf-photofield-preview img { width: 100%; height: 100%; object-fit: cover; }
         .bsf-photofield-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
         .bsf-resource-link { display: inline-block; color: var(--teal); font-size: 12.5px; word-break: break-all; margin-top: 4px; }
+
+        /* Family timetable (24 Oct 2026) */
+        .tt .bsf-eyebrow { margin: 4px 4px 10px; }
+        .tt-kids { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 4px 16px; }
+        .tt-kid { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px 0 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--white); color: var(--ink); font: 500 14px 'Work Sans', sans-serif; cursor: pointer; }
+        .tt-kid.active { background: var(--teal); border-color: var(--teal); color: var(--white); font-weight: 600; }
+        .tt-kid-dot { width: 32px; height: 32px; border-radius: 50%; background: var(--sand-deep); color: var(--teal); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+        .tt-kid.active .tt-kid-dot { background: var(--gold); color: var(--ink); }
+        .tt-title { font-family: 'Fraunces', serif; font-size: 32px; line-height: 1.1; font-weight: 600; letter-spacing: -0.01em; margin: 0 4px; }
+        .tt-sub { margin: 6px 4px 0; font-size: 15px; color: #6E4A50; }
+        .tt-days { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 20px 0 0; }
+        .tt-day { position: relative; height: 64px; border-radius: 16px; border: 1px solid var(--line); background: var(--white); color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; font-family: inherit; transition: transform .15s ease, box-shadow .15s ease; }
+        .tt-day:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+        .tt-day-name { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6E4A50; }
+        .tt-day-num { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 600; }
+        .tt-day.active { background: var(--teal); border-color: var(--teal); color: var(--white); box-shadow: 0 8px 18px rgba(128, 21, 36, 0.22); }
+        .tt-day.active .tt-day-name { color: #F3DADD; }
+        .tt-day-today { position: absolute; bottom: 7px; width: 5px; height: 5px; border-radius: 50%; background: var(--gold); }
+        .tt-now { margin-top: 20px; border-radius: 22px; background: var(--teal); color: var(--white); padding: 20px; box-shadow: var(--shadow-lift); }
+        .tt-now-head { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: #F3DADD; }
+        .tt-now-live { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #F0D27A; }
+        .tt-now-live span { width: 8px; height: 8px; border-radius: 50%; background: #F0D27A; }
+        .tt-now-subject { margin: 12px 0 2px; font-family: 'Fraunces', serif; font-size: 26px; font-weight: 600; }
+        .tt-now-meta { margin: 0; font-size: 14px; color: #F3DADD; }
+        .tt-now-bar { margin-top: 14px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.18); }
+        .tt-now-bar div { height: 6px; border-radius: 3px; background: var(--gold); transition: width .4s ease; }
+        .tt-now-next { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.16); display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+        .tt-now-next span { color: #F3DADD; }
+        .tt-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+        .tt-facts div { background: var(--white); border: 1px solid var(--line); border-radius: 16px; padding: 12px; min-width: 0; }
+        .tt-facts p { margin: 0; font-size: 11.5px; color: #6E4A50; font-weight: 600; }
+        .tt-facts strong { display: block; margin-top: 4px; font-family: 'Fraunces', serif; font-size: 20px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tt-facts .tt-spec { color: #6B3A6E; }
+        .tt-h2 { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 600; margin: 28px 4px 14px; }
+        .tt-line { list-style: none; margin: 0; padding: 0; }
+        .tt-line li { display: flex; gap: 12px; align-items: stretch; }
+        .tt-time { width: 46px; flex-shrink: 0; text-align: right; }
+        .tt-time strong { display: block; font-size: 14px; padding-top: 14px; }
+        .tt-time span { display: block; font-size: 12px; color: #6E4A50; margin-top: 2px; }
+        .tt-rail { width: 14px; flex-shrink: 0; position: relative; display: flex; justify-content: center; }
+        .tt-rail::before { content: ""; position: absolute; top: 0; bottom: 0; width: 2px; background: var(--line); }
+        .tt-rail i { position: relative; margin-top: 18px; width: 12px; height: 12px; border-radius: 50%; background: var(--fam); box-shadow: 0 0 0 4px var(--sand); }
+        .tt-card { flex: 1; min-width: 0; margin: 4px 0; background: var(--white); border: 1px solid var(--line); border-radius: 16px; padding: 13px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; box-shadow: var(--shadow-sm); }
+        .tt-card-subject { margin: 0; font-family: 'Fraunces', serif; font-size: 17px; font-weight: 600; }
+        .tt-card-meta { margin: 3px 0 0; font-size: 12.5px; color: #6E4A50; }
+        .tt-tag { flex-shrink: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 5px 9px; border-radius: 999px; background: var(--fam-tint); color: var(--fam); }
+        .tt-lesson.live .tt-card { border-color: var(--fam); box-shadow: 0 0 0 2px var(--fam-tint), var(--shadow-md); }
+        .tt-routine .tt-time span { padding: 9px 0; margin: 0; font-size: 12.5px; }
+        .tt-routine .tt-rail i { margin-top: 16px; width: 6px; height: 6px; background: #D9C2C6; box-shadow: none; }
+        .tt-routine p { margin: 0; padding: 9px 0; font-size: 13.5px; color: #6E4A50; }
+        .tt-routine.live p { color: var(--teal); font-weight: 600; }
+        .fam-lit { --fam: #801524; --fam-tint: #F7E6E8; }
+        .fam-math { --fam: #2F4A7F; --fam-tint: #E7ECF5; }
+        .fam-fr { --fam: #7A5B16; --fam-tint: #F6EED9; }
+        .fam-inq { --fam: #2F6040; --fam-tint: #E4EFE7; }
+        .fam-spec { --fam: #6B3A6E; --fam-tint: #F1E6F2; }
+        .fam-play { --fam: #8A6A2E; --fam-tint: #F6EFE0; }
+        .tt-week { margin-top: 28px; background: var(--white); border: 1px solid var(--line); border-radius: 20px; padding: 4px 18px 8px; }
+        .tt-week .tt-h2 { margin: 16px 0 4px; font-size: 18px; }
+        .tt-week-sub { margin: 0 0 8px; font-size: 13px; color: #6E4A50; }
+        .tt-week-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid #F3E8EA; }
+        .tt-week-row:last-child { border-bottom: none; }
+        .tt-week-row span { width: 96px; font-size: 14px; color: #6E4A50; }
+        .tt-week-row strong { flex: 1; font-size: 15px; }
+        .tt-week-row em { font-style: normal; font-size: 13px; color: #6E4A50; }
+        .tt-week-row.active strong { color: var(--teal); }
+        @media (min-width: 768px) { .tt-title { font-size: 36px; } .tt-day { height: 72px; } }

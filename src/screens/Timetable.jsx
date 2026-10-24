@@ -5,6 +5,7 @@ import { useLanguage } from "../lib/i18n";
 import { GRADES } from "../data/constants";
 import { gradeLabel } from "../lib/format";
 import { Field, Modal } from "../ui/common";
+import { FamilyTimetable } from "./FamilyTimetable";
 
 // Class timetable (Oct 2026). Tables tt_periods (the school day) and tt_slots
 // (grade x weekday x period -> subject, teacher, room). Only the admin edits.
@@ -45,7 +46,13 @@ const TT_FR = {
 const ttLabel = (text, language) => (language === "fr" && TT_FR[text]) || text;
 const todayWeekday = () => { const d = new Date().getDay(); return d >= 1 && d <= 5 ? d : 1; };
 
-function TimetableTab({ data, profile }) {
+// Families get the designed parent view; staff keep the editing screen.
+function TimetableTab(props) {
+  const r = props.profile?.role;
+  return r === "parent" || r === "student" ? <FamilyTimetable {...props} /> : <StaffTimetable {...props} />;
+}
+
+function StaffTimetable({ data, profile }) {
   const { language } = useLanguage();
   const L = (en, fr) => (language === "fr" ? fr : en);
   const role = profile?.role;
