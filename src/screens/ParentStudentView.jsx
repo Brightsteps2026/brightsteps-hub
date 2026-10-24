@@ -169,7 +169,7 @@ function FamilyViewModal({ student, data, onClose, hideContacts = false, showMes
         ))}
       </section>
 
-      <FamilyGrades student={student} />
+      <FamilyGrades student={student} terms={data?.settings?.terms} />
 
       <section className="bsf-card">
         <h2>Family updates</h2>
@@ -398,7 +398,7 @@ function ParentStudentView({ data, persist, profile }) {
             ))}
           </section>
 
-          <FamilyGrades student={activeStudent} />
+          <FamilyGrades student={activeStudent} terms={data?.settings?.terms} />
 
           <section className="bsf-card">
             <h2>{t("nav.reports")}</h2>

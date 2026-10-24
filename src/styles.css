@@ -731,3 +731,65 @@
         .tt-week-row em { font-style: normal; font-size: 13px; color: #6E4A50; }
         .tt-week-row.active strong { color: var(--teal); }
         @media (min-width: 768px) { .tt-title { font-size: 36px; } .tt-day { height: 72px; } }
+
+        /* Family grades (24 Oct 2026) */
+        .fg-full .fg-eyebrow { margin: 4px 4px 10px; }
+        .fg-kids { margin-bottom: 18px; }
+        .fg-title { font-family: 'Fraunces', serif; font-size: 32px; line-height: 1.1; font-weight: 600; letter-spacing: -0.01em; margin: 0 4px; }
+        .fg-sub { margin: 6px 4px 0; font-size: 15px; color: #6E4A50; }
+        .fg-cardhead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+        .fg-cardhead span { font-size: 13px; }
+        .fg-gap { margin-top: 14px; }
+        .fg-empty { margin-top: 18px; border-radius: 22px; background: var(--white); border: 1px solid var(--line); padding: 24px 22px; box-shadow: var(--shadow-md); display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .bsf-card .fg-empty { box-shadow: none; background: var(--sand); }
+        .fg-empty-icon { width: 64px; height: 64px; border-radius: 50%; background: var(--sand-deep); display: flex; align-items: center; justify-content: center; }
+        .fg-empty h3 { margin: 16px 0 6px; font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600; }
+        .fg-empty p { margin: 0; font-size: 14.5px; line-height: 1.5; color: #6E4A50; max-width: 420px; }
+        .fg-h2 { margin: 26px 4px 12px; font-family: 'Fraunces', serif; font-size: 20px; font-weight: 600; }
+        .bsf-card .fg-h2 { margin-left: 0; margin-right: 0; font-size: 17px; }
+        .fg-h3 { margin: 0 0 4px; font-family: 'Fraunces', serif; font-size: 18px; font-weight: 600; }
+        .fg-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        @media (min-width: 768px) { .fg-full .fg-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+        .fg-tile { background: var(--white); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 8px; text-align: left; min-width: 0; }
+        .bsf-card .fg-tile { background: var(--sand); }
+        .fg-tile i { width: 10px; height: 10px; border-radius: 50%; }
+        .fg-tile-btn { font: inherit; color: inherit; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
+        .fg-tile-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+        .fg-tile-name { margin: 0; font-family: 'Fraunces', serif; font-size: 16px; font-weight: 600; line-height: 1.25; }
+        .fg-tile-soon { margin: 0; font-size: 12.5px; color: #6E4A50; }
+        .fg-tile-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+        .fg-tile-count { font-size: 12px; color: #6E4A50; }
+        .fg-pill { font-size: 12px; font-weight: 700; padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+        .fg-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+        .fg-chip { min-height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--white); color: var(--ink); font: 500 14px 'Work Sans', sans-serif; cursor: pointer; }
+        .fg-chip.active { background: var(--teal); border-color: var(--teal); color: var(--white); font-weight: 600; }
+        .fg-results { display: flex; flex-direction: column; gap: 10px; }
+        .fg-result { background: var(--white); border: 1px solid var(--line); border-radius: 18px; padding: 16px; box-shadow: var(--shadow-sm); }
+        .bsf-card .fg-result { box-shadow: none; }
+        .fg-result-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+        .fg-result-subject { margin: 0 0 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+        .fg-result-title { margin: 0; font-family: 'Fraunces', serif; font-size: 17px; font-weight: 600; }
+        .fg-result-meta { margin: 3px 0 0; font-size: 12.5px; color: #6E4A50; }
+        .fg-badge { flex-shrink: 0; min-width: 86px; text-align: center; padding: 8px 10px; border-radius: 12px; display: flex; flex-direction: column; gap: 1px; }
+        .fg-badge strong { font-size: 15px; }
+        .fg-badge span { font-size: 12px; font-weight: 600; }
+        .fg-note { margin: 12px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--sand); font-size: 14px; line-height: 1.45; white-space: pre-line; }
+        .fg-panel { margin-top: 24px; background: var(--white); border: 1px solid var(--line); border-radius: 20px; padding: 16px 18px; }
+        .bsf-card .fg-panel { background: var(--sand); border: none; }
+        .fg-panel-text { margin: 0 0 16px; font-size: 13.5px; line-height: 1.45; color: #6E4A50; }
+        .fg-panel-label { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
+        .fg-scale { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+        .fg-scale i { height: 8px; }
+        .fg-scale .e { background: #D9C9CC; border-radius: 4px 0 0 4px; }
+        .fg-scale .d { background: #D9A93F; }
+        .fg-scale .m { background: #3E8A5A; }
+        .fg-scale .x { background: #2F4A7F; border-radius: 0 4px 4px 0; }
+        .fg-scale-labels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 10px; font-size: 12px; color: #6E4A50; }
+        .fg-scale-labels strong { display: block; color: var(--ink); font-size: 12.5px; }
+        .fg-letters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; font-size: 13px; color: #6E4A50; }
+        .fg-letters span { display: flex; align-items: center; gap: 8px; }
+        .fg-letters b { min-width: 36px; text-align: center; padding: 3px 8px; border-radius: 999px; font-size: 12px; }
+        .fg-report { margin-top: 12px; border-radius: 20px; background: var(--sand-deep); padding: 16px 18px; display: flex; gap: 14px; align-items: flex-start; }
+        .fg-report svg { flex-shrink: 0; margin-top: 2px; }
+        .fg-report-title { margin: 0; font-weight: 600; font-size: 15px; }
+        .fg-report-text { margin: 3px 0 0; font-size: 13.5px; line-height: 1.45; color: #5A3A40; }

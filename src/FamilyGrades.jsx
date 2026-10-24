@@ -1,44 +1,79 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 import { useLanguage } from "./lib/i18n";
-import { formatDateLong } from "./lib/format";
-import { COLORS, TONES, chip, chipOn, pill } from "./ui/tokens";
+import { formatDateLong, gradeLabel } from "./lib/format";
 
-// What families see of the Gradebook: only assessments the teacher ticked
-// "Share with families", one child at a time, with the teacher's comment.
-// No running average: the term grade is on the published report card.
-// Pre-N to Grade 2 (and specials) show levels; Grade 3 to 7 show the mark or letter.
+// What families see of the Gradebook (design approved by Myri, 24 Oct 2026).
+// Only assessments the teacher ticked "Share with families", one child at a time,
+// with the teacher's comment. No running average: the term grade is on the report card.
+// Pre-N to Grade 2 show levels; Grade 3 to 7 show the mark or letter.
 // Follows the Hub's language toggle (never English and French side by side).
 
 const EARLY = ["Pre-N", "PreK", "Kindergarten", "Grade 1", "Grade 2"];
+const SPECIALS = ["Art", "Music", "Physical Education", "Swimming", "Technology"];
 
 const WORDS = {
   en: {
-    title: "Grades", all: "All", none: "No results shared yet.",
-    noneHint: "Teachers share results here once they have been checked.",
-    loading: "Loading…", failed: "Results could not be loaded right now.",
-    excused: "Excused", term: (n) => `Term ${n}`,
-    note: "The term grade for each subject appears on the report card at the end of the term.",
-    earlyNote: "Levels describe progress toward end-of-term goals. “Developing” early in the term is normal.",
-    key: "What the levels mean",
+    eyebrow: "Grades", title: (n) => `${n}'s learning`, grades: "Grades",
+    shared: (n) => (n === 1 ? "1 result shared" : `${n} results shared`),
+    allSubjects: "All subjects", bySubject: "By subject", latest: "Latest results",
+    subjectsTerm: "Subjects this term", soon: "Results coming soon",
+    count: (n) => (n === 1 ? "1 result" : `${n} results`),
+    emptyTitle: "First results are on their way",
+    emptyText: (n) => `${n}'s teachers share each assessment here once it has been checked. Results will appear subject by subject as the term goes on.`,
+    howTitle: (n) => `How ${n} is assessed`,
+    howEarly: (n) => `Each result shows where ${n} is on the way to the end-of-term goal. “Developing” early in the term is normal.`,
+    howUpper: "Each result shows the mark and the letter grade it corresponds to.",
+    key: "What the levels mean", letterKey: "Letter grades",
+    reportTitle: (t) => `${t} report card`, reportTitleNoTerm: "Report card",
+    reportText: "The term grade for each subject is on the report card at the end of the term.",
+    loading: "Loading…", failed: "Results could not be loaded right now. Please try again later.",
+    excused: "Excused", term: (n) => `Term ${n}`, specials: "Specialist subjects",
     types: { quiz: "Quiz", test: "Test", informal: "Informal assessment", project: "Project", presentation: "Presentation", homework: "Homework" },
-    levels: { emerging: ["Emerging", "just starting"], developing: ["Developing", "on the way"], meeting: ["Meeting", "secure"], exceeding: ["Exceeding", "beyond"] }
+    levels: { emerging: ["Emerging", "just starting"], developing: ["Developing", "on the way"], meeting: ["Meeting", "secure"], exceeding: ["Exceeding", "beyond"] },
+    letters: [["A", "excellent"], ["B", "good"], ["C", "satisfactory"], ["D–F", "needs support"]],
+    subjects: {},
   },
   fr: {
-    title: "Résultats", all: "Tout", none: "Aucun résultat partagé pour l'instant.",
-    noneHint: "Les enseignants partagent les résultats ici une fois vérifiés.",
-    loading: "Chargement…", failed: "Les résultats n'ont pas pu être chargés pour le moment.",
-    excused: "Dispensé(e)", term: (n) => `Trimestre ${n}`,
-    note: "La note du trimestre pour chaque matière figure sur le bulletin, à la fin du trimestre.",
-    earlyNote: "Les niveaux décrivent les progrès vers les objectifs de fin de trimestre. « En cours » en début de trimestre est normal.",
-    key: "Ce que signifient les niveaux",
+    eyebrow: "Résultats", title: (n) => `Les apprentissages de ${n}`, grades: "Résultats",
+    shared: (n) => (n === 1 ? "1 résultat partagé" : `${n} résultats partagés`),
+    allSubjects: "Toutes les matières", bySubject: "Par matière", latest: "Derniers résultats",
+    subjectsTerm: "Matières ce trimestre", soon: "Résultats bientôt disponibles",
+    count: (n) => (n === 1 ? "1 résultat" : `${n} résultats`),
+    emptyTitle: "Les premiers résultats arrivent bientôt",
+    emptyText: (n) => `Les enseignants de ${n} partagent ici chaque évaluation une fois vérifiée. Les résultats apparaîtront matière par matière au fil du trimestre.`,
+    howTitle: (n) => `Comment ${n} est évalué(e)`,
+    howEarly: (n) => `Chaque résultat indique où en est ${n} par rapport à l'objectif de fin de trimestre. « En cours » en début de trimestre est normal.`,
+    howUpper: "Chaque résultat indique la note et la lettre correspondante.",
+    key: "Ce que signifient les niveaux", letterKey: "Notes en lettres",
+    reportTitle: (t) => `Bulletin du ${t.toLowerCase()}`, reportTitleNoTerm: "Bulletin",
+    reportText: "La note du trimestre pour chaque matière figure sur le bulletin, à la fin du trimestre.",
+    loading: "Chargement…", failed: "Les résultats n'ont pas pu être chargés pour le moment. Veuillez réessayer plus tard.",
+    excused: "Dispensé(e)", term: (n) => `Trimestre ${n}`, specials: "Matières de spécialité",
     types: { quiz: "Quiz", test: "Contrôle", informal: "Évaluation informelle", project: "Projet", presentation: "Présentation", homework: "Devoir" },
-    levels: { emerging: ["Émergent", "débute"], developing: ["En cours", "en progrès"], meeting: ["Atteint", "acquis"], exceeding: ["Dépassé", "au-delà"] }
-  }
+    levels: { emerging: ["Émergent", "débute"], developing: ["En cours", "en progrès"], meeting: ["Atteint", "acquis"], exceeding: ["Dépassé", "au-delà"] },
+    letters: [["A", "excellent"], ["B", "bien"], ["C", "satisfaisant"], ["D–F", "à soutenir"]],
+    subjects: {
+      "English Language Arts": "Anglais (Language Arts)", "Math": "Mathématiques", "French": "Français",
+      "Unit of Inquiry": "Unité de recherche", "Art": "Arts plastiques", "Music": "Musique",
+      "Physical Education": "Éducation physique", "Swimming": "Natation", "Technology": "Technologie",
+      "Science": "Sciences", "Humanities": "Sciences humaines",
+    },
+  },
 };
 
-const LEVEL_TONE = { emerging: TONES.neutral, developing: TONES.warn, meeting: TONES.ok, exceeding: TONES.info };
-const LEVEL_SHORT = { emerging: "E", developing: "D", meeting: "M", exceeding: "Ex" };
+const SUBJECT_COLOR = {
+  "English Language Arts": "#801524", "Math": "#2F4A7F", "French": "#7A5B16",
+  "Unit of Inquiry": "#2F6040", "Science": "#2F6040", "Humanities": "#2F6040",
+};
+const subjectColor = (s) => SUBJECT_COLOR[s] || (SPECIALS.includes(s) ? "#6B3A6E" : "#8A6A2E");
+
+const LEVEL_TONE = {
+  emerging: { bg: "#F1E9EA", fg: "#5A3A40" }, developing: { bg: "#FBF0D6", fg: "#7A5B16" },
+  meeting: { bg: "#E3F1E8", fg: "#2F6040" }, exceeding: { bg: "#E7ECF5", fg: "#2F4A7F" },
+};
+const NEUTRAL = { bg: "#F1E9EA", fg: "#5A3A40" };
+const letterTone = (l) => (!l ? NEUTRAL : l[0] === "A" ? LEVEL_TONE.exceeding : l[0] === "B" ? LEVEL_TONE.meeting : l[0] === "C" ? LEVEL_TONE.developing : { bg: "#F8E4E4", fg: "#8A2A2A" });
 
 // Same scale as the database (gb_letter).
 function letterFor(pct) {
@@ -46,12 +81,39 @@ function letterFor(pct) {
   for (const [min, l] of steps) if (pct >= min) return l;
   return "F";
 }
-const letterTone = (l) => (!l ? TONES.neutral : l[0] === "A" || l[0] === "B" ? TONES.ok : l[0] === "C" ? TONES.warn : TONES.bad);
 
-export function FamilyGrades({ student }) {
+// Subjects a class has this year (before any result is shared).
+function baseSubjects(grade) {
+  if (grade === "Grade 6" || grade === "Grade 7") return ["English Language Arts", "Math", "French", "Science", "Humanities"];
+  if (grade === "Pre-N") return ["English Language Arts", "Math", "Unit of Inquiry"];
+  return ["English Language Arts", "Math", "French", "Unit of Inquiry"];
+}
+
+function currentTermName(terms) {
+  const today = new Date().toISOString().slice(0, 10);
+  const list = (terms || []).filter((t) => t.startDate && t.endDate);
+  const now = list.find((t) => t.startDate <= today && today <= t.endDate);
+  return (now || list.find((t) => t.startDate > today))?.name || null;
+}
+
+const firstName = (s) => ((s?.name || s?.firstName || "").trim().split(/\s+/)[0]) || "";
+
+const BookIcon = () => (
+  <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#801524" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6" /><path d="M9 17h4" />
+  </svg>
+);
+
+export function FamilyGrades({ student, terms, full = false }) {
   const { language } = useLanguage();
-  const w = WORDS[language === "fr" ? "fr" : "en"];
+  const fr = language === "fr";
+  const w = WORDS[fr ? "fr" : "en"];
+  const sub = (s) => w.subjects[s] || s;
   const early = EARLY.includes(student?.grade);
+  const name = firstName(student);
+  const termName = currentTermName(terms);
+  const termLabel = termName && fr ? termName.replace(/^Term/, "Trimestre") : termName;
+
   const [rows, setRows] = useState(null);
   const [failed, setFailed] = useState(false);
   const [subject, setSubject] = useState(null);
@@ -62,22 +124,28 @@ export function FamilyGrades({ student }) {
     setRows(null); setFailed(false); setSubject(null);
     supabase.rpc("gb_family_results", { p_student: student.id }).then(({ data, error }) => {
       if (!live) return;
-      if (error) { setFailed(true); setRows([]); return; }
+      if (error) { console.error(error); setFailed(true); setRows([]); return; }
       setRows(data || []);
     });
     return () => { live = false; };
   }, [student?.id]);
 
-  const subjects = useMemo(() => [...new Set((rows || []).map((r) => r.subject))], [rows]);
-  const shown = (rows || []).filter((r) => !subject || r.subject === subject);
-  const bySubject = subjects.filter((s) => !subject || s === subject).map((s) => ({ s, items: shown.filter((r) => r.subject === s) }));
-  const anyLevels = (rows || []).some((r) => r.grading === "level");
+  const list = rows || [];
+  const usesLevels = early || list.some((r) => r.grading === "level");
+  const resultSubjects = useMemo(() => [...new Set(list.map((r) => r.subject))], [rows]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tiles = [...new Set([...baseSubjects(student?.grade), ...resultSubjects])]
+    .map((s) => {
+      const items = list.filter((r) => r.subject === s);
+      return { s, items, latest: items[0] };
+    });
+  if (!resultSubjects.some((s) => SPECIALS.includes(s))) tiles.push({ s: w.specials, items: [], latest: null, group: true });
+  const shown = list.filter((r) => !subject || r.subject === subject);
 
   function result(r) {
-    if (r.excused) return { big: w.excused, small: "", tone: TONES.neutral };
+    if (r.excused) return { big: w.excused, small: "", tone: NEUTRAL };
     if (r.grading === "level") {
       const lv = w.levels[r.level];
-      return { big: lv ? lv[0] : "", small: "", tone: LEVEL_TONE[r.level] || TONES.neutral, level: true };
+      return { big: lv ? lv[0] : "—", small: "", tone: LEVEL_TONE[r.level] || NEUTRAL };
     }
     if (r.grading === "letter") return { big: r.letter, small: "", tone: letterTone(r.letter) };
     const max = Number(r.max_points);
@@ -86,89 +154,182 @@ export function FamilyGrades({ student }) {
     return { big: `${pts}/${max}`, small: l, tone: letterTone(l) };
   }
 
-  return (
-    <section className="bsf-card">
-      <h2>{w.title}</h2>
+  const head = full ? (
+    <>
+      <p className="bsf-eyebrow fg-eyebrow">{w.eyebrow}</p>
+      <h1 className="fg-title">{w.title(name)}</h1>
+      <p className="fg-sub">{[gradeLabel(student?.grade, language), termLabel, list.length ? w.shared(list.length) : null].filter(Boolean).join(" · ")}</p>
+    </>
+  ) : (
+    <div className="fg-cardhead">
+      <h2>{w.grades}</h2>
+      {list.length > 0 && <span className="bsf-muted">{w.shared(list.length)}</span>}
+    </div>
+  );
 
-      {rows === null && <p className="bsf-empty">{w.loading}</p>}
-      {rows !== null && failed && <p className="bsf-empty">{w.failed}</p>}
+  const levelKey = (
+    <div className="fg-panel">
+      {rows && rows.length === 0 ? (
+        <>
+          <h3 className="fg-h3">{w.howTitle(name)}</h3>
+          <p className="fg-panel-text">{usesLevels ? w.howEarly(name) : w.howUpper}</p>
+        </>
+      ) : (
+        <p className="fg-panel-label">{usesLevels ? w.key : w.letterKey}</p>
+      )}
+      {usesLevels ? (
+        <>
+          <div className="fg-scale"><i className="e" /><i className="d" /><i className="m" /><i className="x" /></div>
+          <div className="fg-scale-labels">
+            {["emerging", "developing", "meeting", "exceeding"].map((id) => (
+              <span key={id}><strong>{w.levels[id][0]}</strong>{w.levels[id][1]}</span>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="fg-letters">
+          {w.letters.map(([l, d], i) => (
+            <span key={l}><b style={{ background: [LEVEL_TONE.exceeding, LEVEL_TONE.meeting, LEVEL_TONE.developing, { bg: "#F8E4E4", fg: "#8A2A2A" }][i].bg, color: [LEVEL_TONE.exceeding, LEVEL_TONE.meeting, LEVEL_TONE.developing, { bg: "#F8E4E4", fg: "#8A2A2A" }][i].fg }}>{l}</b>{d}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const report = (
+    <div className="fg-report">
+      <BookIcon />
+      <div>
+        <p className="fg-report-title">{termLabel ? w.reportTitle(termLabel) : w.reportTitleNoTerm}</p>
+        <p className="fg-report-text">{w.reportText}</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <section className={`fg ${full ? "fg-full" : "bsf-card"}`}>
+      {head}
+
+      {rows === null && <p className="bsf-muted fg-gap">{w.loading}</p>}
+      {rows !== null && failed && <p className="bsf-formerror fg-gap">{w.failed}</p>}
+
       {rows !== null && !failed && rows.length === 0 && (
         <>
-          <p className="bsf-empty">{w.none}</p>
-          <p className="bsf-muted" style={{ marginTop: 4 }}>{w.noneHint}</p>
+          <div className="fg-empty">
+            <div className="fg-empty-icon">
+              <svg aria-hidden="true" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#801524" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20V10" /><path d="M12 10c0-3 2.5-5.5 6-5.5 0 3.5-2.5 5.5-6 5.5z" /><path d="M12 13c0-2.5-2-4.5-5-4.5 0 2.8 2 4.5 5 4.5z" /><path d="M7 20h10" />
+              </svg>
+            </div>
+            <h3>{w.emptyTitle}</h3>
+            <p>{w.emptyText(name)}</p>
+          </div>
+          <h3 className="fg-h2">{w.subjectsTerm}</h3>
+          <div className="fg-tiles">
+            {tiles.map((t) => (
+              <div key={t.s} className="fg-tile">
+                <i style={{ background: t.group ? "#6B3A6E" : subjectColor(t.s) }} />
+                <p className="fg-tile-name">{t.group ? t.s : sub(t.s)}</p>
+                <p className="fg-tile-soon">{w.soon}</p>
+              </div>
+            ))}
+          </div>
+          {levelKey}
+          {report}
         </>
       )}
 
       {rows && rows.length > 0 && (
         <>
-          {subjects.length > 1 && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "4px 0 14px" }}>
-              <button onClick={() => setSubject(null)} style={subject === null ? chipOn : chip}>{w.all}</button>
-              {subjects.map((s) => <button key={s} onClick={() => setSubject(s)} style={subject === s ? chipOn : chip}>{s}</button>)}
+          {resultSubjects.length > 1 && (
+            <div className="fg-chips">
+              <button className={`fg-chip ${subject === null ? "active" : ""}`} onClick={() => setSubject(null)}>{w.allSubjects}</button>
+              {resultSubjects.map((s) => (
+                <button key={s} className={`fg-chip ${subject === s ? "active" : ""}`} onClick={() => setSubject(s)}>{sub(s)}</button>
+              ))}
             </div>
           )}
 
-          {(early || anyLevels) && (
-            <div style={{ border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{w.key}</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, fontSize: 12, lineHeight: 1.35 }}>
-                {Object.keys(LEVEL_SHORT).map((id) => (
-                  <div key={id} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <span style={{ ...pill(LEVEL_TONE[id]), fontWeight: 700 }}>{LEVEL_SHORT[id]}</span>
-                    <span>{w.levels[id][0]}: {w.levels[id][1]}</span>
-                  </div>
-                ))}
+          {!subject && (
+            <>
+              <h3 className="fg-h2">{w.bySubject}</h3>
+              <div className="fg-tiles">
+                {tiles.map((t) => {
+                  const res = t.latest ? result(t.latest) : null;
+                  const clickable = t.items.length > 0;
+                  const body = (
+                    <>
+                      <i style={{ background: t.group ? "#6B3A6E" : subjectColor(t.s) }} />
+                      <p className="fg-tile-name">{t.group ? t.s : sub(t.s)}</p>
+                      {res ? (
+                        <div className="fg-tile-row">
+                          <span className="fg-pill" style={{ background: res.tone.bg, color: res.tone.fg }}>{res.small ? `${res.big} · ${res.small}` : res.big}</span>
+                          <span className="fg-tile-count">{w.count(t.items.length)}</span>
+                        </div>
+                      ) : <p className="fg-tile-soon">{w.soon}</p>}
+                    </>
+                  );
+                  return clickable
+                    ? <button key={t.s} className="fg-tile fg-tile-btn" onClick={() => setSubject(t.s)}>{body}</button>
+                    : <div key={t.s} className="fg-tile">{body}</div>;
+                })}
               </div>
-            </div>
+            </>
           )}
 
-          {bySubject.map(({ s, items }) => (
-            <div key={s} style={{ marginBottom: 16 }}>
-              <h3 className="bsf-subheading" style={{ margin: "0 0 8px" }}>{s}</h3>
-              {items.map((r) => {
-                const res = result(r);
-                const meta = [w.types[r.assess_type] || "", r.assessed_on ? formatDateLong(r.assessed_on, language) : "", w.term(r.term)].filter(Boolean).join(" · ");
-                return (
-                  <div key={r.assessment_id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 0", borderTop: `1px solid ${COLORS.line}` }}>
-                    <div style={{ flex: "0 0 auto", minWidth: 62, textAlign: "center", padding: "8px 6px", borderRadius: 10, background: res.tone.bg, color: res.tone.fg }}>
-                      <div style={{ fontWeight: 700, fontSize: res.level ? 13 : 16 }}>{res.big}</div>
-                      {res.small && <div style={{ fontSize: 12 }}>{res.small}</div>}
-                    </div>
+          <h3 className="fg-h2">{subject ? sub(subject) : w.latest}</h3>
+          <div className="fg-results">
+            {shown.map((r) => {
+              const res = result(r);
+              const meta = [w.types[r.assess_type] || "", r.assessed_on ? formatDateLong(r.assessed_on, language) : "", w.term(r.term)].filter(Boolean).join(" · ");
+              return (
+                <article key={r.assessment_id} className="fg-result">
+                  <div className="fg-result-top">
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 600 }}>{r.title}</div>
-                      <div className="bsf-muted" style={{ fontSize: 12 }}>{meta}</div>
-                      {r.note && <p style={{ margin: "4px 0 0", fontSize: 14, lineHeight: 1.45, whiteSpace: "pre-line" }}>{r.note}</p>}
+                      {!subject && <p className="fg-result-subject" style={{ color: subjectColor(r.subject) }}>{sub(r.subject)}</p>}
+                      <p className="fg-result-title">{r.title}</p>
+                      <p className="fg-result-meta">{meta}</p>
+                    </div>
+                    <div className="fg-badge" style={{ background: res.tone.bg, color: res.tone.fg }}>
+                      <strong>{res.big}</strong>
+                      {res.small && <span>{res.small}</span>}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          ))}
+                  {r.note && <p className="fg-note">{r.note}</p>}
+                </article>
+              );
+            })}
+          </div>
+          {levelKey}
+          {report}
         </>
       )}
-
-      <div style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "12px 14px", borderRadius: 12, background: COLORS.tint, marginTop: 6 }}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={COLORS.brand} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: "0 0 auto", marginTop: 1 }}>
-          <circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" />
-        </svg>
-        <span style={{ fontSize: 13, lineHeight: 1.45 }}>{early ? w.earlyNote : w.note}</span>
-      </div>
     </section>
   );
 }
 
-// The family "Assessment" tab: one block per linked child.
+// The family "Assessment" tab: one child at a time, with a switcher for families with several.
 export function FamilyGradesTab({ data, profile }) {
   const ids = profile?.student_ids || [];
   const kids = (data?.students || []).filter((s) => ids.includes(s.id));
+  const [active, setActive] = useState(kids[0]?.id || null);
+  const kid = kids.find((k) => k.id === active) || kids[0];
+  if (!kid) return null;
   return (
-    <>
-      {kids.map((k) => (
-        <div key={k.id}>
-          {kids.length > 1 && <p className="bsf-muted" style={{ margin: "8px 0 6px", fontWeight: 600 }}>{k.name || k.firstName || ""}</p>}
-          <FamilyGrades student={k} />
+    <div className="bsf-screen">
+      {kids.length > 1 && (
+        <div className="tt-kids fg-kids">
+          {kids.map((k) => {
+            const n = firstName(k);
+            return (
+              <button key={k.id} className={`tt-kid ${k.id === kid.id ? "active" : ""}`} onClick={() => setActive(k.id)}>
+                <span className="tt-kid-dot">{n.charAt(0).toUpperCase()}</span>{n}
+              </button>
+            );
+          })}
         </div>
-      ))}
-    </>
+      )}
+      <FamilyGrades key={kid.id} student={kid} terms={data?.settings?.terms} full />
+    </div>
   );
 }
