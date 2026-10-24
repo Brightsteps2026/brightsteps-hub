@@ -17,6 +17,32 @@ function dayName(d, language, style = "long") {
   return new Date(2024, 0, d).toLocaleDateString(language === "fr" ? "fr-FR" : "en-GB", { weekday: style });
 }
 const hhmm = (t) => (t || "").slice(0, 5);
+
+// Each class runs on its own clock (Master Schedule 2026-2027): a period with
+// grades set belongs to those classes only; no grades = every class.
+const forGrade = (p, g) => !(p.grades || []).length || (p.grades || []).includes(g);
+
+// French for the subjects and routines in the master schedule (display only;
+// anything not listed is shown as saved).
+const TT_FR = {
+  "English Language Arts": "Anglais (Language Arts)", "Math": "Mathématiques", "French": "Français",
+  "Unit of Inquiry": "Unité de recherche", "Physical Education": "Éducation physique", "Art": "Arts plastiques",
+  "Music": "Musique", "Technology": "Technologie", "Swimming": "Natation", "Swimming and changing": "Natation et vestiaire",
+  "Phonics": "Phonétique", "Reading and phonics": "Lecture et phonétique", "Independent reading": "Lecture autonome",
+  "Science": "Sciences", "Humanities": "Sciences humaines", "Interdisciplinary Inquiry": "Recherche interdisciplinaire",
+  "SEL / Life Skills": "Compétences socio-émotionnelles et vie pratique", "Sensory play": "Jeux sensoriels",
+  "Sensory and construction play": "Jeux sensoriels et de construction", "Recess": "Récréation",
+  "Arrival, gardening and animal care": "Arrivée, jardinage et soin des animaux", "Greeting songs and circle": "Chansons d'accueil et regroupement",
+  "Morning circle": "Regroupement du matin", "Morning meeting": "Réunion du matin", "Snack and hand-washing": "Goûter et lavage des mains",
+  "Changing and transition": "Change et transition", "Transition": "Transition", "Morning break": "Pause du matin",
+  "Tidy-up and hand-washing": "Rangement et lavage des mains", "Lunch (served 11:20)": "Déjeuner (servi à 11 h 20)",
+  "Lunch (served 11:50)": "Déjeuner (servi à 11 h 50)", "Lunch (served 12:15)": "Déjeuner (servi à 12 h 15)",
+  "Soft, calm play indoors": "Jeux calmes à l'intérieur", "Toileting and settling for rest": "Toilettes et installation pour la sieste",
+  "Settling for rest": "Installation pour la sieste", "Rest / nap": "Repos / sieste", "Wake-up and care routines": "Réveil et soins",
+  "Wake-up, story and care routines": "Réveil, histoire et soins", "Care routines and dismissal": "Soins et départ",
+  "Reflection and dismissal": "Bilan et départ", "Organization, reflection and dismissal": "Organisation, bilan et départ",
+};
+const ttLabel = (text, language) => (language === "fr" && TT_FR[text]) || text;
 const todayWeekday = () => { const d = new Date().getDay(); return d >= 1 && d <= 5 ? d : 1; };
 
 function TimetableTab({ data, profile }) {
@@ -35,7 +61,7 @@ function TimetableTab({ data, profile }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [day, setDay] = useState(todayWeekday());
-  const [view, setView] = useState(isTeacher ? "mine" : isFamily ? familyGrades[0] || null : GRADES[0]);
+  const [view, setView] = useState(isTeacher ? ([...(Array.isArray(profile?.grades_assigned) ? profile.grades_assigned : []), ...(Array.isArray(profile?.assigned_grades) ? profile.assigned_grades : [])].find((g) => GRADES.includes(g)) || "mine") : isFamily ? familyGrades[0] || null : GRADES[0]);
   const [editSlot, setEditSlot] = useState(null);
   const [editPeriod, setEditPeriod] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -63,7 +89,9 @@ function TimetableTab({ data, profile }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadKey]);
 
-  const dayPeriods = periods.filter((p) => (p.days || []).includes(day));
+  const dayPeriods = periods
+    .filter((p) => (p.days || []).includes(day) && (view === "mine" || forGrade(p, view)))
+    .sort((a, b) => (a.start_time < b.start_time ? -1 : a.start_time > b.start_time ? 1 : 0));
   const viewChoices = isFamily ? familyGrades : [...(isTeacher ? ["mine"] : []), ...GRADES];
 
   const rows = useMemo(() => dayPeriods.map((p) => {
@@ -72,7 +100,7 @@ function TimetableTab({ data, profile }) {
       return { p, items: mine };
     }
     return { p, items: slots.filter((s) => s.weekday === day && s.period_id === p.id && s.grade === view) };
-  }), [dayPeriods, slots, day, view, profile?.id]);
+  }).filter((r) => view !== "mine" || r.items.length > 0), [dayPeriods, slots, day, view, profile?.id]);
 
   const viewLabel = (v) => (v === "mine" ? "My timetable" : isFamily ? gradeLabel(v, language) : v);
 
@@ -116,11 +144,10 @@ function TimetableTab({ data, profile }) {
             <div key={p.id} style={{ display: "flex", gap: 14, padding: "12px 0", borderBottom: "1px solid #F0E8E2", alignItems: "flex-start" }}>
               <div style={{ width: 92, flexShrink: 0 }}>
                 <strong style={{ fontSize: 13 }}>{hhmm(p.start_time)}–{hhmm(p.end_time)}</strong>
-                <div className="bsf-muted" style={{ fontSize: 12 }}>{p.label}</div>
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 {p.kind === "break" ? (
-                  <span className="bsf-muted">{p.label}</span>
+                  <span className="bsf-muted">{ttLabel(p.label, language)}</span>
                 ) : items.length === 0 ? (
                   isAdmin && view !== "mine"
                     ? <button className="bsf-textbtn" onClick={() => setEditSlot({ grade: view, weekday: day, period_id: p.id })}><Plus size={14} /> Add lesson</button>
@@ -132,7 +159,7 @@ function TimetableTab({ data, profile }) {
                       className={isAdmin ? "bsf-clickable" : ""}
                       onClick={() => { if (isAdmin) setEditSlot(s); }}
                     >
-                      <strong>{s.subject || "—"}</strong>
+                      <strong>{s.subject ? ttLabel(s.subject, language) : "—"}</strong>
                       <div className="bsf-muted" style={{ fontSize: 13 }}>
                         {[view === "mine" ? s.grade : null, !isFamily && s.teacher_id ? names[s.teacher_id] : null, s.room].filter(Boolean).join(" · ")}
                       </div>
@@ -152,7 +179,8 @@ function TimetableTab({ data, profile }) {
             <button className="bsf-textbtn" onClick={() => setEditPeriod({})}><Plus size={14} /> Add period</button>
           </div>
           {periods.length === 0 && <p className="bsf-muted">For example: Period 1, 07:45–08:30. Add breaks and lunch too. A period can apply to some days only (e.g. a Tuesday-only late period).</p>}
-          {periods.map((p) => (
+          {view !== "mine" && <p className="bsf-muted" style={{ fontSize: 12 }}>Showing the periods of {view}.</p>}
+          {periods.filter((p) => view === "mine" || forGrade(p, view)).map((p) => (
             <div key={p.id} className="bsf-clickable" style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #F0E8E2" }} onClick={() => setEditPeriod(p)}>
               <span><strong>{p.label}</strong> <span className="bsf-muted">{hhmm(p.start_time)}–{hhmm(p.end_time)}{p.kind === "break" ? " · break" : ""}</span></span>
               <span className="bsf-muted" style={{ fontSize: 12 }}>
@@ -167,7 +195,7 @@ function TimetableTab({ data, profile }) {
         <SlotForm slot={editSlot} names={names} onClose={() => setEditSlot(null)} onSaved={() => { setEditSlot(null); reload(); }} />
       )}
       {editPeriod && (
-        <PeriodForm period={editPeriod} count={periods.length} onClose={() => setEditPeriod(null)} onSaved={() => { setEditPeriod(null); reload(); }} />
+        <PeriodForm period={editPeriod} grade={view === "mine" ? null : view} count={periods.length} onClose={() => setEditPeriod(null)} onSaved={() => { setEditPeriod(null); reload(); }} />
       )}
     </div>
   );
@@ -237,7 +265,7 @@ function SlotForm({ slot, names, onClose, onSaved }) {
   );
 }
 
-function PeriodForm({ period, count, onClose, onSaved }) {
+function PeriodForm({ period, grade, count, onClose, onSaved }) {
   const [label, setLabel] = useState(period.label || "");
   const [start, setStart] = useState(hhmm(period.start_time) || "");
   const [end, setEnd] = useState(hhmm(period.end_time) || "");
@@ -255,7 +283,7 @@ function PeriodForm({ period, count, onClose, onSaved }) {
     const row = { label: label.trim(), start_time: start, end_time: end, kind, days: DAYS.filter((d) => days.includes(d)), sort: period.sort ?? count };
     const res = period.id
       ? await supabase.from("tt_periods").update(row).eq("id", period.id)
-      : await supabase.from("tt_periods").insert(row);
+      : await supabase.from("tt_periods").insert({ ...row, grades: grade ? [grade] : null });
     setSaving(false);
     if (res.error) { console.error(res.error); setError("Could not save. Please try again."); return; }
     onSaved();
