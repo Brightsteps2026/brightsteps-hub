@@ -87,7 +87,7 @@ function BrightStepsHubInner() {
       };
   const myLinkedStudent = isStudent ? data.students.find((s) => (profile.student_ids || [])[0] === s.id) : null;
   const isUpperStudent = !!myLinkedStudent && GRADES.indexOf(myLinkedStudent.grade) >= GRADES.indexOf("Grade 3");
-  const PARENT_HIDDEN_TABS = ["standards", "weekly", "checkin", "leave", "classes", "staff", "admissions", "behavior", "accreditation", "planning", "gradebook"];
+  const PARENT_HIDDEN_TABS = ["standards", "weekly", "checkin", "leave", "classes", "staff", "admissions", "behavior", "accreditation", "planning", "gradebook", "timetable"]; // timetable: hidden from families until Myri approves (24 Oct 2026)
   const ADMIN_ONLY_TABS = ["accreditation","staff","admissions"];
   // Only admin and the accountant role can see billing, everyone else is blocked outright.
   const BILLING_ALLOWED_ROLES = ["admin", "accountant", "viewer"];
@@ -102,7 +102,7 @@ function BrightStepsHubInner() {
   const isRestrictedTeacher = profile?.role === "teacher" && profile?.limited_access === true;
   // Pre-N through Grade 2: reflections only. Grade 3 and up: can also see (not edit)
   // their own attendance and grades.
-  const STUDENT_ALLOWED_TABS = isUpperStudent ? ["portfolio", "attendance", "gradebook", "assignments", "timetable", "assessment", "messages"] : ["portfolio"];
+  const STUDENT_ALLOWED_TABS = isUpperStudent ? ["portfolio", "attendance", "gradebook", "assignments", "assessment", "messages"] : ["portfolio"];
   const unreadThreads = useUnreadThreads(profile, data);
   // Phone notifications: re-confirm this phone with the server each time the Hub opens.
   useEffect(() => { if (profile?.id) resyncPush(); }, [profile?.id]);
