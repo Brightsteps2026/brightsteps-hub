@@ -8,7 +8,7 @@ import { Modal } from "./ui/common";
 import { COLORS, FONT, TONES, card as cardToken, chip, chipOn, primaryBtn, ghostBtn, input, pill } from "./ui/tokens";
 import { SCHOOL_YEAR, EARLY, SUBJECTS, SPECIALS, COMMENT_GRADES, termFor, termLevelFor } from "./SchoolGradebook";
 import { isEarlyYears } from "./data/earlyYears";
-import { EarlyYearsDocument, EarlyYearsEditor, earlyYearsDefaults } from "./EarlyYearsReport";
+import { EarlyYearsDocument, EarlyYearsEditor, earlyYearsDefaults, periodText } from "./EarlyYearsReport";
 
 // Term report cards, built from the Gradebook (gb_* tables) and saved in
 // term_reports (see supabase/term-reports.sql).
@@ -33,6 +33,7 @@ const serif = "'Fraunces', serif";
 const W = {
   en: {
     title: (t) => `Term ${t} progress report`,
+    progress: "Progress report",
     tagline: "Grand-Bassam, Côte d'Ivoire · Inquiry-based learning",
     homeroom: "Homeroom",
     studentId: "ID",
@@ -59,6 +60,7 @@ const W = {
   },
   fr: {
     title: (t) => `Bulletin du trimestre ${t}`,
+    progress: "Bulletin de progression",
     tagline: "Grand-Bassam, Côte d'Ivoire · Apprentissage par investigation",
     homeroom: "Enseignant(e) principal(e)",
     studentId: "N°",
@@ -175,7 +177,14 @@ function attendanceFor(hubId, attendance, dates) {
 
 // Builds the snapshot saved in term_reports.content. `keep` is the previous
 // content: the photos chosen and the principal's comment are kept on refresh.
-function buildContent(stu, grade, term, src, data, keep) {
+// A leaving progress report (`leaving` = { date }) only covers the term
+// up to the child's last day: later assessments and attendance are left out.
+// Pass leaving = undefined to keep what was there, null to turn it off.
+function buildContent(stu, grade, term, srcAll, data, keep, leavingOpt) {
+  const leaving = leavingOpt === undefined ? keep?.leaving || null : leavingOpt;
+  const src = leaving?.date
+    ? { ...srcAll, assessments: srcAll.assessments.filter((a) => !a.assessed_on || a.assessed_on <= leaving.date) }
+    : srcAll;
   const hub = (data?.students || []).find((s) => s.id === stu.legacy_id);
   const early = EARLY.includes(grade);
   const subjects = Array.from(new Set([
@@ -204,7 +213,8 @@ function buildContent(stu, grade, term, src, data, keep) {
     .map((k) => ({ area: k.area, en: k.name_en, fr: k.name_fr, rating: src.ratings.find((r) => r.student_id === stu.id && r.skill_id === k.id)?.rating || null }))
     .filter((k) => k.rating);
 
-  const dates = termDates(data?.settings, term);
+  const termRange = termDates(data?.settings, term);
+  const dates = leaving?.date && (!termRange.end || leaving.date < termRange.end) ? { ...termRange, end: leaving.date } : termRange;
   const homeroomNote = (src.notes.find((n) => n.student_id === stu.id)?.note || "").trim() || null;
   const early_years = isEarlyYears(grade)
     ? {
@@ -217,6 +227,7 @@ function buildContent(stu, grade, term, src, data, keep) {
   return {
     ...early_years,
     version: 1,
+    leaving,
     builtAt: new Date().toISOString(),
     student: {
       name: stu.full_name || hub?.name || "",
@@ -333,7 +344,10 @@ function StandardReportDocument({ report, lang, logoUrl }) {
             {photos[c.student?.photoPath] && <img src={photos[c.student.photoPath]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p className="bs-trc-label" style={{ margin: 0 }}>{w.title(report.term)} · {report.school_year.replace("-", "–")}</p>
+            <p className="bs-trc-label" style={{ margin: 0 }}>
+              {c.leaving ? w.progress : w.title(report.term)} · {report.school_year.replace("-", "–")}
+              {c.leaving && c.period?.start && c.period?.end ? ` · ${periodText(c.period, lang)}` : ""}
+            </p>
             <h3 style={{ fontFamily: serif, fontSize: 24, fontWeight: 500, margin: "2px 0 3px" }}>{c.student?.name}</h3>
             <p style={{ margin: 0, fontSize: 13, color: COLORS.text2 }}>
               {gradeLabel(report.grade, lang)}
@@ -513,6 +527,7 @@ function TermReportsStaff({ profile, data }) {
   const [error, setError] = useState("");
   const [openId, setOpenId] = useState(null);
   const [printLang, setPrintLang] = useState("en");
+  const [leavingForm, setLeavingForm] = useState(null); // { studentId, date } while the admin fills it in
   const canEdit = editGrades.includes(grade);
   const dates = termDates(data?.settings, term);
 
@@ -535,10 +550,11 @@ function TermReportsStaff({ profile, data }) {
     setReports(map);
     setLoading(false);
   };
-  useEffect(() => { load(); setStatus(""); setOpenId(null); }, [grade, term]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); setStatus(""); setOpenId(null); setLeavingForm(null); }, [grade, term]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Make or refresh drafts. Published report cards are never touched here.
-  const build = async (onlyStudentId = null) => {
+  // leaving: undefined = keep as is; { date } = make a leaving progress report; null = back to a normal term report.
+  const build = async (onlyStudentId = null, leaving = undefined) => {
     setBusy(true); setStatus(""); setError("");
     try {
       const src = await loadClassSources(grade, term);
@@ -554,7 +570,7 @@ function TermReportsStaff({ profile, data }) {
       for (const s of targets) {
         const existing = latest[s.id] || reports[s.id];
         if (existing?.status === "published") { skipped += 1; continue; }
-        const content = buildContent(s, grade, term, src, data, existing?.content);
+        const content = buildContent(s, grade, term, src, data, existing?.content, onlyStudentId ? leaving : undefined);
         if (existing) {
           const { error: e } = await supabase.from("term_reports").update({ content }).eq("id", existing.id);
           if (e) throw e;
@@ -569,6 +585,12 @@ function TermReportsStaff({ profile, data }) {
         made = inserts.length;
       }
       await load();
+      if (onlyStudentId && leaving) {
+        setStatus(skipped ? "This child's Term report card is already published. Unpublish it first." : "Leaving progress report ready. Print it from the report card.");
+        const made = (await supabase.from("term_reports").select("id").eq("student_id", onlyStudentId).eq("term", term).eq("school_year", SCHOOL_YEAR).maybeSingle()).data;
+        if (made && !skipped) setOpenId(made.id);
+        return;
+      }
       setStatus([
         made ? `${made} draft${made > 1 ? "s" : ""} made` : null,
         refreshed ? `${refreshed} refreshed from the Gradebook` : null,
@@ -612,8 +634,10 @@ function TermReportsStaff({ profile, data }) {
 
   if (!viewGrades.length) return null;
 
-  const drafts = Object.values(reports).filter((r) => r.status === "draft");
-  const publishedCount = Object.values(reports).length - drafts.length;
+  // Leaving progress reports are print only: never published to families.
+  const drafts = Object.values(reports).filter((r) => r.status === "draft" && !r.content?.leaving);
+  const leavingCount = Object.values(reports).filter((r) => r.content?.leaving).length;
+  const publishedCount = Object.values(reports).filter((r) => r.status === "published").length;
   const open = openId ? Object.values(reports).find((r) => r.id === openId) : null;
 
   return (
@@ -658,6 +682,40 @@ function TermReportsStaff({ profile, data }) {
             )}
           </div>
         )}
+        {isAdmin && (
+          <div style={{ marginTop: 12 }}>
+            {!leavingForm ? (
+              <button style={ghostBtn} disabled={busy || !students.length}
+                onClick={() => setLeavingForm({ studentId: "", date: new Date().toISOString().slice(0, 10) })}>
+                Progress report for a leaving child
+              </button>
+            ) : (
+              <div style={{ background: COLORS.surface2, borderRadius: 8, padding: 12, display: "grid", gap: 10 }}>
+                <p style={{ margin: 0, fontSize: 13, color: COLORS.muted }}>
+                  Built from the Gradebook from the start of Term {term} up to the child's last day. Print only: families won't see it on the Hub.
+                </p>
+                <label style={{ fontSize: 13, color: COLORS.muted }}>Child
+                  <select style={{ ...input, marginTop: 4 }} value={leavingForm.studentId} onChange={(e) => setLeavingForm({ ...leavingForm, studentId: e.target.value })}>
+                    <option value="">Choose a child in {grade}…</option>
+                    {students.map((st) => <option key={st.id} value={st.id}>{st.full_name}</option>)}
+                  </select>
+                </label>
+                <label style={{ fontSize: 13, color: COLORS.muted }}>Last day at BrightSteps
+                  <input type="date" style={{ ...input, marginTop: 4 }} value={leavingForm.date}
+                    min={dates.start || undefined} max={dates.end || undefined}
+                    onChange={(e) => setLeavingForm({ ...leavingForm, date: e.target.value })} />
+                </label>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button style={primaryBtn} disabled={busy || !leavingForm.studentId || !leavingForm.date}
+                    onClick={async () => { await build(leavingForm.studentId, { date: leavingForm.date }); setLeavingForm(null); }}>
+                    {busy ? "Working…" : "Make progress report"}
+                  </button>
+                  <button style={ghostBtn} disabled={busy} onClick={() => setLeavingForm(null)}>Cancel</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         {!canEdit && <p style={{ margin: "12px 0 0", fontSize: 13, color: COLORS.muted }}>You can view these report cards but not change them.</p>}
         {status && <p style={{ margin: "10px 0 0", fontSize: 13, color: COLORS.ok }}>{status}</p>}
         {error && <p style={{ margin: "10px 0 0", fontSize: 13, color: COLORS.bad }}>{error}</p>}
@@ -666,7 +724,7 @@ function TermReportsStaff({ profile, data }) {
       <div style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: COLORS.muted, marginBottom: 6 }}>
           <span>{grade} · Term {term}</span>
-          <span>{drafts.length} draft · {publishedCount} published</span>
+          <span>{drafts.length} draft · {publishedCount} published{leavingCount ? ` · ${leavingCount} leaving` : ""}</span>
         </div>
         {loading ? <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>Loading…</p>
           : students.length === 0 ? <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>No students in {grade}.</p>
@@ -676,7 +734,8 @@ function TermReportsStaff({ profile, data }) {
               <button key={s.id} onClick={() => r && setOpenId(r.id)} disabled={!r}
                 style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "11px 2px", background: "none", border: "none", borderTop: `1px solid ${COLORS.line}`, cursor: r ? "pointer" : "default", fontFamily: "inherit", fontSize: 14, color: COLORS.ink, textAlign: "left" }}>
                 <span>{s.full_name}</span>
-                {r ? <span style={pill(r.status === "published" ? "ok" : "warn")}>{r.status === "published" ? (r.emailed_at ? "Published · emailed" : "Published") : "Draft"}</span>
+                {r?.content?.leaving ? <span style={pill("info")}>Leaving · print only</span>
+                  : r ? <span style={pill(r.status === "published" ? "ok" : "warn")}>{r.status === "published" ? (r.emailed_at ? "Published · emailed" : "Published") : "Draft"}</span>
                   : <span style={{ fontSize: 13, color: COLORS.muted }}>Not made yet</span>}
               </button>
             );
@@ -693,6 +752,7 @@ function TermReportsStaff({ profile, data }) {
           busy={busy}
           onClose={() => setOpenId(null)}
           onRefresh={() => build(open.student_id)}
+          onNotLeaving={() => build(open.student_id, null)}
           onStatus={(next) => setReportStatus([open.id], next)}
           onSave={(patch) => saveContent(open, patch)}
         />
@@ -701,20 +761,23 @@ function TermReportsStaff({ profile, data }) {
   );
 }
 
-function StaffReportModal({ report, student, data, isAdmin, canEdit, busy, onClose, onRefresh, onStatus, onSave }) {
+function StaffReportModal({ report, student, data, isAdmin, canEdit, busy, onClose, onRefresh, onNotLeaving, onStatus, onSave }) {
   const [lang, setLang] = useState("en");
   const [principal, setPrincipal] = useState(report.content?.principalComment || "");
   const [picking, setPicking] = useState(false);
   const published = report.status === "published";
   const editable = canEdit && (!published || isAdmin);
   const c = report.content || {};
+  const leaving = !!c.leaving;
 
   useEffect(() => { setPrincipal(report.content?.principalComment || ""); }, [report.id, report.content?.principalComment]);
 
   return (
-    <Modal title={`${c.student?.name || student?.full_name || "Report card"} · Term ${report.term}`} onClose={onClose}>
+    <Modal title={`${c.student?.name || student?.full_name || "Report card"} · ${leaving ? "Progress report" : `Term ${report.term}`}`} onClose={onClose}>
       <div className="bsf-noprint" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
-        <span style={pill(published ? "ok" : "warn")}>{published ? `Published ${longDate(report.published_at, "en")}` : "Draft · families can't see it"}</span>
+        {leaving
+          ? <span style={pill("info")}>Leaving progress report · up to {longDate(c.leaving.date, "en")} · print only</span>
+          : <span style={pill(published ? "ok" : "warn")}>{published ? `Published ${longDate(report.published_at, "en")}` : "Draft · families can't see it"}</span>}
         <button style={lang === "en" ? chipOn : chip} onClick={() => setLang("en")}>English</button>
         <button style={lang === "fr" ? chipOn : chip} onClick={() => setLang("fr")}>Français</button>
       </div>
@@ -723,7 +786,10 @@ function StaffReportModal({ report, student, data, isAdmin, canEdit, busy, onClo
         {editable && !published && <button style={ghostBtn} disabled={busy} onClick={onRefresh}>Refresh from Gradebook</button>}
         {editable && c.early && c.kind !== "early-years" && <button style={ghostBtn} onClick={() => setPicking((p) => !p)}>{picking ? "Done choosing photos" : "Choose photos"}</button>}
         <PrintableReport report={report} lang={lang} logoUrl={logoOf(data)} label="Print" />
-        {isAdmin && !published && <button style={primaryBtn} disabled={busy} onClick={() => onStatus("published")}>{report.emailed_at ? "Publish again (no new email)" : "Publish and email family"}</button>}
+        {isAdmin && leaving && !published && <button style={ghostBtn} disabled={busy} onClick={() => {
+          if (window.confirm("Turn this back into a normal Term report card (whole term, can be published)?")) onNotLeaving();
+        }}>Child is staying</button>}
+        {isAdmin && !published && !leaving && <button style={primaryBtn} disabled={busy} onClick={() => onStatus("published")}>{report.emailed_at ? "Publish again (no new email)" : "Publish and email family"}</button>}
         {isAdmin && published && <button style={ghostBtn} disabled={busy} onClick={() => onStatus("draft")}>Unpublish</button>}
       </div>
 

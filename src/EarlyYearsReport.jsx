@@ -20,6 +20,7 @@ const T = {
   en: {
     reportPreN: "My First Steps", report: "Learning Journey Report",
     term: (t, y) => `Term ${t} · ${y}`, place: "Grand-Bassam, Côte d'Ivoire",
+    progress: (y) => `Progress report · ${y}`,
     teacher: "Teacher", homeroom: "Homeroom teacher",
     intro: (n) => `A picture of ${n}'s term: what we noticed, moments from the portfolio, and where the learning goes next.`,
     settling: "Settling in", key: "Where your child is in each area of development",
@@ -35,6 +36,7 @@ const T = {
   fr: {
     reportPreN: "Mes premiers pas", report: "Bulletin du parcours d'apprentissage",
     term: (t, y) => `Trimestre ${t} · ${y}`, place: "Grand-Bassam, Côte d'Ivoire",
+    progress: (y) => `Bulletin de progression · ${y}`,
     teacher: "Enseignant(e)", homeroom: "Enseignant(e) principal(e)",
     intro: (n) => `Un aperçu du trimestre de ${n} : ce que nous avons observé, des moments du portfolio et les prochaines étapes.`,
     settling: "L'adaptation", key: "Où en est votre enfant dans chaque domaine de développement",
@@ -139,6 +141,15 @@ function Photos({ list, urls, single = false }) {
   );
 }
 
+// Dates covered by a leaving progress report, e.g. "1 September – 24 October 2026".
+export function periodText(p, lang) {
+  const loc = lang === "fr" ? "fr-FR" : "en-GB";
+  const day = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
+  const a = day(p.start), b = day(p.end);
+  const first = a.toLocaleDateString(loc, { day: "numeric", month: "long", ...(a.getFullYear() !== b.getFullYear() ? { year: "numeric" } : {}) });
+  return `${first} – ${b.toLocaleDateString(loc, { day: "numeric", month: "long", year: "numeric" })}`;
+}
+
 export function EarlyYearsDocument({ report, lang, logoUrl }) {
   const w = T[lang] || T.en;
   const c = report.content || {};
@@ -178,7 +189,8 @@ export function EarlyYearsDocument({ report, lang, logoUrl }) {
             <img src={logoUrl} alt="BrightSteps International School" style={{ width: 92, height: 92, objectFit: "contain" }} />
             <div style={{ textAlign: "right" }}>
               <div className="bs-ey-label">{preN ? w.reportPreN : w.report}</div>
-              <div style={{ fontFamily: serif, fontSize: 15, marginTop: 3 }}>{w.term(report.term, year)}</div>
+              <div style={{ fontFamily: serif, fontSize: 15, marginTop: 3 }}>{c.leaving ? w.progress(year) : w.term(report.term, year)}</div>
+              {c.leaving && c.period?.start && c.period?.end && <div style={{ fontSize: 11, color: "#5A4447", marginTop: 2 }}>{periodText(c.period, lang)}</div>}
               <div style={{ fontSize: 11, color: "#5A4447", marginTop: 2 }}>{w.place}</div>
             </div>
           </div>
