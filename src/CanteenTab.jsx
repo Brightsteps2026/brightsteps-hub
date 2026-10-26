@@ -21,6 +21,8 @@ function termFor(dateStr) {
   return TERMS.find((t) => dateStr <= t.end) || TERMS[TERMS.length - 1];
 }
 const STAFF_MEAL_PRICE = 2500;
+// Monthly canteen must be paid before this day of the month.
+const CANTEEN_DUE_DAY = 5;
 const STAFF_ROLES = ["admin", "teacher", "learning_assistant", "accountant"];
 
 const T = {
@@ -507,6 +509,27 @@ export default function CanteenTab({ profile }) {
   const selectedPasses = selected ? passes.filter((p) => p.student_id === selected.id) : [];
   const awaiting = passes.filter((p) => !p.paid);
 
+  // Canteen is due before the 5th of each month (Myri, Oct 2026). From the 6th,
+  // every student who eats at school and has no PAID month, term or year pass
+  // covering the month shows as "Unpaid" in red, so the office knows who owes.
+  const coversWholeMonth = (p, first, last) =>
+    p.paid && ["month", "term", "year"].includes(p.pass_type) && p.start_date <= last && p.end_date >= first;
+  const monthIsOverdue = (firstISO) => {
+    const f = parseISO(firstISO);
+    return new Date() >= new Date(f.getFullYear(), f.getMonth(), CANTEEN_DUE_DAY + 1);
+  };
+  const nowDate = new Date();
+  const curFirst = toISO(new Date(nowDate.getFullYear(), nowDate.getMonth(), 1));
+  const curLast = toISO(new Date(nowDate.getFullYear(), nowDate.getMonth() + 1, 0));
+  const curMonthName = nowDate.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const owing = monthIsOverdue(curFirst)
+    ? students.filter(
+        (s) => !isNoLunch(s.id) && !passes.some((p) => p.student_id === s.id && coversWholeMonth(p, curFirst, curLast))
+      )
+    : [];
+  // In "Record a pass", month view: red tag once the chosen month is past the 5th.
+  const listMonthOverdue = passType === "month" && monthIsOverdue(periodRange.start);
+
   return (
     <div style={{ padding: "16px 16px 90px" }}>
       {role === "admin" && (
@@ -527,6 +550,36 @@ export default function CanteenTab({ profile }) {
           </div>
         )}
       </div>
+      )}
+
+      {canEdit && owing.length > 0 && (
+        <div style={{ ...card, borderColor: COLORS.bad }}>
+          <p style={{ margin: "0 0 2px", fontSize: 15, fontWeight: 600, color: COLORS.bad }}>
+            Canteen unpaid · {curMonthName} ({owing.length})
+          </p>
+          <p style={{ margin: "0 0 10px", fontSize: 12, color: COLORS.muted }}>
+            Due before the {CANTEEN_DUE_DAY}th. Tap a name to record the payment.
+          </p>
+          <div style={{ maxHeight: 220, overflowY: "auto" }}>
+            {owing.map((s) => {
+              const dayOnly = passes.some((p) => p.student_id === s.id && p.pass_type === "day" && p.start_date <= curLast && p.end_date >= curFirst);
+              return (
+                <div
+                  key={s.id}
+                  onClick={() => { setSelected(s); setPassType("month"); setStaffDate(curFirst); setStatus(""); }}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "7px 0", borderTop: `1px solid ${COLORS.line}`, fontSize: 14, cursor: "pointer" }}
+                >
+                  <span>
+                    <strong>{s.full_name}</strong>
+                    <span style={{ color: COLORS.faint, marginLeft: 8, fontSize: 13 }}>{s.grade}</span>
+                    {dayOnly && <span style={{ color: COLORS.muted, marginLeft: 8, fontSize: 12 }}>· day passes only</span>}
+                  </span>
+                  <span style={{ ...pill("bad"), padding: "3px 10px", fontSize: 12 }}>Unpaid</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {canEdit && awaiting.length > 0 && (
@@ -595,6 +648,7 @@ export default function CanteenTab({ profile }) {
                 <span style={{ color: COLORS.faint, marginLeft: 8, fontSize: 13 }}>{s.grade}</span>
                 {paidMonthIds.has(s.id) && <span style={{ color: COLORS.ok, marginLeft: 8, fontSize: 13 }}>· paid for {monthName}</span>}
                 {isNoLunch(s.id) && <span style={{ color: COLORS.muted, marginLeft: 8, fontSize: 13 }}>· doesn't eat at school</span>}
+                {listMonthOverdue && !isNoLunch(s.id) && <span style={{ color: COLORS.bad, marginLeft: 8, fontSize: 13, fontWeight: 600 }}>· Unpaid</span>}
               </div>
             ))}
             {shown.length === 0 && (
