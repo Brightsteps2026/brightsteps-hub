@@ -492,15 +492,20 @@ export default function CanteenTab({ profile }) {
       : passType === "term"
       ? p.pass_type === "term" || p.pass_type === "year"
       : p.pass_type === "month" || p.pass_type === "term" || p.pass_type === "year";
-  const paidMonthIds = new Set(
-    passes
+  const todayISO = toISO(new Date());
+  // Term and year passes (paid ahead: 3 months, the whole year) always show in
+  // the Paid list until they end, whatever day or month is chosen (Myri, Oct 2026).
+  const longPassFor = (id) =>
+    passes.find((p) => p.student_id === id && p.paid && (p.pass_type === "term" || p.pass_type === "year") && p.end_date >= todayISO);
+  const paidMonthIds = new Set([
+    ...passes
       .filter((p) => p.paid && coversPeriod(p) && p.start_date <= periodRange.end && p.end_date >= periodRange.start)
-      .map((p) => p.student_id)
-  );
+      .map((p) => p.student_id),
+    ...students.filter((s) => longPassFor(s.id)).map((s) => s.id)
+  ]);
   const matching = term ? students.filter((s) => (s.full_name || "").toLowerCase().includes(term)) : students;
   // A "doesn't eat at school" student comes back by themselves as soon as
   // they have a pass for today or later (e.g. a parent orders lunch).
-  const todayISO = toISO(new Date());
   const isNoLunch = (id) => noLunch.has(id) && !passes.some((p) => p.student_id === id && p.end_date >= todayISO);
   const noLunchCount = students.filter((s) => isNoLunch(s.id)).length;
   const afterNoLunch = showNoLunch || term ? matching : matching.filter((s) => !isNoLunch(s.id));
@@ -663,7 +668,7 @@ export default function CanteenTab({ profile }) {
             const paidList = students
               .filter((s) => paidMonthIds.has(s.id))
               .map((s) => {
-                const p = passes.find((x) => x.student_id === s.id && x.paid && coversPeriod(x) && x.start_date <= periodRange.end && x.end_date >= periodRange.start);
+                const p = passes.find((x) => x.student_id === s.id && x.paid && coversPeriod(x) && x.start_date <= periodRange.end && x.end_date >= periodRange.start) || longPassFor(s.id);
                 return { s, p };
               });
             return (
@@ -688,7 +693,14 @@ export default function CanteenTab({ profile }) {
                           <span style={{ color: COLORS.faint, marginLeft: 8, fontSize: 13 }}>{s.grade}</span>
                         </span>
                         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          {p && <span style={{ color: COLORS.muted, fontSize: 13 }}>{tr(p.pass_type)} · {money(p.amount)}</span>}
+                          {p && (
+                            <span style={{ color: COLORS.muted, fontSize: 13 }}>
+                              {tr(p.pass_type)}
+                              {(p.pass_type === "term" || p.pass_type === "year") &&
+                                ` · ${parseISO(p.start_date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} → ${parseISO(p.end_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`}
+                              {" · "}{money(p.amount)}
+                            </span>
+                          )}
                           {p && p.receipt_no && <span style={{ ...chip, padding: "3px 9px", fontSize: 12 }}>Receipt</span>}
                           <button
                             onClick={(e) => { e.stopPropagation(); setSelected(s); setStatus(""); }}
