@@ -118,15 +118,20 @@ export function CheckinBanner({ profile, onOpen }) {
   const rec = s.record;
   const tz = s.timezone || TZ_DEFAULT;
   const nowHM = new Date(s.server_now).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: tz });
-  let text = null;
-  if (!rec || (!rec.check_in_at && rec.status === "absent")) text = "You haven't checked in yet today.";
-  else if (rec.check_in_at && !rec.check_out_at && s.expected_end && nowHM >= s.expected_end) text = "Don't forget to check out before you leave.";
-  if (!text) return null;
+  // Always visible on working days (Myri, 27 Oct 2026): the bar used to hide
+  // between check-in and the end of the day, which looked like check-in had vanished.
+  let text, btn;
+  if (!rec || !rec.check_in_at) { text = "You haven't checked in yet today."; btn = "Check in"; }
+  else if (!rec.check_out_at) {
+    const late = s.expected_end && nowHM >= s.expected_end;
+    text = late ? "Don't forget to check out before you leave." : `Checked in at ${fmtTime(rec.check_in_at, tz)}`;
+    btn = "Check out";
+  } else { text = `Checked in ${fmtTime(rec.check_in_at, tz)} · out ${fmtTime(rec.check_out_at, tz)}`; btn = "View"; }
   return (
     <div style={{ margin: "12px 16px 0", background: COLORS.tint, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
       <MapPin size={18} color={COLORS.brand} />
       <span style={{ flex: 1, fontSize: 14, color: COLORS.brand, fontWeight: 600 }}>{text}</span>
-      <button style={{ ...secondaryBtn, background: COLORS.brand, color: "#fff", borderColor: COLORS.brand }} onClick={onOpen}>Open</button>
+      <button style={{ ...secondaryBtn, background: COLORS.brand, color: "#fff", borderColor: COLORS.brand }} onClick={onOpen}>{btn}</button>
     </div>
   );
 }
