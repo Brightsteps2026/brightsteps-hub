@@ -236,6 +236,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
   const [form, setForm] = useState(blankForm());
   const [saving, setSaving] = useState(false);
   const [canShare, setCanShare] = useState(true);
+  const [justAdded, setJustAdded] = useState(null);
 
   const canEdit = editGrades.includes(grade);
 
@@ -291,7 +292,13 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
     setLoading(false);
   }
 
-  useEffect(() => { load(); setStatus(""); setFormOpen(false); }, [grade, subject, term]);
+  useEffect(() => { load(); setStatus(""); setFormOpen(false); setJustAdded(null); }, [grade, subject, term]);
+
+  useEffect(() => {
+    if (!justAdded || loading) return;
+    const box = document.querySelector(`[data-gb-col="${justAdded}"]`);
+    if (box) { box.scrollIntoView({ block: "nearest", inline: "center" }); box.focus(); }
+  }, [justAdded, loading]);
 
   const subjectList = useMemo(
     () => [...SUBJECTS, ...usedSubjects.filter((s) => !SUBJECTS.includes(s))],
@@ -425,13 +432,14 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
       assessed_on: form.assessed_on || null,
       ...(canShare ? { shared_with_families: !!form.shared } : {})
     };
-    const { error: err } = editingId
-      ? await supabase.from("gb_assessments").update(row).eq("id", editingId)
-      : await supabase.from("gb_assessments").insert({ ...row, grade, subject, term, school_year: SCHOOL_YEAR });
+    const { data: savedRow, error: err } = editingId
+      ? await supabase.from("gb_assessments").update(row).eq("id", editingId).select("id").maybeSingle()
+      : await supabase.from("gb_assessments").insert({ ...row, grade, subject, term, school_year: SCHOOL_YEAR }).select("id").single();
     setSaving(false);
     if (err) { setStatus(`Not saved: ${err.message}`); return; }
     setFormOpen(false);
     if (!usedSubjects.includes(subject)) setUsedSubjects((u) => [...u, subject]);
+    if (!editingId && savedRow?.id) setJustAdded(savedRow.id);
     load();
   }
 
@@ -499,7 +507,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
     if (a.grading === "letter") {
       if (!canEdit) return m?.letter ? <LetterChip letter={m.letter} /> : <span style={{ color: COLORS.muted }}>—</span>;
       return (
-        <select aria-label={`${s.full_name}, ${a.title}`} value={m?.letter || ""} onChange={(e) => savePick(a, s.id, e.target.value)} style={pickStyle}>
+        <select data-gb-col={a.id} aria-label={`${s.full_name}, ${a.title}`} value={m?.letter || ""} onChange={(e) => savePick(a, s.id, e.target.value)} style={pickStyle}>
           <option value="">—</option>
           {LETTERS.map((l) => <option key={l} value={l}>{l}</option>)}
         </select>
@@ -511,6 +519,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
       const lv = levelOf(m?.level);
       return (
         <select
+          data-gb-col={a.id}
           aria-label={`${s.full_name}, ${a.title}`}
           value={m?.level || ""}
           onChange={(e) => savePick(a, s.id, e.target.value)}
@@ -527,7 +536,9 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
     if (!canEdit) return <span>{value || "—"}</span>;
     return (
       <input
+        data-gb-col={a.id}
         aria-label={`${s.full_name}, ${a.title}`}
+        placeholder={`/${Number(a.max_points)}`}
         inputMode="decimal"
         value={value}
         onChange={(e) => setDrafts((d) => ({ ...d, [key]: e.target.value }))}
@@ -697,7 +708,6 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
           <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{grade} · {subject} · Term {term}</p>
           <div style={{ display: "flex", gap: 8 }}>
-            {students.length > 0 && <button style={secondaryBtn} onClick={downloadCsv}>Download</button>}
             {canEdit && !formOpen && <button style={primaryBtn} onClick={openNew}>+ New assessment</button>}
           </div>
         </div>
@@ -712,11 +722,18 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
           <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>No students in {grade}.</p>
         ) : (
           <>
-            {assessments.length === 0 && (
-              <p style={{ margin: "0 0 10px", fontSize: 14, color: COLORS.muted }}>
-                No assessments yet for this subject and term.{canEdit ? " Add one to start entering marks." : ""}
-              </p>
-            )}
+            {assessments.length === 0 && (canEdit ? (
+              <div style={{ margin: "0 0 12px", padding: 14, borderRadius: 12, background: COLORS.tint }}>
+                <p style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 600 }}>Enter {early ? "levels" : "grades"} right here, next to each student</p>
+                <p style={{ margin: "0 0 10px", fontSize: 13, color: COLORS.text2, lineHeight: 1.5 }}>
+                  1. Add the assessment (name, type, date{early ? "" : ", marks or letter"}).<br />
+                  2. A box appears next to every student's name. Type or pick each {early ? "level" : "grade"}; it saves by itself. Nothing to download or upload.
+                </p>
+                {!formOpen && <button style={primaryBtn} onClick={openNew}>+ Add the first assessment</button>}
+              </div>
+            ) : (
+              <p style={{ margin: "0 0 10px", fontSize: 14, color: COLORS.muted }}>No assessments yet for this subject and term.</p>
+            ))}
             <div style={{ overflowX: "auto", border: `1px solid ${COLORS.line}`, borderRadius: 12 }}>
               <table style={{ borderCollapse: "separate", borderSpacing: 0, width: "100%" }}>
                 <thead>
@@ -741,6 +758,12 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
                         )}
                       </th>
                     ))}
+                    {canEdit && (
+                      <th style={{ ...th, background: "#fff" }}>
+                        <button onClick={openNew} disabled={formOpen} title="Add another assessment"
+                          style={{ ...secondaryBtn, minHeight: 34, padding: "5px 10px", fontSize: 12 }}>+ Add</button>
+                      </th>
+                    )}
                     {early ? (
                       <th style={th}>Term level</th>
                     ) : (
@@ -759,7 +782,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
                       <tr key={s.id}>
                         <td style={nameCell}>{s.full_name}</td>
                         {assessments.map((a) => (
-                          <td key={a.id} style={td}>
+                          <td key={a.id} style={a.id === justAdded ? { ...td, background: COLORS.tint } : td}>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                               {renderCell(a, s)}
                               {canEdit ? (
@@ -774,6 +797,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
                             </span>
                           </td>
                         ))}
+                        {canEdit && <td style={{ ...td, background: "#FCFAFA" }} />}
                         {early ? (
                           <td style={td}><LevelChip level={r.level} /></td>
                         ) : (
@@ -794,6 +818,11 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
                 </tbody>
               </table>
             </div>
+            {assessments.length > 0 && (
+              <button onClick={downloadCsv} style={{ background: "none", border: "none", padding: 0, marginTop: 10, color: COLORS.muted, fontSize: 12, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit" }}>
+                Optional: save a copy as a spreadsheet
+              </button>
+            )}
             {early ? (
               <p style={{ margin: "10px 0 0", fontSize: 12, color: COLORS.muted }}>
                 Pick a level in each box; it saves straight away. Leave it empty if the child wasn't assessed yet.
