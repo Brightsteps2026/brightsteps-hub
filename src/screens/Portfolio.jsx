@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import AttachmentField from "../AttachmentField";
+import VoiceRecorder from "../VoiceRecorder";
+
+// Students in these grades can add a voice recording to a reflection (Myri, 28 Oct 2026).
+const VOICE_GRADES = ["Pre-N", "PreK", "Kindergarten", "Grade 1"];
 import { useLanguage, pluralKey } from "../lib/i18n";
 import { TAGS } from "../data/constants";
 import { eyPhotoTags, isEarlyYears } from "../data/earlyYears";
@@ -86,7 +90,7 @@ function PortfolioTab({ data, persist, profile }) {
       return;
     }
     if (!form.note.trim() && form.files.length === 0) {
-      setFormError(isStudent ? "Write something or add a photo before saving." : t("portfolio.errorAddNote"));
+      setFormError(isStudent ? "Write something, record your voice or add a photo before saving." : t("portfolio.errorAddNote"));
       return;
     }
     const entry = {
@@ -262,7 +266,7 @@ function PortfolioTab({ data, persist, profile }) {
               </Field>
             );
           })()}
-          <Field label={isStudent ? "Write about it (optional if you're adding a photo)" : (form.author === "student" ? t("portfolio.whatStudentWrote") : t("portfolio.whatDidTheyDo"))}>
+          <Field label={isStudent ? "Write about it (optional if you're adding your voice or a photo)" : (form.author === "student" ? t("portfolio.whatStudentWrote") : t("portfolio.whatDidTheyDo"))}>
             <textarea
               rows={4}
               value={form.note}
@@ -279,6 +283,17 @@ function PortfolioTab({ data, persist, profile }) {
             )}
             {aiDraft && form.author === "teacher" && <p className="bsf-muted" style={{ margin: "4px 0 0", fontSize: 12 }}>{t("portfolio.starterReview")}</p>}
           </Field>
+          {(() => {
+            const g = data.students.find((s) => s.id === form.studentId)?.grade;
+            if (!VOICE_GRADES.includes(g) || !(isStudent || form.author === "student")) return null;
+            const voices = form.files.filter((f) => (f.type || "").startsWith("audio/"));
+            return (
+              <Field label={isStudent ? "Tell us with your voice 🎙️" : "Voice reflection (optional)"}>
+                <VoiceRecorder folder="portfolio" onRecorded={(meta) => setForm((f) => ({ ...f, files: [...f.files, meta] }))} />
+                {voices.length > 0 && <p className="bsf-muted" style={{ margin: "6px 0 0", fontSize: 12 }}>✓ {voices.length === 1 ? "Recording added — listen to it below." : `${voices.length} recordings added — listen below.`}</p>}
+              </Field>
+            );
+          })()}
           <Field label={isStudent ? "Add a photo" : t("portfolio.attachmentsOptional")}>
             <AttachmentField folder="portfolio" files={form.files} onChange={(files) => setForm({ ...form, files })} />
           </Field>

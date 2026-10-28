@@ -1,8 +1,16 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Paperclip, X, Loader2, Download } from "lucide-react";
 import { uploadAttachment, getAttachmentUrl, deleteAttachment, formatFileSize } from "./lib/attachments";
 
 const MAX_SIZE = 50 * 1024 * 1024; // 50MB, matches the Supabase bucket limit
+
+// Voice recordings play right on the page instead of downloading.
+function AudioPlayer({ path }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => { let on = true; getAttachmentUrl(path).then((u) => on && setUrl(u)).catch(() => {}); return () => { on = false; }; }, [path]);
+  if (!url) return <span className="bsf-muted" style={{ fontSize: 13 }}>🎙️ …</span>;
+  return <audio controls preload="metadata" src={url} style={{ height: 40, maxWidth: 260 }} />;
+}
 
 // Reusable file attachment control. Pass in the current list of attachments
 // and a folder name (e.g. "portfolio", "assignments") and it handles
@@ -53,7 +61,16 @@ export default function AttachmentField({ folder, files, onChange, readOnly = fa
     <div className="bsf-attachments">
       {(files || []).length > 0 && (
         <div className="bsf-attachment-list">
-          {files.map((f) => (
+          {files.map((f) => (f.type || "").startsWith("audio/") ? (
+            <div key={f.path} className="bsf-attachment-chip" style={{ alignItems: "center", gap: 6 }}>
+              <AudioPlayer path={f.path} />
+              {!readOnly && (
+                <button type="button" className="bsf-iconbtn" onClick={() => removeFile(f.path)} aria-label="Remove recording">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          ) : (
             <div key={f.path} className="bsf-attachment-chip">
               <button type="button" className="bsf-attachment-open" onClick={() => openFile(f.path)}>
                 <Download size={14} />
