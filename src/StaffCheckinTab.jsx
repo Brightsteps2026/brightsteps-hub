@@ -84,6 +84,7 @@ export default function StaffCheckinTab({ profile }) {
   const isStaff = STAFF_ROLES.includes(role);
   const canSeeAll = ["admin", "accountant", "viewer"].includes(role);
   const isAdmin = role === "admin";
+  const canSeeMonthly = role === "admin" || role === "accountant";
   const [view, setView] = useState(isStaff ? "mine" : "all");
 
   if (!isStaff && !canSeeAll) {
@@ -96,11 +97,13 @@ export default function StaffCheckinTab({ profile }) {
         <div style={{ display: "flex", gap: 7, marginBottom: 12, flexWrap: "wrap" }}>
           {isStaff && <button style={view === "mine" ? chipOn : chip} onClick={() => setView("mine")}>My check-in</button>}
           <button style={view === "all" ? chipOn : chip} onClick={() => setView("all")}>All staff</button>
+          {canSeeMonthly && <button style={view === "monthly" ? chipOn : chip} onClick={() => setView("monthly")}>Monthly summary</button>}
           {isAdmin && <button style={view === "settings" ? chipOn : chip} onClick={() => setView("settings")}>Settings</button>}
         </div>
       )}
       {view === "mine" && isStaff && <MyCheckin profile={profile} />}
       {view === "all" && canSeeAll && <AllStaff isAdmin={isAdmin} />}
+      {view === "monthly" && canSeeMonthly && <MonthlyStaffSummary />}
       {view === "settings" && isAdmin && <CheckinSettings />}
     </div>
   );
@@ -302,6 +305,187 @@ function MonthSummary({ rows }) {
         <div key={k} style={tile}><p style={{ margin: 0, fontSize: 12, color: COLORS.muted }}>{k}</p><p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{v}</p></div>
       ))}
     </div>
+  );
+}
+
+// ---------- Monthly summary (admin and accountant only) ----------
+// One line per person for the month, then each day when a name is tapped.
+// "After noon" = first check-in at 12:00 or later (usually a forgotten morning check-in),
+// so it is not counted as minutes late.
+
+const toMin = (hhmm) => { if (!hhmm) return null; const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
+const fromMin = (n) => n == null ? "—" : `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(Math.round(n % 60)).padStart(2, "0")}`;
+const avg = (list) => list.length ? list.reduce((a, b) => a + b, 0) / list.length : null;
+const LEAVE_STATUSES = ["leave", "sick", "authorized", "training", "official"];
+
+function dayKind(r) {
+  if (r.extra_day) return "extra";
+  if (r.status === "absent") return "absent";
+  if (LEAVE_STATUSES.includes(r.status)) return "leave";
+  const inMin = toMin(r.check_in);
+  if (inMin != null && inMin >= 720) return "after_noon";
+  if (r.status === "late") return "late";
+  return "on_time";
+}
+const DAY_LABEL = {
+  on_time: ["On time", TONES.ok], late: ["Late", TONES.warn], after_noon: ["In after noon", TONES.warn],
+  absent: ["Absent", TONES.bad], leave: ["Leave", TONES.info], extra: ["Extra day", TONES.neutral]
+};
+
+function summarise(days) {
+  const counted = days.filter((d) => !d.extra_day);
+  const kinds = counted.map(dayKind);
+  const n = (k) => kinds.filter((x) => x === k).length;
+  const ins = counted.filter((d) => ["on_time", "late"].includes(dayKind(d))).map((d) => toMin(d.check_in));
+  const outs = counted.filter((d) => ["on_time", "late"].includes(dayKind(d)) && toMin(d.check_out) >= 900).map((d) => toMin(d.check_out));
+  return {
+    days: counted.length,
+    onTime: n("on_time"), late: n("late"), afterNoon: n("after_noon"), absent: n("absent"), leave: n("leave"),
+    lateMin: counted.filter((d) => dayKind(d) === "late").reduce((t, d) => t + (d.minutes_late || 0), 0),
+    noOut: days.filter((d) => d.check_in && !d.check_out && d.past).length,
+    usualIn: avg(ins), usualOut: avg(outs)
+  };
+}
+
+function MonthlyStaffSummary() {
+  const thisMonth = todayIn().slice(0, 7);
+  const [month, setMonth] = useState(thisMonth);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [openId, setOpenId] = useState(null);
+
+  useEffect(() => {
+    let live = true;
+    setLoading(true); setError(""); setOpenId(null);
+    supabase.rpc("staff_attendance_month", { p_month: `${month}-01` }).then(({ data, error: e }) => {
+      if (!live) return;
+      if (e) setError(e.message); else setRows(data || []);
+      setLoading(false);
+    });
+    return () => { live = false; };
+  }, [month]);
+
+  const people = [];
+  const byId = {};
+  rows.forEach((r) => {
+    if (!byId[r.staff_id]) { byId[r.staff_id] = { id: r.staff_id, name: r.full_name, role: r.role, required: r.required, days: [] }; people.push(byId[r.staff_id]); }
+    byId[r.staff_id].days.push(r);
+  });
+  people.forEach((p) => { p.s = summarise(p.days); });
+  people.sort((a, b) => (a.required === b.required ? (a.name || "").localeCompare(b.name || "") : a.required ? -1 : 1));
+
+  const req = people.filter((p) => p.required);
+  const sum = (k) => req.reduce((t, p) => t + p.s[k], 0);
+  const checkedIn = sum("onTime") + sum("late") + sum("afterNoon");
+  const pct = checkedIn ? Math.round((100 * sum("onTime")) / checkedIn) : null;
+  const monthLabel = new Date(`${month}-15T12:00:00Z`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
+
+  const th = { padding: "8px 6px", fontSize: 12, fontWeight: 600, color: COLORS.muted, textAlign: "right", whiteSpace: "nowrap", borderBottom: `1px solid ${COLORS.line}`, background: COLORS.surface || "#fff", position: "sticky", top: 0 };
+  const td = { padding: "9px 6px", fontSize: 14, textAlign: "right", whiteSpace: "nowrap", borderBottom: `1px solid ${COLORS.line}` };
+  const warn = { color: TONES.warn.fg, fontWeight: 600 };
+  const bad = { color: TONES.bad.fg, fontWeight: 600 };
+
+  return (
+    <>
+      <section style={card}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <button style={secondaryBtn} onClick={() => setMonth(addDays(`${month}-01`, -1).slice(0, 7))} aria-label="Previous month">‹</button>
+          <input type="month" value={month} max={thisMonth} onChange={(e) => e.target.value && setMonth(e.target.value)} style={{ ...input, flex: 1 }} />
+          <button style={secondaryBtn} disabled={month >= thisMonth} onClick={() => setMonth(addDays(`${month}-28`, 7).slice(0, 7))} aria-label="Next month">›</button>
+        </div>
+        <h2 style={heading}>{monthLabel}</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8 }}>
+          {[
+            ["On time", pct == null ? "—" : `${pct}%`],
+            ["Minutes late", sum("lateMin")],
+            ["Days absent", sum("absent")],
+            ["No check-out", sum("noOut")]
+          ].map(([k, v]) => (
+            <div key={k} style={tile}><p style={{ margin: 0, fontSize: 12, color: COLORS.muted }}>{k}</p><p style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>{v}</p></div>
+          ))}
+        </div>
+        <p style={{ margin: "8px 0 0", fontSize: 12, color: COLORS.muted }}>
+          Staff who must check in. Holidays and breaks are left out. Only you and the accountant see this page.
+        </p>
+      </section>
+
+      <section style={card}>
+        {loading && <p style={{ margin: 0, color: COLORS.muted }}>Loading…</p>}
+        {error && <p style={{ margin: 0, color: TONES.bad.fg }}>Couldn't load: {error}</p>}
+        {!loading && !error && people.length === 0 && <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>No check-ins this month.</p>}
+        {!loading && !error && people.length > 0 && (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", fontVariantNumeric: "tabular-nums" }}>
+              <thead>
+                <tr>
+                  <th style={{ ...th, textAlign: "left" }}>Employee</th>
+                  <th style={th}>Days</th>
+                  <th style={th}>On time</th>
+                  <th style={th}>Late</th>
+                  <th style={th}>Min. late</th>
+                  <th style={th}>In after noon</th>
+                  <th style={th}>Absent</th>
+                  <th style={th}>Leave</th>
+                  <th style={th}>No check-out</th>
+                  <th style={th}>Usual in</th>
+                  <th style={th}>Usual out</th>
+                </tr>
+              </thead>
+              <tbody>
+                {people.map((p) => {
+                  const s = p.s;
+                  const isOpen = openId === p.id;
+                  const dim = p.required ? {} : { color: COLORS.muted };
+                  return [
+                    <tr key={p.id} onClick={() => setOpenId(isOpen ? null : p.id)} style={{ cursor: "pointer", background: isOpen ? COLORS.tint : undefined, ...dim }}>
+                      <td style={{ ...td, textAlign: "left" }}>
+                        <span style={{ fontWeight: 600 }}>{isOpen ? "▾ " : "▸ "}{p.name || "Unnamed"}</span>
+                        <span style={{ display: "block", fontSize: 12, color: COLORS.muted }}>{ROLE_LABEL[p.role] || p.role}{p.required ? "" : " · doesn't check in"}</span>
+                      </td>
+                      <td style={td}>{s.days}</td>
+                      <td style={td}>{s.onTime}</td>
+                      <td style={{ ...td, ...(s.late >= 3 ? warn : {}) }}>{s.late}</td>
+                      <td style={{ ...td, ...(s.lateMin >= 60 ? warn : {}) }}>{s.lateMin}</td>
+                      <td style={td}>{s.afterNoon}</td>
+                      <td style={{ ...td, ...(s.absent >= 3 ? bad : {}) }}>{s.absent}</td>
+                      <td style={td}>{s.leave}</td>
+                      <td style={{ ...td, ...(s.noOut >= 3 ? warn : {}) }}>{s.noOut}</td>
+                      <td style={{ ...td, ...(s.usualIn != null && s.usualIn > 450 ? warn : {}) }}>{fromMin(s.usualIn)}</td>
+                      <td style={td}>{fromMin(s.usualOut)}</td>
+                    </tr>,
+                    isOpen && (
+                      <tr key={p.id + ":days"}>
+                        <td colSpan={11} style={{ padding: "4px 0 12px", borderBottom: `1px solid ${COLORS.line}` }}>
+                          {p.days.map((d) => {
+                            const k = dayKind(d);
+                            const [lbl, tone] = DAY_LABEL[k];
+                            return (
+                              <div key={d.work_date} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 8px", fontSize: 13, borderTop: `1px solid ${COLORS.line}` }}>
+                                <span style={{ width: 92, color: COLORS.muted }}>{fmtDay(d.work_date)}</span>
+                                <span style={{ width: 120 }}><span style={pill(tone)}>{k === "late" ? `Late ${d.minutes_late} min` : lbl}</span></span>
+                                <span style={{ flex: 1 }}>
+                                  {d.check_in ? `In ${d.check_in}` : ""}
+                                  {d.check_out ? ` · Out ${d.check_out}` : d.check_in && d.past ? " · no check-out" : ""}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </td>
+                      </tr>
+                    )
+                  ];
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p style={{ margin: "10px 0 0", fontSize: 12, color: COLORS.muted, lineHeight: 1.5 }}>
+          Tap a name to see each day. "In after noon" means the first check-in came in the afternoon, usually a forgotten morning check-in, so it is not counted as minutes late.
+          "Usual" times are averages of morning check-ins and of check-outs after 15:00. Extra days (outside someone's check-in days) are shown but not counted.
+        </p>
+      </section>
+    </>
   );
 }
 
