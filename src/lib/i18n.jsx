@@ -51,6 +51,7 @@ const translations = {
   "nav.updates": { en: "Family Updates", fr: "Infos aux familles" },
   "nav.weekly": { en: "Weekly updates", fr: "Points hebdomadaires" },
   "nav.daily": { en: "Daily log", fr: "Journal du jour" },
+  "nav.conferences": { en: "Conferences", fr: "Conférences" },
   "nav.more": { en: "More", fr: "Plus" },
   "nav.allSections": { en: "Explore", fr: "Explorer" },
   "nav.moreSectionsNote": {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Percent, Briefcase, FolderOpen, Award, LogOut, Utensils, Wallet, NotebookPen, Clock3, Target, Baby } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Percent, Briefcase, FolderOpen, Award, LogOut, Utensils, Wallet, NotebookPen, Clock3, Target, Baby, Handshake } from "lucide-react";
 import { useAuth } from "./LoginGate";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
 import CanteenTab from "./CanteenTab";
@@ -7,6 +7,7 @@ import IncidentsTab, { IncidentsIcon } from "./IncidentsTab";
 import LeaveTab, { LeaveIcon } from "./LeaveTab";
 import WeeklyUpdatesTab from "./WeeklyUpdates";
 import DailyLogTab, { staffDailyGrades } from "./DailyReport";
+import MeetingsTab, { meetingGrades } from "./Meetings";
 import StaffCheckinTab, { CheckinIcon, CheckinBanner } from "./StaffCheckinTab";
 import SchoolGradebook from "./SchoolGradebook";
 import { FamilyGradesTab } from "./FamilyGrades";
@@ -88,17 +89,17 @@ function BrightStepsHubInner() {
       };
   const myLinkedStudent = isStudent ? data.students.find((s) => (profile.student_ids || [])[0] === s.id) : null;
   const isUpperStudent = !!myLinkedStudent && GRADES.indexOf(myLinkedStudent.grade) >= GRADES.indexOf("Grade 3");
-  const PARENT_HIDDEN_TABS = ["daily", "standards", "weekly", "checkin", "leave", "classes", "staff", "admissions", "behavior", "accreditation", "planning", "gradebook"]; // timetable shown to families from 24 Oct 2026 (Myri approved)
+  const PARENT_HIDDEN_TABS = ["daily", "conferences", "standards", "weekly", "checkin", "leave", "classes", "staff", "admissions", "behavior", "accreditation", "planning", "gradebook"]; // timetable shown to families from 24 Oct 2026 (Myri approved)
   const ADMIN_ONLY_TABS = ["accreditation","staff","admissions"];
   // Only admin and the accountant role can see billing, everyone else is blocked outright.
   const BILLING_ALLOWED_ROLES = ["admin", "accountant", "viewer"];
   // A learning assistant supports specific grades day to day; they don't need
   // enrollment, staffing, or school-wide admin tools, just the classroom-facing ones.
-  const LEARNING_ASSISTANT_ALLOWED_TABS = ["daily", "weekly", "checkin", "leave", "gradebook", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "classes", "calendar", "timetable", "standards", "assignments", "updates", "resources"];
+  const LEARNING_ASSISTANT_ALLOWED_TABS = ["daily", "conferences", "weekly", "checkin", "leave", "gradebook", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "classes", "calendar", "timetable", "standards", "assignments", "updates", "resources"];
   // An accountant only ever needs billing, nothing about students' academic
   // records, behavior, or staff information.
   const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "billing", "checkin", "leave"];
-  const RESTRICTED_TEACHER_TABS = ["daily", "weekly", "checkin", "leave", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "planning", "assignments", "timetable", "standards", "reports", "calendar", "incidents", "updates", "resources"];
+  const RESTRICTED_TEACHER_TABS = ["daily", "conferences", "weekly", "checkin", "leave", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "planning", "assignments", "timetable", "standards", "reports", "calendar", "incidents", "updates", "resources"];
   // Set per teacher by the admin in the database (profiles.limited_access).
   const isRestrictedTeacher = profile?.role === "teacher" && profile?.limited_access === true;
   // Pre-N through Grade 2: reflections only. Grade 3 and up: can also see (not edit)
@@ -121,6 +122,7 @@ function BrightStepsHubInner() {
     if (isStudent && !STUDENT_ALLOWED_TABS.includes(tab)) setTab("portfolio");
     if (!isStudent && !isParent && tab === "gradebook") setTab("assessment");
     if (tab === "daily" && staffDailyGrades(profile).length === 0) setTab("dashboard");
+    if (tab === "conferences" && meetingGrades(profile).length === 0) setTab("dashboard");
   }, [isParent, isAdmin, isLearningAssistant, isAccountant, isStudent, tab, profile]);
 
   if (loadError) {
@@ -170,6 +172,7 @@ function BrightStepsHubInner() {
     { id: "assessment", label: "Assessment", navKey: "nav.assessment", icon: ClipboardCheck, category: "classroom" },
     { id: "weekly", label: "Weekly updates", navKey: "nav.weekly", icon: NotebookPen, category: "classroom" },
     // Pre-N daily log: only for the admin and staff of a class that uses it.
+    { id: "conferences", label: "Conferences", navKey: "nav.conferences", icon: Handshake, category: "classroom", hidden: meetingGrades(profile).length === 0 },
     { id: "daily", label: "Daily log", navKey: "nav.daily", icon: Baby, category: "classroom", hidden: staffDailyGrades(profile).length === 0 },
     { id: "assignments", label: "Assignments", navKey: "nav.assignments", icon: FileText, category: "classroom" },
     { id: "reports", label: "Reports", navKey: "nav.reports", icon: FileCheck, category: "compliance" },
@@ -303,6 +306,7 @@ function BrightStepsHubInner() {
       {tab === "leave" && <LeaveTab profile={profile} />}
       {tab === "weekly" && !isParent && !isStudent && <WeeklyUpdatesTab profile={profile} data={data} />}
       {tab === "daily" && staffDailyGrades(profile).length > 0 && <DailyLogTab profile={profile} />}
+      {tab === "conferences" && meetingGrades(profile).length > 0 && <MeetingsTab profile={profile} />}
       {tab === "checkin" && !isParent && !isStudent && <StaffCheckinTab profile={profile} />}
       {tab === "admissions" && !isParent && !isLearningAssistant && <AdmissionsTab data={data} persist={persist} />}
       {tab === "assignments" && <AssignmentsTab data={data} persist={persist} profile={profile} />}
