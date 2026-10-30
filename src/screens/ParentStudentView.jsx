@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { WeeklyUpdatesFamily, WeeklyHistoryStaff } from "../WeeklyUpdates";
+import { DailyReportFamily } from "../DailyReport";
 import { useLanguage } from "../lib/i18n";
 import AttachmentField from "../AttachmentField";
 import { DEFAULT_SETTINGS, isStaffOnlyEvent } from "../data/constants";
@@ -334,6 +335,8 @@ function ParentStudentView({ data, persist, profile }) {
             {activeStudent.allergies && <p className="bsf-alert-note">{t("dash.allergies")} {activeStudent.allergies}</p>}
             {activeStudent.medicalConditions && <p className="bsf-alert-note">{t("dash.medical")} {activeStudent.medicalConditions}</p>}
           </section>
+
+          <DailyReportFamily student={activeStudent} language={language} />
 
           <WeeklyUpdatesFamily student={activeStudent} language={language} />
 
