@@ -13,6 +13,7 @@ import { supabase } from "./lib/supabaseClient";
 import { uploadAttachment, getAttachmentUrl, deleteAttachment, shrinkImage } from "./lib/attachments";
 import { COLORS, TONES, card as cardToken, chip, chipOn, primaryBtn, ghostBtn, input, pill } from "./ui/tokens";
 import { Modal } from "./ui/common";
+import { StaffFamilyNotes, FamilyMorningNote, StaffStories, FamilyStories, StaffPosts, FamilyPosts, StaffFeedback, FamilyFeedback } from "./DiaryExtras";
 
 // Classes that use the daily report. Add "PreK" here later if wanted.
 export const DAILY_GRADES = ["Pre-N"];
@@ -166,29 +167,45 @@ export default function DailyLogTab({ profile }) {
   const grades = staffDailyGrades(profile);
   const [grade, setGrade] = useState(grades[0] || null);
   const [day, setDay] = useState(today());
+  const [section, setSection] = useState("today");
+  const [roster, setRoster] = useState([]);
+  useEffect(() => {
+    if (!grade) return;
+    supabase.from("students").select("id, full_name, first_name, legacy_id, no_photos").eq("grade", grade).order("first_name").then(({ data }) => setRoster(data || []));
+  }, [grade]);
 
-  if (!grades.length) return <p style={{ ...card, color: COLORS.muted }}>The daily log is for Pre-N staff. No Pre-N class is assigned to you.</p>;
+  if (!grades.length) return <p style={{ ...card, color: COLORS.muted }}>The Pre-N Diary is for Pre-N staff. No Pre-N class is assigned to you.</p>;
 
   return (
     <div style={{ maxWidth: 760, margin: "0 auto" }}>
       <div style={{ ...card, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", justifyContent: "space-between" }}>
         <div>
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase", color: COLORS.brand }}>Daily log</p>
+          <p style={{ margin: 0, fontSize: 12, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase", color: COLORS.brand }}>Pre-N Diary</p>
           <h1 style={{ margin: "4px 0 0", fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 600 }}>
-            {grade} · {day === today() ? "Today" : dayTitle(day)}
+            {section === "today" ? (day === today() ? "Today" : dayTitle(day)) : section === "stories" ? "Learning stories" : "Class posts"}
           </h1>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        {section === "today" && <div style={{ display: "flex", gap: 8 }}>
           <button style={ghostBtn} onClick={() => setDay(stepSchoolDay(day, -1))}>‹ Previous day</button>
           <button style={{ ...ghostBtn, opacity: day >= today() ? 0.5 : 1 }} disabled={day >= today()} onClick={() => setDay(stepSchoolDay(day, 1) > today() ? today() : stepSchoolDay(day, 1))}>Next ›</button>
-        </div>
+        </div>}
+      </div>
+      <div style={{ ...card, display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6, padding: 8 }}>
+        {[["today", "Today"], ["stories", "Learning stories"], ["posts", "Class posts"]].map(([id, label]) => (
+          <button key={id} style={{ ...(section === id ? chipOn : chip), minHeight: 44, borderRadius: 12 }} onClick={() => setSection(id)}>{label}</button>
+        ))}
       </div>
       {grades.length > 1 && (
         <div style={{ ...card, display: "flex", gap: 7, flexWrap: "wrap" }}>
           {grades.map((g) => <button key={g} style={g === grade ? chipOn : chip} onClick={() => setGrade(g)}>{g}</button>)}
         </div>
       )}
-      <ClassDay key={`${grade}-${day}`} grade={grade} day={day} profile={profile} />
+      {section === "today" && <>
+        <StaffFamilyNotes grade={grade} day={day} students={roster} />
+        <ClassDay key={`${grade}-${day}`} grade={grade} day={day} profile={profile} />
+      </>}
+      {section === "stories" && <StaffStories key={grade} grade={grade} students={roster} profile={profile} />}
+      {section === "posts" && <StaffPosts key={grade} grade={grade} students={roster} profile={profile} />}
     </div>
   );
 }
@@ -202,6 +219,7 @@ function ClassDay({ grade, day, profile }) {
   const [selected, setSelected] = useState([]);
   const [action, setAction] = useState(null);
   const [openChild, setOpenChild] = useState(null);
+  const [feedbackFor, setFeedbackFor] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -360,6 +378,9 @@ function ClassDay({ grade, day, profile }) {
             {photos.map((p) => (
               <div key={p.id} style={{ position: "relative", aspectRatio: "1 / 1" }}>
                 <PhotoImg path={p.path} alt={p.caption || "Class photo"} />
+                <div style={{ position: "absolute", left: 4, bottom: 4, right: 4 }}>
+                  <button onClick={() => setFeedbackFor(p)} style={{ border: "none", borderRadius: 999, background: "rgba(255,255,255,.92)", fontFamily: "inherit", fontSize: 12, fontWeight: 600, padding: "4px 9px", cursor: "pointer", color: COLORS.brand }}>Reactions</button>
+                </div>
                 <button aria-label="Delete photo" onClick={() => removePhoto(p)}
                   style={{ position: "absolute", top: 6, right: 6, width: 36, height: 36, borderRadius: 18, border: "none", background: "rgba(36,16,18,.65)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                   <Trash2 size={16} />
@@ -380,6 +401,12 @@ function ClassDay({ grade, day, profile }) {
           onClose={() => setAction(null)}
           onSave={async (kind, details, time) => { const ok = await addEntries(kind, details, time); if (ok) setAction(null); }}
           onWake={async (time) => { const ok = await wakeUp(time); if (ok) setAction(null); }} />
+      )}
+      {feedbackFor && (
+        <Modal title="Reactions and comments" onClose={() => setFeedbackFor(null)}>
+          <div style={{ maxWidth: 320 }}><PhotoImg path={feedbackFor.path} style={{ height: 200 }} /></div>
+          <StaffFeedback type="photo" id={feedbackFor.id} students={students} />
+        </Modal>
       )}
       {openChild && (
         <Modal title={`${firstName(openChild)} · ${day === today() ? "today" : dayTitle(day)}`} onClose={() => setOpenChild(null)}>
@@ -682,12 +709,12 @@ function PhotoConsent({ students, onSaved }) {
 // ======================================================================================
 
 const F = {
-  en: { title: "Daily report", live: "Live today", noEntries: "No entries yet today. Updates appear here during the day.", noEntriesPast: "Nothing was logged on this day.",
+  en: { title: "Pre-N diary", tabToday: "Today", tabStories: "Learning stories", tabNews: "Class news", live: "Live today", noEntries: "No entries yet today. Updates appear here during the day.", noEntriesPast: "Nothing was logged on this day.",
         meals: "Meals", rest: "Rest", toilet: "Toilet", mood: "Mood", explored: "What they explored", first: "A first today", health: "Health and care",
         send: "Please send tomorrow", note: "Note from the team", seen: "Seen", seenDone: "Thank you, the team can see you have read it.", photos: "Photos",
         slept: (m) => `Slept ${m} min`, resting: "Resting now", times: (n) => `${n}×`, prev: "‹ Previous day", next: "Next ›", today: "Today",
         arrived: "Arrived", left: "Picked up", summaryPending: "The team's end-of-day summary will appear here." },
-  fr: { title: "Journal du jour", live: "En direct aujourd'hui", noEntries: "Rien pour l'instant. Les nouvelles s'affichent ici pendant la journée.", noEntriesPast: "Rien n'a été noté ce jour-là.",
+  fr: { title: "Journal Pre-N", tabToday: "Aujourd'hui", tabStories: "Histoires d'apprentissage", tabNews: "Vie de la classe", live: "En direct aujourd'hui", noEntries: "Rien pour l'instant. Les nouvelles s'affichent ici pendant la journée.", noEntriesPast: "Rien n'a été noté ce jour-là.",
         meals: "Repas", rest: "Sieste", toilet: "Toilettes", mood: "Humeur", explored: "Ce qu'il/elle a exploré", first: "Une première aujourd'hui", health: "Santé et soins",
         send: "Merci d'apporter demain", note: "Mot de l'équipe", seen: "Vu", seenDone: "Merci, l'équipe voit que vous l'avez lu.", photos: "Photos",
         slept: (m) => `A dormi ${m} min`, resting: "Fait la sieste", times: (n) => `${n} fois`, prev: "‹ Jour précédent", next: "Suivant ›", today: "Aujourd'hui",
@@ -703,6 +730,7 @@ export function DailyReportFamily({ student, language = "en" }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewer, setViewer] = useState(null);
+  const [tab, setTab] = useState("today");
   const enabled = !!student && DAILY_GRADES.includes(student.grade);
 
   const load = useCallback(async () => {
@@ -760,14 +788,24 @@ export function DailyReportFamily({ student, language = "en" }) {
             {departure && ` · ${L.left} ${hm(departure.at_time)}`}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
+        {tab === "today" && <div style={{ display: "flex", gap: 6 }}>
           <button style={{ ...ghostBtn, minHeight: 40 }} onClick={() => setDay(stepSchoolDay(day, -1))}>{L.prev}</button>
           {!isToday && <button style={{ ...ghostBtn, minHeight: 40 }} onClick={() => { const n = stepSchoolDay(day, 1); setDay(n > today() ? today() : n); }}>{L.next}</button>}
-        </div>
+        </div>}
       </div>
 
-      {loading ? <p className="bsf-muted">…</p> : (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6, marginTop: 12 }}>
+        {[["today", L.tabToday], ["stories", L.tabStories], ["news", L.tabNews]].map(([id, label]) => (
+          <button key={id} style={{ ...(tab === id ? chipOn : chip), minHeight: 44, borderRadius: 12, whiteSpace: "normal", lineHeight: 1.2 }} onClick={() => setTab(id)}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "stories" && <div style={{ marginTop: 12 }}><FamilyStories student={student} lang={lang} /></div>}
+      {tab === "news" && <div style={{ marginTop: 12 }}><FamilyPosts student={student} lang={lang} /></div>}
+
+      {tab === "today" && (loading ? <p className="bsf-muted">…</p> : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+          {isToday && <FamilyMorningNote student={student} lang={lang} />}
           {photos.length > 0 && (
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(photos.length, 3)}, minmax(0, 1fr))`, gap: 8 }}>
               {photos.map((p) => (
@@ -900,12 +938,13 @@ export function DailyReportFamily({ student, language = "en" }) {
               : <button style={{ ...primaryBtn, minHeight: 48 }} onClick={markSeen}>{L.seen}</button>
           ) : (isToday && entries.length > 0 && <p className="bsf-muted" style={{ margin: 0, fontSize: 13 }}>{L.summaryPending}</p>)}
         </div>
-      )}
+      ))}
 
       {viewer && (
         <Modal title={viewer.caption || L.photos} onClose={() => setViewer(null)}>
           <PhotoImg path={viewer.path} alt={viewer.caption || ""} style={{ height: "auto", maxHeight: "70vh", objectFit: "contain" }} />
           {viewer.activity && <p className="bsf-muted" style={{ marginTop: 8 }}>{lab(ACTIVITIES, viewer.activity, lang)}</p>}
+          <FamilyFeedback type="photo" id={viewer.id} hub={student.id} lang={lang} />
         </Modal>
       )}
     </section>

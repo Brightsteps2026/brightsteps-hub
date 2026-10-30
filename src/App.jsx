@@ -173,7 +173,7 @@ function BrightStepsHubInner() {
     { id: "weekly", label: "Weekly updates", navKey: "nav.weekly", icon: NotebookPen, category: "classroom" },
     // Pre-N daily log: only for the admin and staff of a class that uses it.
     { id: "conferences", label: "Conferences", navKey: "nav.conferences", icon: Handshake, category: "classroom", hidden: meetingGrades(profile).length === 0 },
-    { id: "daily", label: "Daily log", navKey: "nav.daily", icon: Baby, category: "classroom", hidden: staffDailyGrades(profile).length === 0 },
+    { id: "daily", label: "Pre-N Diary", navKey: "nav.daily", icon: Baby, category: "classroom", hidden: staffDailyGrades(profile).length === 0 },
     { id: "assignments", label: "Assignments", navKey: "nav.assignments", icon: FileText, category: "classroom" },
     { id: "reports", label: "Reports", navKey: "nav.reports", icon: FileCheck, category: "compliance" },
     { id: "resources", label: "Resources", navKey: "nav.resources", icon: FolderOpen, category: "compliance" },
