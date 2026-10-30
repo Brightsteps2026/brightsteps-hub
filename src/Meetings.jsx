@@ -26,6 +26,8 @@ const dateLong = (s, lang = "en") =>
   new Date(`${s}T12:00:00`).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-GB", { weekday: "long", day: "numeric", month: "long" });
 const firstName = (st) => st.first_name || (st.full_name || "").split(" ")[0] || "Child";
 const ROUND = "Term 1 conferences";
+// Term 1 conferences are on Wednesday 25 November 2026.
+const CONFERENCE_DAY = "2026-11-25";
 
 export function meetingGrades(profile) {
   if (!profile) return [];
@@ -66,7 +68,7 @@ function ClassMeetings({ grade, round, profile }) {
   const [rows, setRows] = useState({});
   const [drafts, setDrafts] = useState({});
   const [teacher, setTeacher] = useState("");
-  const [fill, setFill] = useState({ date: today(), start: "15:40", length: 20, gap: 0, place: "", mode: "in_person" });
+  const [fill, setFill] = useState({ date: CONFERENCE_DAY, start: "15:40", length: 20, gap: 0, place: "", mode: "in_person" });
   const [canEdit, setCanEdit] = useState(false);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);

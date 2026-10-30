@@ -9,7 +9,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 import { COLORS, TONES, card as cardToken, chip, chipOn, primaryBtn, ghostBtn, input, pill } from "./ui/tokens";
-import { GRADES, isStaffOnlyEvent } from "./data/constants";
+import { GRADES as ALL_GRADES, isStaffOnlyEvent } from "./data/constants";
+import { DAILY_GRADES } from "./DailyReport";
+
+// Pre-N families get the daily report instead of weekly updates (Myri, 30 Oct 2026).
+const GRADES = ALL_GRADES.filter((g) => !DAILY_GRADES.includes(g));
 
 const card = { ...cardToken, marginBottom: 14 };
 const h2 = { margin: 0, fontSize: 17, fontWeight: 600 };
@@ -746,6 +750,11 @@ function Overview({ week, onOpen }) {
 // ===========================================================================
 
 export function WeeklyUpdatesFamily({ student, language }) {
+  if (student && DAILY_GRADES.includes(student.grade)) return null;
+  return <WeeklyUpdatesFamilyInner student={student} language={language} />;
+}
+
+function WeeklyUpdatesFamilyInner({ student, language }) {
   const lang = language === "fr" ? "fr" : "en";
   const t = T[lang];
   const [rows, setRows] = useState(null);
@@ -1099,7 +1108,7 @@ export function WeeklyHistoryStaff({ student }) {
 export function WeeklyUpdateCard({ students, language, onOpen }) {
   const lang = language === "fr" ? "fr" : "en";
   const [rows, setRows] = useState([]);
-  const ids = (students || []).map((s) => s.id);
+  const ids = (students || []).filter((s) => !DAILY_GRADES.includes(s.grade)).map((s) => s.id);
   useEffect(() => {
     if (!ids.length) return;
     supabase.from("weekly_updates").select("id, hub_student_id, week_start")
