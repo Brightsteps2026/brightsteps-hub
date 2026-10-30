@@ -123,6 +123,7 @@ function BrightStepsHubInner() {
     if (!isStudent && !isParent && tab === "gradebook") setTab("assessment");
     if (tab === "daily" && staffDailyGrades(profile).length === 0) setTab("dashboard");
     if (tab === "conferences" && meetingGrades(profile).length === 0) setTab("dashboard");
+    if (tab === "standards") setTab("assessment");
   }, [isParent, isAdmin, isLearningAssistant, isAccountant, isStudent, tab, profile]);
 
   if (loadError) {
@@ -165,7 +166,7 @@ function BrightStepsHubInner() {
     { id: "planning", label: "Curriculum", navKey: "nav.planning", icon: ClipboardList, category: "classroom" },
     { id: "calendar", label: "Calendar", navKey: "nav.calendar", icon: CalendarIcon, category: "office" },
     { id: "timetable", label: "Timetable", navKey: "nav.timetable", icon: Clock3, category: "classroom" },
-    { id: "standards", label: "Standards", navKey: "nav.standards", icon: Target, category: "classroom" },
+    { id: "standards", label: "Standards", navKey: "nav.standards", icon: Target, category: "classroom", hidden: true }, // hidden 30 Oct 2026: standards move into Assessment and Curriculum
     { id: "canteen", label: "Canteen", navKey: "nav.canteen", icon: Utensils, category: "office" },
     { id: "incidents", label: "Incidents", navKey: "nav.incidents", icon: IncidentsIcon, category: "classroom" },
     { id: "admissions", label: "Admissions", navKey: "nav.admissions", icon: UserPlus, category: "office" },
