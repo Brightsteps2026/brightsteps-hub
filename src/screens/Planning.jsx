@@ -19,13 +19,22 @@ const SPECIALIST_GRADE_COUNT = 5;
 // Who may change a unit plan (Myri, 3 Nov 2026): teachers see every unit,
 // but only change their own. New units record who created them. Older units
 // (made before that) belong to the class teacher(s) of the unit's grades.
+// The grades a teacher plans units for: profiles.unit_grades when the office has
+// set it (e.g. Maryliz: Grade 6–7 only), otherwise their usual grades.
+export function unitGradesOf(profile) {
+  const list = Array.isArray(profile?.unit_grades) && profile.unit_grades.length > 0 ? profile.unit_grades : profile?.grades_assigned;
+  return (Array.isArray(list) ? list : []).filter((g) => GRADES.includes(g));
+}
+
 export function canEditUnit(plan, profile) {
   if (profile?.role === "admin") return true;
   if (profile?.role !== "teacher") return false;
   if (!plan) return true; // a brand-new unit
-  if (plan.createdBy) return plan.createdBy === profile.id;
-  const mine = Array.isArray(profile.grades_assigned) ? profile.grades_assigned : [];
+  const mine = unitGradesOf(profile);
   const grades = plan.grades || [];
+  // Even their own unit becomes view only if it covers a grade they no longer plan for.
+  if (!grades.every((g) => mine.includes(g))) return false;
+  if (plan.createdBy) return plan.createdBy === profile.id;
   return mine.length > 0 && mine.length < SPECIALIST_GRADE_COUNT && grades.length > 0 && grades.every((g) => mine.includes(g));
 }
 
@@ -148,6 +157,10 @@ function PlanningTab({ data, persist, profile }) {
   const savePlan = (plan) => {
     const existing = data.plans.find((p) => p.id === plan.id);
     if (!canEditUnit(existing, profile)) return;
+    if (!isAdmin && !(plan.grades || []).every((g) => unitGradesOf(profile).includes(g))) {
+      window.alert(`You can only plan units for ${unitGradesOf(profile).join(", ") || "your own grades"}.`);
+      return;
+    }
     const exists = !!existing;
     if (!exists && !plan.createdBy) plan = { ...plan, createdBy: profile?.id, createdByName: profile?.full_name || "" };
     persist({ ...data, plans: exists ? data.plans.map((p) => (p.id === plan.id ? plan : p)) : [...data.plans, plan] });
@@ -168,7 +181,7 @@ function PlanningTab({ data, persist, profile }) {
         onSave={savePlan}
         onClose={() => setEditing(null)}
         readOnly={!canEditUnit(editingPlan, profile)}
-        gradeOptions={isAdmin ? GRADES : GRADES.filter((g) => myGrades.includes(g))}
+        gradeOptions={isAdmin ? GRADES : unitGradesOf(profile)}
       />
     );
   }
@@ -326,7 +339,7 @@ function PlanningTab({ data, persist, profile }) {
         <>
       <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
         <span />
-        {(isAdmin || (profile?.role === "teacher" && myGrades.length > 0)) && <button className="bsf-btn" onClick={() => setEditing("new")}><Plus size={16} /> New unit</button>}
+        {(isAdmin || (profile?.role === "teacher" && unitGradesOf(profile).length > 0)) && <button className="bsf-btn" onClick={() => setEditing("new")}><Plus size={16} /> New unit</button>}
       </div>
 
       <div className="bsf-chiprow">
