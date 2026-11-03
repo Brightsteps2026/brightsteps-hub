@@ -2,7 +2,7 @@
 // No times. Staff fill in once a day: what the class did (a few taps + one optional line),
 // then one row per child (mood, lunch, rest, optional note), and the class teacher sends it.
 // Photos reach tagged families straight away; children marked "No photos" can never be tagged.
-// Diary-only helpers (profiles.diary_grades, e.g. Yasmina) can fill everything in but not send.
+// Assistants and diary-only helpers (profiles.diary_grades) fill everything in; only the class teacher or admin sends.
 // Staff screens are English only; the family view follows the EN/FR toggle.
 
 import { useEffect, useMemo, useState, useCallback } from "react";
@@ -179,11 +179,12 @@ export function staffDailyGrades(profile) {
   return DAILY_GRADES.filter((g) => mine.includes(g));
 }
 
-// Sending to families: the class's own staff and the admin, not diary-only helpers.
+// Sending to families: the class teacher and the admin only. Assistants (e.g. Aichata)
+// and diary-only helpers fill it in but do not send (Myri, 3 Nov 2026).
 function canSendDiary(profile, grade) {
   if (profile?.role === "admin") return true;
-  const mine = [...listOf(profile?.grades_assigned), ...listOf(profile?.assigned_grades), ...listOf(profile?.assistant_grades)];
-  return ["teacher", "learning_assistant"].includes(profile?.role) && mine.includes(grade);
+  const mine = [...listOf(profile?.grades_assigned), ...listOf(profile?.assigned_grades)];
+  return profile?.role === "teacher" && mine.includes(grade);
 }
 
 export default function DailyLogTab({ profile }) {
