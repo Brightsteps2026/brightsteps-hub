@@ -4,7 +4,7 @@ import { COLORS, FONT, TONES, card as cardToken, chip, chipOn, primaryBtn, ghost
 import { AssessmentTab } from "./screens/Assessment";
 import EarlyYearsAssessment from "./EarlyYearsAssessment";
 import { TermReportsStaff } from "./TermReports";
-import { EY_GRADES } from "./data/earlyYears";
+import { EY_GRADES, eyEnrichment } from "./data/earlyYears";
 
 // Staff screen, English only.
 // Gradebook backed by the gb_* tables (see gradebook-setup.sql and
@@ -168,9 +168,16 @@ export default function SchoolGradebook({ profile, data, persist }) {
   const myEarly = EARLY.filter((g) => viewGrades.includes(g) && !EY_GRADES.includes(g));
   const myAll = ALL_GRADES.filter((g) => viewGrades.includes(g));
   const hasNotes = !!data && !!persist;
+  // Specialist teachers (music, PE, swimming, art) see only their own subject
+  // (profiles.subjects, set by the office; 3 Nov 2026). No ATL/SEL, notes or full report cards.
+  const onlySubjects = !isAdmin && Array.isArray(profile?.subjects) && profile.subjects.length > 0 ? profile.subjects : null;
 
   // Youngest classes first.
-  const sections = [
+  const sections = onlySubjects ? [
+    myEY.length > 0 && { id: "eyspecial", label: "Comments · Pre-N–KG" },
+    myEarly.length > 0 && { id: "early", label: "Levels · Grade 1–2" },
+    myUpper.length > 0 && { id: "academic", label: "Gradebook · Grade 3–7" }
+  ].filter(Boolean) : [
     myEY.length > 0 && { id: "ey", label: "Early years · Pre-N–KG" },
     myEarly.length > 0 && { id: "early", label: "Levels · Grade 1–2" },
     myUpper.length > 0 && { id: "academic", label: "Gradebook · Grade 3–7" },
@@ -191,14 +198,15 @@ export default function SchoolGradebook({ profile, data, persist }) {
       {myAll.length === 0 && section !== "notes" && (
         <div style={card}>No class is assigned to your account yet. Please ask the school office to add your grades.</div>
       )}
-      {section === "ey" && myEY.length > 0 && (
+      {!onlySubjects && section === "ey" && myEY.length > 0 && (
         <EarlyYearsAssessment grades={myEY} editGrades={editGrades} profile={profile} data={data} persist={persist} SubjectComments={SubjectComments} />
       )}
-      {section === "reports" && myAll.length > 0 && <TermReportsStaff profile={profile} data={data} />}
-      {section === "academic" && myUpper.length > 0 && <ClassGradebook key="academic" grades={myUpper} editGrades={editGrades} early={false} />}
-      {section === "early" && myEarly.length > 0 && <ClassGradebook key="early" grades={myEarly} editGrades={editGrades} early />}
-      {section === "skills" && myAll.length > 0 && <SkillsGradebook grades={myAll} editGrades={editGrades} />}
-      {section === "notes" && hasNotes && (
+      {!onlySubjects && section === "reports" && myAll.length > 0 && <TermReportsStaff profile={profile} data={data} />}
+      {section === "academic" && myUpper.length > 0 && <ClassGradebook key="academic" grades={myUpper} editGrades={editGrades} early={false} onlySubjects={onlySubjects} />}
+      {section === "early" && myEarly.length > 0 && <ClassGradebook key="early" grades={myEarly} editGrades={editGrades} early onlySubjects={onlySubjects} />}
+      {section === "eyspecial" && onlySubjects && myEY.length > 0 && <EYSpecialistComments grades={myEY} editGrades={editGrades} subjects={onlySubjects} />}
+      {!onlySubjects && section === "skills" && myAll.length > 0 && <SkillsGradebook grades={myAll} editGrades={editGrades} />}
+      {!onlySubjects && section === "notes" && hasNotes && (
         <div style={{ margin: "0 -16px" }}>
           <AssessmentTab data={data} persist={persist} profile={profile} />
         </div>
@@ -207,9 +215,40 @@ export default function SchoolGradebook({ profile, data, persist }) {
   );
 }
 
-function ClassGradebook({ grades, editGrades, early: earlySection }) {
+// Specialists in Pre-N, PreK and KG write one report-card comment per child for their subject.
+function EYSpecialistComments({ grades, editGrades, subjects }) {
   const [grade, setGrade] = useState(grades[0]);
-  const [subject, setSubject] = useState(SUBJECTS[0]);
+  const [term, setTerm] = useState(1);
+  const list = eyEnrichment(grade).filter((e) => subjects.includes(e.subject));
+  const [subject, setSubject] = useState(list[0]?.subject || null);
+  useEffect(() => {
+    const l = eyEnrichment(grade).filter((e) => subjects.includes(e.subject));
+    if (!l.some((e) => e.subject === subject)) setSubject(l[0]?.subject || null);
+  }, [grade]);
+  return (
+    <div style={card}>
+      <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 10 }}>
+        {grades.map((g) => <button key={g} onClick={() => setGrade(g)} style={grade === g ? chipOn : chip}>{g}</button>)}
+      </div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+        {[1, 2, 3].map((t) => <button key={t} onClick={() => setTerm(t)} style={term === t ? chipOn : chip}>Term {t}</button>)}
+        {list.length > 1 && list.map((e) => <button key={e.id} onClick={() => setSubject(e.subject)} style={subject === e.subject ? chipOn : chip}>{e.en}</button>)}
+      </div>
+      {subject ? (
+        <>
+          <p style={{ margin: "0 0 10px", fontSize: 13, color: COLORS.muted }}>
+            {list.find((e) => e.subject === subject)?.en} · one comment per child for this term. It appears on the report card.
+          </p>
+          <SubjectComments key={`${grade}:${subject}:${term}`} grade={grade} subject={subject} term={term} canEdit={editGrades.includes(grade)} />
+        </>
+      ) : <p style={{ margin: 0, color: COLORS.muted }}>Your subject is not part of this class's report card.</p>}
+    </div>
+  );
+}
+
+function ClassGradebook({ grades, editGrades, early: earlySection, onlySubjects = null }) {
+  const [grade, setGrade] = useState(grades[0]);
+  const [subject, setSubject] = useState(onlySubjects ? onlySubjects[0] : SUBJECTS[0]);
   const [term, setTerm] = useState(1);
 
   // "early" below means: graded with levels (Pre-N to Grade 2, and specials in every grade).
@@ -301,8 +340,8 @@ function ClassGradebook({ grades, editGrades, early: earlySection }) {
   }, [justAdded, loading]);
 
   const subjectList = useMemo(
-    () => [...SUBJECTS, ...usedSubjects.filter((s) => !SUBJECTS.includes(s))],
-    [usedSubjects]
+    () => (onlySubjects || [...SUBJECTS, ...usedSubjects.filter((s) => !SUBJECTS.includes(s))]),
+    [usedSubjects, onlySubjects]
   );
 
   const results = useMemo(() => {
