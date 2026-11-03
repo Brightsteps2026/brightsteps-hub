@@ -46,6 +46,17 @@ const LOGIN_TEXT = {
     passwordSetFailed: "Your password could not be saved. Please try again.",
     passwordSetupIncomplete: "Your password was saved, but we could not finish setting up your account. Please try again.",
     footer: "© BrightSteps International School",
+    forgot: "Forgot password?",
+    forgotTitle: "Reset your password",
+    forgotHelp: "Enter the email you use for the Hub. We'll send you a link to choose a new password.",
+    sendLink: "Send reset link",
+    sendingLink: "Sending…",
+    linkSent: "If this email has a Hub account, a reset link is on its way. Please check your inbox and your spam folder. The link works once and for a short time.",
+    linkFailed: "We could not send the link. Please wait a minute and try again, or contact the school office.",
+    backToSignIn: "Back to sign in",
+    studentForgot: "Students: ask your teacher to reset your password.",
+    resetTitle: "Choose a new password",
+    resetHelp: "Type your new password twice. You'll stay signed in afterwards.",
   },
   fr: {
     title: "BrightSteps Hub",
@@ -79,6 +90,17 @@ const LOGIN_TEXT = {
     passwordSetFailed: "Votre mot de passe n'a pas pu être enregistré. Veuillez réessayer.",
     passwordSetupIncomplete: "Votre mot de passe a été enregistré, mais la configuration de votre compte n'a pas pu être finalisée. Veuillez réessayer.",
     footer: "© BrightSteps International School",
+    forgot: "Mot de passe oublié ?",
+    forgotTitle: "Réinitialiser votre mot de passe",
+    forgotHelp: "Saisissez l'adresse e-mail que vous utilisez pour le Hub. Nous vous enverrons un lien pour choisir un nouveau mot de passe.",
+    sendLink: "Envoyer le lien",
+    sendingLink: "Envoi…",
+    linkSent: "Si cette adresse a un compte sur le Hub, un lien vous a été envoyé. Vérifiez votre boîte de réception et vos courriers indésirables. Le lien ne fonctionne qu'une fois et pour une courte durée.",
+    linkFailed: "Le lien n'a pas pu être envoyé. Patientez une minute et réessayez, ou contactez le secrétariat de l'école.",
+    backToSignIn: "Retour à la connexion",
+    studentForgot: "Élèves : demandez à votre enseignant(e) de réinitialiser votre mot de passe.",
+    resetTitle: "Choisissez un nouveau mot de passe",
+    resetHelp: "Saisissez deux fois votre nouveau mot de passe. Vous resterez connecté(e) ensuite.",
   }
 };
 
@@ -111,12 +133,20 @@ export default function LoginGate({ children }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSetError, setPasswordSetError] = useState("");
   const [settingPassword, setSettingPassword] = useState(false);
+  // Forgot password (3 Nov 2026): parents and staff reset their own password by email.
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resetState, setResetState] = useState(""); // "", "sending", "sent", "failed"
+  // Arrived from the email link: ask for a new password before anything else.
+  const [recovery, setRecovery] = useState(() => {
+    try { return /type=recovery/.test(window.location.hash || ""); } catch { return false; }
+  });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session || null);
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
       setSession(newSession);
     });
     return () => {
@@ -211,6 +241,19 @@ export default function LoginGate({ children }) {
     }
   }
 
+  async function handleSendReset(e) {
+    e.preventDefault();
+    setResetState("sending");
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin });
+    if (error) {
+      console.error("Reset link failed", error);
+      // Never reveal whether an email has an account; only rate limits and outages show as failures.
+      setResetState(/rate|limit|429/i.test(`${error.status} ${error.message}`) || error.status >= 500 ? "failed" : "sent");
+      return;
+    }
+    setResetState("sent");
+  }
+
   async function handleSignOut() {
     await supabase.auth.signOut();
   }
@@ -256,6 +299,9 @@ export default function LoginGate({ children }) {
       return;
     }
     setProfile((p) => (p ? { ...p, password_changed: true } : p));
+    setRecovery(false);
+    setNewPassword(""); setConfirmPassword("");
+    try { if (/type=recovery/.test(window.location.hash || "")) window.history.replaceState(null, "", window.location.pathname); } catch {}
   }
 
   if (session === undefined) {
@@ -309,6 +355,24 @@ export default function LoginGate({ children }) {
             </button>
           </div>
 
+          {forgotMode ? (
+            <form onSubmit={handleSendReset}>
+              <h2 style={{ ...styles.title, fontSize: 19, marginTop: 14 }}>{lt.forgotTitle}</h2>
+              <p style={{ ...styles.subtitle, marginBottom: 6 }}>{lt.forgotHelp}</p>
+              <label style={styles.label}>{lt.email}</label>
+              <input type="email" required value={email} onChange={(e) => { setEmail(e.target.value); setResetState(""); }}
+                style={styles.input} className="bsh-input" autoComplete="username" />
+              {resetState === "sent" && <p style={{ ...styles.error, color: "#2E7D4F", textAlign: "left", lineHeight: 1.5 }}>{lt.linkSent}</p>}
+              {resetState === "failed" && <p style={styles.error}>{lt.linkFailed}</p>}
+              <button type="submit" disabled={resetState === "sending" || resetState === "sent"} style={styles.button} className="bsh-btn">
+                {resetState === "sending" ? lt.sendingLink : lt.sendLink}
+              </button>
+              <button type="button" onClick={() => { setForgotMode(false); setResetState(""); }}
+                style={{ ...styles.button, marginTop: 10, background: "transparent", color: "#801524", border: "1px solid #E2C6CB", boxShadow: "none" }} className="bsh-btn-ghost">
+                {lt.backToSignIn}
+              </button>
+            </form>
+          ) : (
           <form onSubmit={handleSubmit}>
             {loginMode === "student" ? (
               <>
@@ -360,7 +424,14 @@ export default function LoginGate({ children }) {
             <button type="submit" disabled={submitting} style={styles.button} className="bsh-btn">
               {submitting ? lt.signingIn : lt.signIn}
             </button>
+            {loginMode === "student"
+              ? <p style={{ ...styles.footnote, marginTop: 14 }}>{lt.studentForgot}</p>
+              : <button type="button" onClick={() => { setForgotMode(true); setFormError(""); setResetState(""); }}
+                  style={{ background: "none", border: "none", color: "#801524", fontSize: 13.5, fontWeight: 600, marginTop: 14, cursor: "pointer", fontFamily: "'Work Sans', sans-serif", textDecoration: "underline" }}>
+                  {lt.forgot}
+                </button>}
           </form>
+          )}
           <p style={styles.footnote}>
             {lt.noAccount}
           </p>
@@ -397,15 +468,15 @@ export default function LoginGate({ children }) {
     );
   }
 
-  if (!profile.password_changed) {
+  if (!profile.password_changed || recovery) {
     return (
       <div style={styles.centerScreen}>
         <BrandStyles />
         <div style={styles.card}>
           <Logo url={logoUrl} />
-          <h1 style={styles.title}>{lt.welcome}</h1>
+          <h1 style={styles.title}>{recovery ? lt.resetTitle : lt.welcome}</h1>
           <p style={styles.subtitle}>
-            {lt.choosePassword}
+            {recovery ? lt.resetHelp : lt.choosePassword}
           </p>
           <form onSubmit={handleSetFirstPassword}>
             <label style={styles.label}>{lt.newPassword}</label>
