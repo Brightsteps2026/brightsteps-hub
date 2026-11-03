@@ -244,7 +244,7 @@ export default function LoginGate({ children }) {
   async function handleSendReset(e) {
     e.preventDefault();
     setResetState("sending");
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin });
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: "https://hub.bischoolci.org" });
     if (error) {
       console.error("Reset link failed", error);
       // Never reveal whether an email has an account; only rate limits and outages show as failures.
