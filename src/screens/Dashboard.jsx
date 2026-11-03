@@ -11,6 +11,7 @@ import { GRADES, DEFAULT_SETTINGS, isStaffOnlyEvent } from "../data/constants";
 import { uid, formatEventWhen, todayStr, lunchWeekLabel, isThisSchoolWeek, useTodayWeekday, formatCurrency, formatDateLong, formatTimestampDate, gradeLabel, tLabel, computeFeeBreakdown, feeCategoryIcon, attendanceCountsForRange } from "../lib/format";
 import { EventRow, Field, Modal, EnrollmentStairs, SignaturePad, StudentThumb } from "../ui/common";
 import { LinkedText } from "../ui/LinkedText";
+import EmojiField from "../ui/EmojiField";
 import { pending } from "../data/pending";
 
 function Dashboard({ data, profile, persist, onNavigate }) {
@@ -561,13 +562,13 @@ const saveLunchMenu = async () => {
       {GRADES.map((g) => <option key={g} value={g}>{g} only</option>)}
     </select>
     <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 4px" }}>Title (English)</p>
-    <input value={annForm.title} onChange={(e) => setAnnForm({ ...annForm, title: e.target.value })} style={{ width: "100%", marginBottom: 10 }} />
+    <EmojiField as="input" value={annForm.title} onChange={(v) => setAnnForm({ ...annForm, title: v })} style={{ width: "100%", marginBottom: 10 }} />
     <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 4px" }}>Titre (Français)</p>
-    <input value={annForm.title_fr} onChange={(e) => setAnnForm({ ...annForm, title_fr: e.target.value })} style={{ width: "100%", marginBottom: 10 }} />
+    <EmojiField as="input" value={annForm.title_fr} onChange={(v) => setAnnForm({ ...annForm, title_fr: v })} style={{ width: "100%", marginBottom: 10 }} />
     <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 4px" }}>Message (English)</p>
-    <textarea rows={8} value={annForm.body} onChange={(e) => setAnnForm({ ...annForm, body: e.target.value })} style={{ width: "100%", marginBottom: 10 }} />
+    <EmojiField rows={8} value={annForm.body} onChange={(v) => setAnnForm({ ...annForm, body: v })} style={{ width: "100%", marginBottom: 10 }} />
     <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 4px" }}>Message (Français)</p>
-    <textarea rows={8} value={annForm.body_fr} onChange={(e) => setAnnForm({ ...annForm, body_fr: e.target.value })} style={{ width: "100%", marginBottom: 10 }} />
+    <EmojiField rows={8} value={annForm.body_fr} onChange={(v) => setAnnForm({ ...annForm, body_fr: v })} style={{ width: "100%", marginBottom: 10 }} />
     <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 12 }}>
       <input type="checkbox" checked={annForm.show_staff} onChange={(e) => setAnnForm({ ...annForm, show_staff: e.target.checked })} />
       Also show on staff dashboard

@@ -7,6 +7,7 @@ import { GRADES } from "../data/constants";
 import { uid, formatDateLong } from "../lib/format";
 import { Field, Modal } from "../ui/common";
 import { LinkedText } from "../ui/LinkedText";
+import EmojiField from "../ui/EmojiField";
 
 function UpdatesTab({ data, persist }) {
   const { profile } = useAuth();
@@ -208,10 +209,10 @@ function UpdatesTab({ data, persist }) {
             </div>
           </Field>
           <Field label="Title (English)">
-            <input value={form.titleEn} onChange={(e) => setForm({ ...form, titleEn: e.target.value })} />
+            <EmojiField as="input" value={form.titleEn} onChange={(v) => setForm({ ...form, titleEn: v })} />
           </Field>
           <Field label="Message (English)">
-            <textarea rows={8} value={form.bodyEn} onChange={(e) => setForm({ ...form, bodyEn: e.target.value })} />
+            <EmojiField rows={8} value={form.bodyEn} onChange={(v) => setForm({ ...form, bodyEn: v })} />
           </Field>
           <Field label="File, e.g. newsletter (English, optional)">
             <AttachmentField folder="resources" files={form.files} onChange={(files) => setForm({ ...form, files })} />
@@ -237,10 +238,10 @@ function UpdatesTab({ data, persist }) {
             English version: <strong>{translatingPost.titleEn}</strong>
           </p>
           <Field label="Titre (Français)">
-            <input value={translateForm.titleFr} onChange={(e) => setTranslateForm({ ...translateForm, titleFr: e.target.value })} />
+            <EmojiField as="input" value={translateForm.titleFr} onChange={(v) => setTranslateForm({ ...translateForm, titleFr: v })} />
           </Field>
           <Field label="Message (Français)">
-            <textarea rows={8} value={translateForm.bodyFr} onChange={(e) => setTranslateForm({ ...translateForm, bodyFr: e.target.value })} />
+            <EmojiField rows={8} value={translateForm.bodyFr} onChange={(v) => setTranslateForm({ ...translateForm, bodyFr: v })} />
           </Field>
           {showFrPreview && previewCard(translateForm.titleFr, translateForm.bodyFr, "fr")}
           <button type="button" className="bsf-textbtn" style={{ marginBottom: 12 }} onClick={() => setShowFrPreview(!showFrPreview)}>
