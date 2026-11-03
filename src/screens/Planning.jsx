@@ -12,9 +12,30 @@ const WHOLE = "Whole school";
 const docGrades = (d) => (Array.isArray(d.grades) ? d.grades : []);
 const isUnsorted = (d) => docGrades(d).length === 0;
 
+// A teacher with this many grades or more is a whole-school specialist
+// (PE, swimming, French...), not a class teacher.
+const SPECIALIST_GRADE_COUNT = 5;
+
+// Who may change a unit plan (Myri, 3 Nov 2026): teachers see every unit,
+// but only change their own. New units record who created them. Older units
+// (made before that) belong to the class teacher(s) of the unit's grades.
+export function canEditUnit(plan, profile) {
+  if (profile?.role === "admin") return true;
+  if (profile?.role !== "teacher") return false;
+  if (!plan) return true; // a brand-new unit
+  if (plan.createdBy) return plan.createdBy === profile.id;
+  const mine = Array.isArray(profile.grades_assigned) ? profile.grades_assigned : [];
+  const grades = plan.grades || [];
+  return mine.length > 0 && mine.length < SPECIALIST_GRADE_COUNT && grades.length > 0 && grades.every((g) => mine.includes(g));
+}
+
 function PlanningTab({ data, persist, profile }) {
   const isAdmin = profile?.role === "admin";
+  const seesAllGrades = isAdmin || profile?.role === "viewer";
   const myGrades = (Array.isArray(profile?.grades_assigned) ? profile.grades_assigned : []).filter((g) => GRADES.includes(g));
+  // Teachers only work with their own grades' documents (plus Whole school ones, read only).
+  const canEditDoc = (d) => isAdmin || (docGrades(d).length > 0 && docGrades(d).every((g) => myGrades.includes(g)));
+  const docFormGrades = isAdmin ? [WHOLE, ...GRADES] : GRADES.filter((g) => myGrades.includes(g));
 
   const [curriculumView, setCurriculumView] = useState("documents");
   // null = list; "new" = a new unit; otherwise the id of the unit being edited.
@@ -42,7 +63,9 @@ function PlanningTab({ data, persist, profile }) {
   const gradeDocs = documents.filter(inGrade);
   const filteredDocs = docSubjectFilter ? gradeDocs.filter((d) => d.subject === docSubjectFilter) : gradeDocs;
   const subjectCount = (s) => gradeDocs.filter((d) => d.subject === s).length;
-  const gradeOrder = [WHOLE, ...myGrades, ...GRADES.filter((g) => !myGrades.includes(g))];
+  const gradeOrder = seesAllGrades
+    ? [WHOLE, ...myGrades, ...GRADES.filter((g) => !myGrades.includes(g))]
+    : [WHOLE, ...GRADES.filter((g) => myGrades.includes(g))];
 
   const gradeLabel = (d) => {
     const g = docGrades(d);
@@ -63,7 +86,7 @@ function PlanningTab({ data, persist, profile }) {
     setDocForm({
       title: "",
       subject: docSubjectFilter && CURRICULUM_SUBJECTS.includes(docSubjectFilter) ? docSubjectFilter : CURRICULUM_SUBJECTS[0],
-      grades: [docGrade],
+      grades: docFormGrades.includes(docGrade) ? [docGrade] : docFormGrades.slice(0, 1),
       description: "",
       files: []
     });
@@ -77,10 +100,16 @@ function PlanningTab({ data, persist, profile }) {
     setDocFormError("");
     setShowDocForm(true);
   };
+  const editingDoc = editingDocId ? documents.find((d) => d.id === editingDocId) : null;
+  const docReadOnly = !!editingDoc && !canEditDoc(editingDoc);
 
   const saveDoc = () => {
     if (!docForm.title.trim()) {
       setDocFormError("Please give this document a title.");
+      return;
+    }
+    if (!isAdmin && docForm.grades.some((g) => !myGrades.includes(g))) {
+      setDocFormError("You can only file documents under your own grades.");
       return;
     }
     if (docForm.grades.length === 0) {
@@ -97,6 +126,7 @@ function PlanningTab({ data, persist, profile }) {
   };
 
   const removeDoc = (d) => {
+    if (!canEditDoc(d)) return;
     if (!window.confirm(`Delete "${d.title}"? This cannot be undone.`)) return;
     persist({ ...data, curriculumDocuments: (data.curriculumDocuments || []).filter((x) => x.id !== d.id) });
   };
@@ -116,12 +146,16 @@ function PlanningTab({ data, persist, profile }) {
   const editingPlan = editing && editing !== "new" ? data.plans.find((p) => p.id === editing) : null;
 
   const savePlan = (plan) => {
-    const exists = data.plans.some((p) => p.id === plan.id);
+    const existing = data.plans.find((p) => p.id === plan.id);
+    if (!canEditUnit(existing, profile)) return;
+    const exists = !!existing;
+    if (!exists && !plan.createdBy) plan = { ...plan, createdBy: profile?.id, createdByName: profile?.full_name || "" };
     persist({ ...data, plans: exists ? data.plans.map((p) => (p.id === plan.id ? plan : p)) : [...data.plans, plan] });
     if (editing === "new") setEditing(plan.id);
   };
 
   const removePlan = (id) => {
+    if (!canEditUnit(data.plans.find((p) => p.id === id), profile)) return;
     if (!window.confirm("Delete this unit plan?")) return;
     persist({ ...data, plans: data.plans.filter((p) => p.id !== id) });
   };
@@ -133,6 +167,8 @@ function PlanningTab({ data, persist, profile }) {
         data={data}
         onSave={savePlan}
         onClose={() => setEditing(null)}
+        readOnly={!canEditUnit(editingPlan, profile)}
+        gradeOptions={isAdmin ? GRADES : GRADES.filter((g) => myGrades.includes(g))}
       />
     );
   }
@@ -153,7 +189,7 @@ function PlanningTab({ data, persist, profile }) {
         <>
           <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
             <span />
-            <button className="bsf-btn" onClick={openAddDoc}><Plus size={16} /> Add document</button>
+            {(isAdmin || myGrades.length > 0) && <button className="bsf-btn" onClick={openAddDoc}><Plus size={16} /> Add document</button>}
           </div>
 
           {isAdmin && unsorted.length > 0 && (
@@ -205,19 +241,32 @@ function PlanningTab({ data, persist, profile }) {
                   {d.description && <p className="bsf-muted">{d.description}</p>}
                   {(d.files || []).length > 0 && <p className="bsf-muted">{d.files.length} file{d.files.length === 1 ? "" : "s"} attached</p>}
                 </div>
-                <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeDoc(d); }} aria-label="Remove"><Trash2 size={16} /></button>
+                {canEditDoc(d) && <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeDoc(d); }} aria-label="Remove"><Trash2 size={16} /></button>}
               </div>
             ))}
           </section>
 
           {showDocForm && (
-            <Modal title={editingDocId ? "Edit document" : "New curriculum document"} onClose={() => setShowDocForm(false)}>
+            <Modal title={docReadOnly ? "Curriculum document" : editingDocId ? "Edit document" : "New curriculum document"} onClose={() => setShowDocForm(false)}>
+              {docReadOnly ? (
+                <>
+                  <span className="bsf-tag">{editingDoc.subject}</span>
+                  <span className="bsf-muted" style={{ marginLeft: 8, fontSize: 12 }}>{gradeLabel(editingDoc)}</span>
+                  <h3 style={{ margin: "8px 0 4px" }}>{editingDoc.title}</h3>
+                  {editingDoc.description && <p className="bsf-muted">{editingDoc.description}</p>}
+                  {(editingDoc.files || []).length > 0
+                    ? <AttachmentField folder="curriculum" files={editingDoc.files} onChange={() => {}} readOnly />
+                    : <p className="bsf-muted">No file attached.</p>}
+                  <p className="bsf-muted" style={{ fontSize: 12, marginTop: 12 }}>View only. Only the office can change this document.</p>
+                </>
+              ) : (
+              <>
               <Field label="Title">
                 <input value={docForm.title} onChange={(e) => setDocForm({ ...docForm, title: e.target.value })} placeholder="e.g. ELA Handbook" />
               </Field>
               <Field label="Grade(s)">
                 <div className="bsf-chiprow">
-                  {[WHOLE, ...GRADES].map((g) => (
+                  {docFormGrades.map((g) => (
                     <button
                       key={g}
                       type="button"
@@ -240,6 +289,8 @@ function PlanningTab({ data, persist, profile }) {
               </Field>
               <button className="bsf-btn bsf-btn-block" onClick={saveDoc}>Save document</button>
               {docFormError && <p className="bsf-formerror">{docFormError}</p>}
+              </>
+              )}
             </Modal>
           )}
 
@@ -275,7 +326,7 @@ function PlanningTab({ data, persist, profile }) {
         <>
       <div className="bsf-screen-head" style={{ marginBottom: 0 }}>
         <span />
-        <button className="bsf-btn" onClick={() => setEditing("new")}><Plus size={16} /> New unit</button>
+        {(isAdmin || (profile?.role === "teacher" && myGrades.length > 0)) && <button className="bsf-btn" onClick={() => setEditing("new")}><Plus size={16} /> New unit</button>}
       </div>
 
       <div className="bsf-chiprow">
@@ -298,6 +349,7 @@ function PlanningTab({ data, persist, profile }) {
                 </span>
                 {planSubjects(p) && <span className="bsf-muted">{planSubjects(p)}</span>}
                 {(() => { const st = STATUS[p.status] || STATUS.draft; const n = openCount(p); return <span style={{ background: st.bg, color: st.fg, borderRadius: 999, padding: "2px 10px", fontSize: 12, fontWeight: 600 }}>{st.label}{n > 0 ? ` · ${n} to fix` : ""}</span>; })()}
+                {!canEditUnit(p, profile) && <span className="bsf-muted" style={{ fontSize: 12 }}>View only</span>}
               </div>
               {isMiddleUnit(p.grades) && p.globalContext
                 ? <p className="bsf-muted">Global context: {p.globalContext}</p>
@@ -316,6 +368,7 @@ function PlanningTab({ data, persist, profile }) {
                 {(p.comments || []).length > 0 ? <span className="bsf-minitag">{p.comments.length} note{p.comments.length === 1 ? "" : "s"}</span> : null}
               </div>
             </div>
+            {canEditUnit(p, profile) && (
             <button
               className="bsf-iconbtn"
               onClick={(e) => { e.stopPropagation(); removePlan(p.id); }}
@@ -323,6 +376,7 @@ function PlanningTab({ data, persist, profile }) {
             >
               <Trash2 size={16} />
             </button>
+            )}
           </div>
         ))}
       </section>

@@ -381,7 +381,7 @@ function StandardsPicker({ grades, selected, oldList, onChange }) {
   );
 }
 
-export default function UnitPlanner({ plan, data, onSave, onClose, initialStage = 0 }) {
+export default function UnitPlanner({ plan, data, onSave, onClose, initialStage = 0, readOnly = false, gradeOptions = GRADES }) {
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
   const [u, setU] = useState(() => {
@@ -396,7 +396,7 @@ export default function UnitPlanner({ plan, data, onSave, onClose, initialStage 
   const [newQuestion, setNewQuestion] = useState("");
   const [noteText, setNoteText] = useState("");
 
-  const set = (k, v) => { setU((x) => ({ ...x, [k]: v })); setDirty(true); setError(""); };
+  const set = (k, v) => { if (readOnly) return; setU((x) => ({ ...x, [k]: v })); setDirty(true); setError(""); };
   const toggleIn = (k, v, max) => {
     const cur = u[k] || [];
     if (cur.includes(v)) return set(k, cur.filter((x) => x !== v));
@@ -504,12 +504,18 @@ export default function UnitPlanner({ plan, data, onSave, onClose, initialStage 
         ))}
       </nav>
 
+      {readOnly && (
+        <div style={{ background: "#F3EEE8", borderRadius: 12, padding: "10px 14px", margin: "0 0 12px", fontSize: 14, color: "#3B4A4C" }}>
+          View only. This unit belongs to another teacher, so you can read it but not change it.
+        </div>
+      )}
+      <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       <ChangeSummary requests={requests} isAdmin={isAdmin} middle={middle} feedback={(u.coordinatorFeedback || "").trim()} onAdd={addRequest} onUpdate={updateRequest} onRemove={removeRequest} onGoTo={goTo} />
 
       {stage === 0 && (
         <Stage n={1} title="Understand" sub={middle ? "Global context, statement of inquiry and inquiry questions." : "What is this unit about, and what big idea should students leave with?"}>
           <Group label="Grades">
-            <Chips options={GRADES} selected={u.grades} onToggle={(g) => toggleIn("grades", g)} />
+            <Chips options={GRADES.filter((g) => gradeOptions.includes(g) || (u.grades || []).includes(g))} selected={u.grades} onToggle={(g) => toggleIn("grades", g)} />
           </Group>
           {pin("grades")}
           {middle && <p style={hint}>Grades 6–7 only: the form uses global contexts instead of themes.</p>}
@@ -674,7 +680,7 @@ export default function UnitPlanner({ plan, data, onSave, onClose, initialStage 
           <Field label="Resources and materials">{ta("resources", 2, "Books, websites, supplies")}</Field>
           {pin("resources")}
           <Group label="Lesson plans and files">
-            <AttachmentField folder="planning" files={u.lessonPlanFiles} onChange={(files) => set("lessonPlanFiles", files)} />
+            <AttachmentField folder="planning" files={u.lessonPlanFiles} onChange={(files) => set("lessonPlanFiles", files)} readOnly={readOnly} />
           </Group>
           {pin("lessonPlanFiles")}
         </Stage>
@@ -687,7 +693,7 @@ export default function UnitPlanner({ plan, data, onSave, onClose, initialStage 
           <Field label="Evidence link (optional)"><input value={u.evidenceLink} onChange={(e) => set("evidenceLink", e.target.value)} placeholder="Link to photos or documents" /></Field>
           {pin("evidenceLink")}
           <Group label="Evidence files">
-            <AttachmentField folder="planning" files={u.evidenceFiles} onChange={(files) => set("evidenceFiles", files)} />
+            <AttachmentField folder="planning" files={u.evidenceFiles} onChange={(files) => set("evidenceFiles", files)} readOnly={readOnly} />
           </Group>
           {pin("evidenceFiles")}
           <Field label="Student reflection">{ta("studentReflection", 3, "What students said they learned and what they still wonder")}</Field>
@@ -729,6 +735,7 @@ export default function UnitPlanner({ plan, data, onSave, onClose, initialStage 
           )}
         </Stage>
       )}
+      </fieldset>
 
       {error && <p className="bsf-formerror">{error}</p>}
 
@@ -738,8 +745,8 @@ export default function UnitPlanner({ plan, data, onSave, onClose, initialStage 
           {stage < 3 && <button type="button" className="bsf-btn-ghost" onClick={() => setStage(stage + 1)}>Next: {STAGES[stage + 1]}</button>}
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          <button type="button" className="bsf-btn-ghost" onClick={() => save()}>{dirty ? "Save" : "Saved"}</button>
-          {!isAdmin && (u.status === "draft" || u.status === "changes") && (
+          {!readOnly && <button type="button" className="bsf-btn-ghost" onClick={() => save()}>{dirty ? "Save" : "Saved"}</button>}
+          {!readOnly && !isAdmin && (u.status === "draft" || u.status === "changes") && (
             <button type="button" className="bsf-btn" onClick={submit}>{u.status === "changes" ? "Resubmit for review" : "Submit for review"}</button>
           )}
           {isAdmin && (

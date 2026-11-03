@@ -72,11 +72,12 @@ export default function AttachmentField({ folder, files, onChange, readOnly = fa
             </div>
           ) : (
             <div key={f.path} className="bsf-attachment-chip">
-              <button type="button" className="bsf-attachment-open" onClick={() => openFile(f.path)}>
+              {/* A link, not a button, so files still open on view-only screens (a disabled form disables buttons). */}
+              <a href="#" role="button" className="bsf-attachment-open" style={{ textDecoration: "none" }} onClick={(e) => { e.preventDefault(); openFile(f.path); }}>
                 <Download size={14} />
                 <span>{f.name}</span>
                 <span className="bsf-muted">{formatFileSize(f.size)}</span>
-              </button>
+              </a>
               {!readOnly && (
                 <button type="button" className="bsf-iconbtn" onClick={() => removeFile(f.path)} aria-label="Remove file">
                   <X size={14} />
