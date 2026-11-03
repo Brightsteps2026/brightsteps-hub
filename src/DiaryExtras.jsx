@@ -129,7 +129,7 @@ export function FamilyFeedback({ type, id, hub, lang = "en" }) {
           {comments.map((c) => (
             <div key={c.id} style={{ alignSelf: c.from_staff ? "flex-start" : "flex-end", maxWidth: "85%", background: c.from_staff ? COLORS.tint : COLORS.neutralBg, borderRadius: 12, padding: "8px 11px" }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: c.from_staff ? COLORS.brand : COLORS.muted }}>{c.from_staff ? L.team : (c.created_by === profile?.id ? L.you : "")} · {timeOf(c.created_at)}</div>
-              <div style={{ fontSize: 14, lineHeight: 1.45 }}>{c.body}</div>
+              <div style={{ whiteSpace: "pre-line", fontSize: 14, lineHeight: 1.45 }}>{c.body}</div>
             </div>
           ))}
           {open && (
@@ -220,7 +220,7 @@ export function StaffFamilyNotes({ grade, day, students }) {
           <div>
             <strong>{firstName(students.find((s) => s.id === r.student_id))}</strong> <span style={small}>{timeOf(r.created_at)}</span>
             {r.items?.length > 0 && <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.warn }}>{r.items.map((i) => itemLabel(i)).join(" · ")}</div>}
-            {r.note && <div style={{ fontSize: 14 }}>{r.note}</div>}
+            {r.note && <div style={{ whiteSpace: "pre-line", fontSize: 14 }}>{r.note}</div>}
           </div>
           {r.read_at ? <span style={pill("ok")}>Read</span> : <button style={{ ...ghostBtn, minHeight: 36 }} onClick={() => markRead(r)}>Mark read</button>}
         </div>
@@ -429,7 +429,7 @@ function StoryBody({ story, lang }) {
   return (
     <>
       <PhotoGrid paths={story.photos} />
-      <p style={{ margin: "10px 0 0", fontSize: 14, lineHeight: 1.55 }}>{story.story}</p>
+      <p style={{ whiteSpace: "pre-line", margin: "10px 0 0", fontSize: 14, lineHeight: 1.55 }}>{story.story}</p>
       {story.learning && <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.55 }}><strong style={{ color: COLORS.brand }}>{L.learn}: </strong>{story.learning}</p>}
       {story.areas?.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>

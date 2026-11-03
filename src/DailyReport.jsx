@@ -356,8 +356,10 @@ function ClassDay({ grade, day, profile }) {
               onClick={() => saveClass({ activities: on ? classDay.activities.filter((x) => x !== a.id) : [...classDay.activities, a.id] })}>{a.en}</button>;
           })}
         </div>
-        <input value={classDay.note} onChange={(e) => setClassDay({ ...classDay, note: e.target.value })} onBlur={() => saveClass({})}
-          placeholder="One line about the day (optional), e.g. We painted with leaves" style={{ ...input, marginTop: 12 }} />
+        <textarea rows={Math.min(12, Math.max(3, (classDay.note || "").split("\n").length + 1))} value={classDay.note || ""}
+          onChange={(e) => setClassDay({ ...classDay, note: e.target.value })} onBlur={() => saveClass({})}
+          placeholder="About the day (optional), e.g. We painted with leaves. Press Enter for a new line."
+          style={{ ...input, marginTop: 12, width: "100%", boxSizing: "border-box", resize: "vertical", lineHeight: 1.5 }} />
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
           <button style={{ ...ghostBtn, display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44 }} onClick={() => setShowPhoto(true)}><Camera size={18} />Add photos</button>
           <span style={small}>{photos.length ? `${photos.length} photo${photos.length === 1 ? "" : "s"} shared today` : "Photos reach families straight away."}</span>
@@ -683,7 +685,7 @@ export function DailyReportFamily({ student, language = "en" }) {
                   {acts.map((a) => <span key={a.id} style={{ fontSize: 13, fontWeight: 600, padding: "5px 11px", borderRadius: 999, background: a.tone.bg, color: a.tone.fg }}>{a[lang]}</span>)}
                 </div>
               )}
-              {classDay?.note && <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>{classDay.note}</p>}
+              {classDay?.note && <p style={{ whiteSpace: "pre-line", margin: 0, fontSize: 14, lineHeight: 1.55 }}>{classDay.note}</p>}
             </div>
           )}
 
@@ -701,7 +703,7 @@ export function DailyReportFamily({ student, language = "en" }) {
           {sent && summary.team_note && (
             <div style={box}>
               <p style={boxTitle}>{L.noteTeam}</p>
-              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>{summary.team_note}</p>
+              <p style={{ whiteSpace: "pre-line", margin: 0, fontSize: 14, lineHeight: 1.55 }}>{summary.team_note}</p>
             </div>
           )}
 
