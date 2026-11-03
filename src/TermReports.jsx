@@ -157,7 +157,8 @@ function termDates(settings, term) {
   return { start: t.startDate || "", end: t.endDate || "" };
 }
 
-function attendanceFor(hubId, attendance, dates) {
+// A late arrival caused by the school bus is counted as present, not against the family.
+function attendanceFor(hubId, attendance, dates, lateArrivals) {
   if (!hubId || !dates.start || !dates.end) return null;
   const a = { present: 0, absent: 0, late: 0, excused: 0 };
   Object.entries(attendance || {}).forEach(([day, row]) => {
@@ -167,7 +168,7 @@ function attendanceFor(hubId, attendance, dates) {
     if (dow === 0 || dow === 6) return; // no school on weekends
     const v = row && row[hubId];
     if (v === "present") a.present += 1;
-    else if (v === "late") a.late += 1;
+    else if (v === "late") { if (lateArrivals?.[day]?.[hubId]?.bus) a.present += 1; else a.late += 1; }
     else if (v === "absent") a.absent += 1;
     else if (v === "excused") { a.absent += 1; a.excused += 1; }
   });
@@ -239,7 +240,7 @@ function buildContent(stu, grade, term, srcAll, data, keep, leavingOpt) {
     commentsOnlySpecials: COMMENT_GRADES.includes(grade),
     homeroom: src.homerooms[stu.id] || null,
     period: dates,
-    attendance: attendanceFor(stu.legacy_id, data?.attendance, dates),
+    attendance: attendanceFor(stu.legacy_id, data?.attendance, dates, data?.lateArrivals),
     core,
     specials,
     skills,
