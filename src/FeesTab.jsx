@@ -80,6 +80,8 @@ const T = {
   other: { en: "Other", fr: "Autre" },
   close: { en: "Close", fr: "Fermer" },
   regLeft: { en: "still to pay", fr: "reste à payer" },
+  amount: { en: "Amount", fr: "Montant" },
+  leftHead: { en: "Left to pay", fr: "Reste" },
   left: { en: "left", fr: "reste" }
 };
 
@@ -331,18 +333,42 @@ export function FamilyFeesView({ familyId }) {
           <div style={{ height: 8, borderRadius: 8, background: "#F1E4E6", overflow: "hidden" }}>
             <div style={{ width: `${pct}%`, height: 8, background: "#2F7A5C" }} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 12, fontSize: 13 }}>
-            <div><div style={{ color: MUTED }}>{tr("total")}</div><strong style={{ fontSize: 15 }}>{money(s.total_due)}</strong></div>
-            <div><div style={{ color: MUTED }}>{tr("paidSoFar")} ({pct}%)</div><strong style={{ fontSize: 15, color: "#2F7A5C" }}>{money(s.paid)}</strong></div>
-          </div>
-          {Number(s.registration_due) > 0 && (
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 12, paddingTop: 10, borderTop: `1px solid ${LINE}`, fontSize: 13 }}>
-              <span style={{ color: MUTED }}>{tr("registration")} · {money(s.registration_due)} FCFA</span>
-              {Number(s.registration_paid) >= Number(s.registration_due)
-                ? <span style={pill(GREEN_BG, GREEN)}>{tr("paid")}</span>
-                : <span style={pill(RED_BG, RED)}>{money(Number(s.registration_due) - Number(s.registration_paid))} {tr("regLeft")}</span>}
-            </div>
-          )}
+          {(() => {
+            // Registration and tuition shown separately (Myri, 4 Nov 2026).
+            const regDue = Number(s.registration_due) || 0, regPaid = Math.min(Number(s.registration_paid) || 0, regDue || Infinity);
+            const tuiDue = Number(s.total_due) - regDue, tuiPaid = Number(s.paid) - regPaid;
+            const cell = { padding: "8px 0", borderTop: `1px solid ${LINE}`, textAlign: "right" };
+            const line = (name, due, paidAmt) => (
+              <tr>
+                <td style={{ ...cell, textAlign: "left", fontWeight: 600 }}>{name}</td>
+                <td style={cell}>{money(due)}</td>
+                <td style={{ ...cell, color: "#2F7A5C" }}>{money(paidAmt)}</td>
+                <td style={{ ...cell, fontWeight: 600, color: due - paidAmt > 0 ? "#241012" : GREEN }}>{due - paidAmt > 0 ? money(due - paidAmt) : "✓"}</td>
+              </tr>
+            );
+            return (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, marginTop: 12 }}>
+                <thead>
+                  <tr style={{ color: MUTED, fontSize: 12 }}>
+                    <th style={{ textAlign: "left", fontWeight: 400, paddingBottom: 4 }}></th>
+                    <th style={{ textAlign: "right", fontWeight: 400 }}>{tr("amount")}</th>
+                    <th style={{ textAlign: "right", fontWeight: 400 }}>{tr("paid")}</th>
+                    <th style={{ textAlign: "right", fontWeight: 400 }}>{tr("leftHead")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {regDue > 0 && line(tr("registration"), regDue, regPaid)}
+                  {line(tr("tuition"), tuiDue, tuiPaid)}
+                  <tr>
+                    <td style={{ ...cell, textAlign: "left", fontWeight: 700 }}>Total</td>
+                    <td style={{ ...cell, fontWeight: 700 }}>{money(s.total_due)}</td>
+                    <td style={{ ...cell, fontWeight: 700, color: "#2F7A5C" }}>{money(s.paid)}</td>
+                    <td style={{ ...cell, fontWeight: 700 }}>{Number(s.balance) > 0 ? money(s.balance) : "✓"}</td>
+                  </tr>
+                </tbody>
+              </table>
+            );
+          })()}
           {nameList && (
             <p style={{ margin: "12px 0 0", fontSize: 13, color: MUTED, lineHeight: 1.4 }}>
               {tr("forChildren")} {nameList}.{s.payment_plan ? ` ${tr("plan")} : ${s.payment_plan}.`.replace(" :", fr ? " :" : ":") : ""}
@@ -384,7 +410,7 @@ export function FamilyFeesView({ familyId }) {
             <div>
               <strong style={{ fontSize: 14 }}>{r.receipt_no || money(r.total)}</strong>
               <div style={{ fontSize: 12, color: MUTED }}>
-                {[r.payment_date ? day(r.payment_date) : null, r.method, r.receipt_no ? `${money(r.total)} FCFA` : null, r.receipt_status === "receipt_pending" ? tr("preparing") : null].filter(Boolean).join(" · ")}
+                {[r.payment_date ? day(r.payment_date) : null, r.method, r.registration > 0 ? `${tr("registration")} ${money(r.registration)}` : null, r.tuition > 0 ? `${tr("tuition")} ${money(r.tuition)}` : null, r.receipt_status === "receipt_pending" ? tr("preparing") : null].filter(Boolean).join(" · ")}
               </div>
             </div>
             {r.receipt_no && (
