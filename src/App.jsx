@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Percent, Briefcase, FolderOpen, Award, LogOut, Utensils, Wallet, Banknote, NotebookPen, Clock3, Target, Baby, Handshake } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Percent, Briefcase, FolderOpen, Award, LogOut, Utensils, Banknote, NotebookPen, Clock3, Target, Baby, Handshake } from "lucide-react";
 import { useAuth } from "./LoginGate";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
 import CanteenTab from "./CanteenTab";
@@ -36,7 +36,6 @@ import { BehaviorTab } from "./screens/Behavior";
 import { GradebookTab } from "./screens/Gradebook";
 import { StaffTab } from "./screens/Staff";
 import { ResourcesTab } from "./screens/Resources";
-import { BillingTab } from "./screens/Billing";
 import { AccreditationTab } from "./screens/Accreditation";
 import { SettingsModal } from "./screens/Settings";
 import { pending } from "./data/pending";
@@ -92,14 +91,12 @@ function BrightStepsHubInner() {
   const isUpperStudent = !!myLinkedStudent && GRADES.indexOf(myLinkedStudent.grade) >= GRADES.indexOf("Grade 3");
   const PARENT_HIDDEN_TABS = ["daily", "conferences", "standards", "weekly", "checkin", "leave", "classes", "staff", "admissions", "behavior", "accreditation", "planning", "gradebook"]; // timetable shown to families from 24 Oct 2026 (Myri approved)
   const ADMIN_ONLY_TABS = ["accreditation","staff","admissions"];
-  // Only admin and the accountant role can see billing, everyone else is blocked outright.
-  const BILLING_ALLOWED_ROLES = ["admin", "accountant", "viewer"];
   // A learning assistant supports specific grades day to day; they don't need
   // enrollment, staffing, or school-wide admin tools, just the classroom-facing ones.
   const LEARNING_ASSISTANT_ALLOWED_TABS = ["daily", "conferences", "weekly", "checkin", "leave", "gradebook", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "classes", "calendar", "timetable", "standards", "assignments", "updates", "resources"];
   // An accountant only ever needs billing, nothing about students' academic
   // records, behavior, or staff information.
-  const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "billing", "checkin", "leave"];
+  const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "checkin", "leave"]; // Billing tab removed 4 Nov 2026 (Myri)
   const RESTRICTED_TEACHER_TABS = ["daily", "conferences", "weekly", "checkin", "leave", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "planning", "assignments", "timetable", "standards", "reports", "calendar", "incidents", "updates", "resources"];
   // Set per teacher by the admin in the database (profiles.limited_access).
   const isRestrictedTeacher = profile?.role === "teacher" && profile?.limited_access === true;
@@ -124,7 +121,7 @@ function BrightStepsHubInner() {
   useEffect(() => {
     if (isParent && PARENT_HIDDEN_TABS.includes(tab)) setTab("dashboard");
     if (!isAdmin && !isViewer && ADMIN_ONLY_TABS.includes(tab)) setTab("dashboard");
-    if (tab === "billing" && !BILLING_ALLOWED_ROLES.includes(profile?.role)) setTab("dashboard");
+    if (tab === "billing") setTab("dashboard"); // Billing tab removed 4 Nov 2026
     if (isLearningAssistant && !LEARNING_ASSISTANT_ALLOWED_TABS.includes(tab)) setTab("dashboard");
     if (isAccountant && !ACCOUNTANT_ALLOWED_TABS.includes(tab)) setTab("dashboard");
     if (isRestrictedTeacher && !RESTRICTED_TEACHER_TABS.includes(tab)) setTab("dashboard");
@@ -190,7 +187,6 @@ function BrightStepsHubInner() {
     { id: "resources", label: "Resources", navKey: "nav.resources", icon: FolderOpen, category: "compliance" },
     { id: "accreditation", label: "Accreditation", navKey: "nav.accreditation", icon: Award, category: "compliance" },
     { id: "fees", label: "School fees", navKey: "nav.fees", icon: Banknote, category: "office" },
-    { id: "billing", label: "Billing", navKey: "nav.billing", icon: Wallet, category: "office" },
     { id: "updates", label: "Communication", navKey: "nav.updates", icon: Megaphone, category: "office" }
   ];
   const allSections = allSectionsRaw
@@ -199,7 +195,6 @@ function BrightStepsHubInner() {
     .filter((s) => s.id !== "gradebook" || isStudent)
     .filter((s) => !isParent || !PARENT_HIDDEN_TABS.includes(s.id))
     .filter((s) => isAdmin || isViewer || !ADMIN_ONLY_TABS.includes(s.id))
-    .filter((s) => s.id !== "billing" || BILLING_ALLOWED_ROLES.includes(profile?.role))
     .filter((s) => s.id !== "fees" || canSeeFees)
     .filter((s) => !isLearningAssistant || LEARNING_ASSISTANT_ALLOWED_TABS.includes(s.id))
     .filter((s) => !isAccountant || ACCOUNTANT_ALLOWED_TABS.includes(s.id))
@@ -330,7 +325,6 @@ function BrightStepsHubInner() {
       {tab === "behavior" && !isParent && !isLearningAssistant && <BehaviorTab data={data} persist={persist} profile={profile} />}
       {tab === "resources" && <ResourcesTab data={data} persist={persist} profile={profile} />}
       {tab === "accreditation" && (isAdmin || isViewer) && <AccreditationTab data={data} persist={persist} />}
-      {tab === "billing" && BILLING_ALLOWED_ROLES.includes(profile?.role) && <BillingTab data={data} persist={persist} />}
       {tab === "updates" && <UpdatesTab data={data} persist={persist} />}
       </TabErrorBoundary>
 

@@ -213,11 +213,9 @@ const saveLunchMenu = async () => {
     setSigningDocId(null);
   };
 
-  const balanceFor = (studentId) => computeFeeBreakdown(data, studentId).reduce((sum, item) => sum + item.due, 0);
 
   // Breaks a child's fees down by category (Registration, Tuition, Other), the
   // way a real school invoice would, rather than one lump number.
-  const feeBreakdownFor = (studentId) => computeFeeBreakdown(data, studentId);
 
   const attendanceFor = (studentId) => attendanceCountsForRange(data.attendance, studentId);
 
