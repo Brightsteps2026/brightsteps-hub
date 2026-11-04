@@ -118,6 +118,86 @@ export default function FeesTab({ office }) {
 }
 
 // ---------------------------------------------------------------------------
+// One-line fees status, used on the parent dashboard and on a child's profile.
+// It shows nothing unless the database returns the family: so only Myriam, and the
+// child's own parents once the family is shared. Teachers etc. never see it.
+export const openFeesTab = () => window.dispatchEvent(new CustomEvent("bs-goto-tab", { detail: "fees" }));
+
+function useStatusLine() {
+  const { language } = useLanguage();
+  const fr = language === "fr";
+  const locale = fr ? "fr-FR" : "en-GB";
+  const day = (iso) => parseISO(iso).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
+  return (s) => {
+    if (s.standing === "scholarship") return { bg: GOLD_BG, fg: GOLD, icon: Star, text: fr ? "Bourse familiale BrightSteps — entièrement couvert" : "BrightSteps Family Scholarship — fully covered" };
+    if (s.standing === "withdrawn") return { bg: GREY_BG, fg: GREY, icon: CheckCircle2, text: fr ? "Compte clôturé" : "Account closed" };
+    if (s.standing === "paid_in_full") return { bg: GREEN_BG, fg: GREEN, icon: CheckCircle2, text: fr ? "Payé en totalité — merci" : "Paid in full — thank you" };
+    if (s.standing === "past_due") {
+      const amt = Number(s.past_due) > 0 ? `${money(s.past_due)} FCFA` : (fr ? "Montant à confirmer" : "Amount to be confirmed");
+      return { bg: RED_BG, fg: RED, icon: AlertCircle, text: fr ? `Paiement en retard — ${amt} depuis le ${day(s.oldest_past)}` : `Payment overdue — ${amt} since ${day(s.oldest_past)}` };
+    }
+    const next = s.next_due_date && Number(s.next_due_amount) > 0
+      ? (fr ? ` · prochain paiement ${money(s.next_due_amount)} FCFA le ${day(s.next_due_date)}` : ` · next payment ${money(s.next_due_amount)} FCFA on ${day(s.next_due_date)}`)
+      : "";
+    return { bg: GREEN_BG, fg: GREEN, icon: CheckCircle2, text: (fr ? "À jour" : "Up to date") + next };
+  };
+}
+
+function StatusLines({ rows, title }) {
+  const { language } = useLanguage();
+  const fr = language === "fr";
+  const line = useStatusLine();
+  if (!rows || rows.length === 0) return null;
+  return (
+    <section className="bsf-card">
+      <h2>{title || (fr ? "Frais de scolarité" : "School fees")}</h2>
+      {rows.map((s) => {
+        const l = line(s);
+        const Icon = l.icon;
+        return (
+          <div key={s.family_id} style={{ display: "flex", gap: 10, alignItems: "flex-start", background: l.bg, color: l.fg, borderRadius: 12, padding: "12px 14px", marginTop: 10 }}>
+            <Icon size={18} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
+            <span style={{ fontSize: 14, lineHeight: 1.4, flex: 1 }}>{rows.length > 1 ? <strong>{s.family_name} · </strong> : null}{l.text}</span>
+          </div>
+        );
+      })}
+      <button onClick={openFeesTab} style={{ marginTop: 10, background: "none", border: "none", color: BURGUNDY, textDecoration: "underline", cursor: "pointer", fontSize: 14, minHeight: 44, padding: 0, fontFamily: "inherit" }}>
+        {fr ? "Voir le détail" : "See details"}
+      </button>
+    </section>
+  );
+}
+
+// Parent dashboard: their own shared family account(s).
+export function FeesDashboardCard() {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    supabase.from("tuition_family_status").select("*").then(({ data }) => setRows(data || []));
+  }, []);
+  return <StatusLines rows={rows} />;
+}
+
+// A child's profile. `legacyId` is the child's id in the Hub's school data.
+export function FeesSummary({ legacyId }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    let live = true;
+    setRows(null);
+    if (!legacyId) return;
+    (async () => {
+      const { data: link } = await supabase.from("tuition_family_students")
+        .select("family_id, students!inner(legacy_id)").eq("students.legacy_id", legacyId).limit(1);
+      const fid = link?.[0]?.family_id;
+      if (!fid) { if (live) setRows([]); return; }
+      const { data } = await supabase.from("tuition_family_status").select("*").eq("family_id", fid);
+      if (live) setRows(data || []);
+    })();
+    return () => { live = false; };
+  }, [legacyId]);
+  return <StatusLines rows={rows} />;
+}
+
+// ---------------------------------------------------------------------------
 // Parent: every family account shared with them (normally one).
 function ParentFees() {
   const { language } = useLanguage();

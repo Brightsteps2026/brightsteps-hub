@@ -13,6 +13,7 @@ import { pending } from "../data/pending";
 import { TermReportsFamily } from "../TermReports";
 import { useAssignmentsDue } from "./Assignments";
 import { FamilyGrades } from "../FamilyGrades";
+import { FeesSummary } from "../FeesTab";
 
 function FamilyViewModal({ student, data, onClose, hideContacts = false, showMessages = false }) {
   const today = todayStr();
@@ -54,6 +55,8 @@ function FamilyViewModal({ student, data, onClose, hideContacts = false, showMes
           This is a preview of what a parent would see for {student.name}. It isn't a separate login yet.
         </p>
       </div>
+
+      <FeesSummary legacyId={student.id} />
 
       {hideContacts ? (
         student.allergies ? (
@@ -336,6 +339,8 @@ function ParentStudentView({ data, persist, profile }) {
             {activeStudent.allergies && <p className="bsf-alert-note">{t("dash.allergies")} {activeStudent.allergies}</p>}
             {activeStudent.medicalConditions && <p className="bsf-alert-note">{t("dash.medical")} {activeStudent.medicalConditions}</p>}
           </section>
+
+          <FeesSummary legacyId={activeStudent.id} />
 
           <MeetingFamily student={activeStudent} language={language} />
 

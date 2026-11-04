@@ -110,6 +110,11 @@ function BrightStepsHubInner() {
   // School fees: only Myriam (office) and parents whose family account she has shared.
   const feesAccess = useFeesAccess(profile);
   const canSeeFees = feesAccess.office || feesAccess.family;
+  useEffect(() => {
+    const go = (e) => { setTab(e.detail); setShowMenu(false); };
+    window.addEventListener("bs-goto-tab", go);
+    return () => window.removeEventListener("bs-goto-tab", go);
+  }, []);
   // Phone notifications: re-confirm this phone with the server each time the Hub opens.
   useEffect(() => { if (profile?.id) resyncPush(); }, [profile?.id]);
   const unreadMessageCount = unreadThreads.reduce((n, t) => n + t.count, 0);

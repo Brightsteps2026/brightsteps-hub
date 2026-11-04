@@ -13,6 +13,7 @@ import { EventRow, Field, Modal, EnrollmentStairs, SignaturePad, StudentThumb } 
 import { LinkedText } from "../ui/LinkedText";
 import EmojiField from "../ui/EmojiField";
 import { pending } from "../data/pending";
+import { FeesDashboardCard } from "../FeesTab";
 
 function Dashboard({ data, profile, persist, onNavigate }) {
   const { t, language } = useLanguage();
@@ -321,6 +322,7 @@ const saveLunchMenu = async () => {
           onOpen={(id) => { pending.scrollToWeekly = true; openChildProfile(id); }} />
       )}
       {isParent && myStudents.length > 0 && <ReportAbsenceCard students={myStudents} />}
+      {isParent && <FeesDashboardCard />}
 
       {!isParent && <StaffToSignCard data={data} profile={profile} onNavigate={onNavigate} />}
       {!isParent && <StaffDeadlinesCard profile={profile} events={data.events} onNavigate={onNavigate} />}
@@ -392,9 +394,7 @@ const saveLunchMenu = async () => {
       )}
 
       {isParent && myStudents.map((s) => {
-        const balance = balanceFor(s.id);
         const attend = attendanceFor(s.id);
-        const feeItems = feeBreakdownFor(s.id);
         return (
           <div key={s.id}>
             <section className="bsf-card">
@@ -422,84 +422,6 @@ const saveLunchMenu = async () => {
               </div>
               {s.allergies && <p className="bsf-alert-note">{t("dash.allergies")} {s.allergies}</p>}
             </section>
-
-            <section className="bsf-card bsf-invoicecard">
-              <div className="bsf-invoicehead">
-                <div>
-                  <p className="bsf-eyebrow" style={{ margin: 0 }}>{t("fees.title")}</p>
-                  <p className="bsf-muted" style={{ margin: "2px 0 0" }}>{s.firstName || s.name.split(" ")[0]} · {settings.academicYear.startDate ? settings.academicYear.startDate.slice(0, 4) : ""}{settings.academicYear.endDate ? `–${settings.academicYear.endDate.slice(2, 4)}` : ""}</p>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <p className="bsf-invoicetotal" style={{ color: balance > 0 ? "#B23A3A" : "#2F7A5C" }}>{formatCurrency(Math.abs(balance))}</p>
-                  <p className="bsf-muted" style={{ margin: 0 }}>{balance > 0 ? t("fees.totalDue") : balance < 0 ? t("fees.credit") : t("fees.settled")}</p>
-                </div>
-              </div>
-
-              {feeItems.length === 0 ? (
-                <p className="bsf-empty">{t("fees.noSchedule")}</p>
-              ) : (
-                <div className="bsf-invoicelines">
-                  {feeItems.map((item) => {
-                    const statusColor = item.status === "Paid in full" ? "#2F7A5C" : item.status === "Waived" ? "#6B5B95" : item.status === "Partially paid" ? "#8A6420" : item.status === "No fee set" ? "#6B7578" : "#B23A3A";
-                    const CatIcon = feeCategoryIcon(item.category);
-                    return (
-                      <div key={item.category} className="bsf-invoiceline">
-                        <div className="bsf-invoiceline-top">
-                          <div className="bsf-invoiceline-label">
-                            <span className="bsf-invoiceline-icon" style={{ background: `${statusColor}1A`, color: statusColor }}><CatIcon size={15} /></span>
-                            <strong>{item.category === "Registration" ? t("fees.registrationFee") : tLabel(t, "fees.cat.", item.category)}</strong>
-                          </div>
-                          <span className="bsf-status-pill" style={{ background: `${statusColor}1A`, color: statusColor }}>{tLabel(t, "fees.status.", item.status)}</span>
-                        </div>
-                        <div className="bsf-invoicebar">
-                          <span style={{ width: `${item.pct}%`, background: statusColor }} />
-                        </div>
-                        {item.waived ? (
-                          <p className="bsf-muted" style={{ margin: "4px 0 0" }}>{t("fees.realPriceWaived", { price: formatCurrency(item.listPrice) })}</p>
-                        ) : item.discountAmount > 0 ? (
-                          <p className="bsf-muted" style={{ margin: "4px 0 0" }}>
-                            {t("fees.realPriceDiscount", { price: formatCurrency(item.listPrice), discount: formatCurrency(item.discountAmount) })}{item.discountReason ? ` (${item.discountReason})` : ""}
-                          </p>
-                        ) : null}
-                        <div className="bsf-invoiceline-bottom">
-                          <span className="bsf-muted">{t("fees.paidOf", { paid: formatCurrency(item.paid), owed: formatCurrency(item.charged) })}</span>
-                          {item.due > 0 && <span style={{ color: statusColor, fontWeight: 600 }}>{t("fees.due", { amount: formatCurrency(item.due) })}</span>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-
-            {(() => {
-              const history = [...(data.billing || [])].filter((b) => b.studentId === s.id).sort((a, b) => b.date.localeCompare(a.date));
-              if (history.length === 0) return null;
-              return (
-                <section className="bsf-card">
-                  <h2>{t("fees.history")}</h2>
-                  <div className="bsf-list">
-                    {history.map((b) => {
-                      const isPayment = b.type !== "charge";
-                      return (
-                        <div key={b.id} className="bsf-txnrow" style={{ padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
-                          <span className="bsf-txnicon" style={{ background: isPayment ? "#E6F2EC" : "#FCE8E8", color: isPayment ? "#2F7A5C" : "#B23A3A" }}>
-                            {isPayment ? "+" : "−"}
-                          </span>
-                          <div style={{ flex: 1 }}>
-                            <div className="bsf-row-head">
-                              <strong style={{ color: isPayment ? "#2F7A5C" : "#B23A3A" }}>{formatCurrency(b.amount)}</strong>
-                              <span className="bsf-muted">{formatDateLong(b.date, language)}</span>
-                            </div>
-                            <p className="bsf-muted" style={{ margin: 0 }}>{tLabel(t, "fees.cat.", b.category || "Tuition")}{b.description ? ` · ${b.description}` : ""}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              );
-            })()}
 
             <section className="bsf-card">
               <h2>{t("dash.attendanceFor", { name: s.firstName || s.name.split(" ")[0] })}</h2>
