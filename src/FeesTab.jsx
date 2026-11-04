@@ -78,7 +78,9 @@ const T = {
   uniform: { en: "Uniform", fr: "Uniforme" },
   canteen: { en: "Canteen", fr: "Cantine" },
   other: { en: "Other", fr: "Autre" },
-  close: { en: "Close", fr: "Fermer" }
+  close: { en: "Close", fr: "Fermer" },
+  regLeft: { en: "still to pay", fr: "reste à payer" },
+  left: { en: "left", fr: "reste" }
 };
 
 const money = (n) => Math.round(Number(n) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
@@ -333,6 +335,14 @@ export function FamilyFeesView({ familyId }) {
             <div><div style={{ color: MUTED }}>{tr("total")}</div><strong style={{ fontSize: 15 }}>{money(s.total_due)}</strong></div>
             <div><div style={{ color: MUTED }}>{tr("paidSoFar")} ({pct}%)</div><strong style={{ fontSize: 15, color: "#2F7A5C" }}>{money(s.paid)}</strong></div>
           </div>
+          {Number(s.registration_due) > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 12, paddingTop: 10, borderTop: `1px solid ${LINE}`, fontSize: 13 }}>
+              <span style={{ color: MUTED }}>{tr("registration")} · {money(s.registration_due)} FCFA</span>
+              {Number(s.registration_paid) >= Number(s.registration_due)
+                ? <span style={pill(GREEN_BG, GREEN)}>{tr("paid")}</span>
+                : <span style={pill(RED_BG, RED)}>{money(Number(s.registration_due) - Number(s.registration_paid))} {tr("regLeft")}</span>}
+            </div>
+          )}
           {nameList && (
             <p style={{ margin: "12px 0 0", fontSize: 13, color: MUTED, lineHeight: 1.4 }}>
               {tr("forChildren")} {nameList}.{s.payment_plan ? ` ${tr("plan")} : ${s.payment_plan}.`.replace(" :", fr ? " :" : ":") : ""}
@@ -355,6 +365,9 @@ export function FamilyFeesView({ familyId }) {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
                   <span style={{ fontSize: 14 }}>{r.amount == null ? tr("toConfirm") : money(r.amount)}</span>
+                  {r.status === "due" && r.received > 0 && r.amount != null && (
+                    <span style={{ fontSize: 12, color: MUTED }}>{tr("paid")} {money(r.received)} · {tr("left")} {money(r.amount - r.received)}</span>
+                  )}
                   <span style={pill(bg, fg)}>{label}</span>
                 </div>
               </div>
@@ -426,7 +439,8 @@ function OfficeFees() {
   const [kids, setKids] = useState({});
   const [filter, setFilter] = useState("all");
   const [preview, setPreview] = useState(null);
-  const [recording, setRecording] = useState(false);
+  const [recording, setRecording] = useState(false); // false, or { family: id } to pre-fill
+  const [openFamily, setOpenFamily] = useState(null);
   const [error, setError] = useState("");
 
   async function load() {
@@ -512,7 +526,12 @@ function OfficeFees() {
               if (Number(r.receipts_pending) > 0) checks.push(`${r.receipts_pending} receipt${r.receipts_pending > 1 ? "s" : ""} to issue`);
               return (
                 <tr key={r.family_id} style={{ borderTop: `1px solid ${LINE}` }}>
-                  <td style={{ padding: "12px 16px" }}><strong>{r.family_name}</strong><div style={{ fontSize: 12, color: MUTED }}>{(kids[r.family_id] || []).join(", ")}</div></td>
+                  <td style={{ padding: "12px 16px" }}>
+                    <button onClick={() => setOpenFamily(r)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: "inherit", minHeight: 44 }}>
+                      <strong style={{ color: BURGUNDY, textDecoration: "underline", fontSize: 14 }}>{r.family_name}</strong>
+                      <div style={{ fontSize: 12, color: MUTED }}>{(kids[r.family_id] || []).join(", ")}</div>
+                    </button>
+                  </td>
                   <td style={{ padding: 12 }}><span style={pill(bg, fg)}>{label}</span></td>
                   <td style={{ padding: 12, textAlign: "right" }}>
                     {r.standing === "past_due"
@@ -559,20 +578,155 @@ function OfficeFees() {
         </div>
       )}
 
-      {recording && <RecordPayment families={rows.filter((r) => r.standing !== "scholarship")} onClose={() => setRecording(false)} onSaved={() => { setRecording(false); load(); }} />}
+      {openFamily && !recording && (
+        <FamilyOffice fam={openFamily} onClose={() => setOpenFamily(null)} onChanged={load}
+          onRecord={() => setRecording({ family: openFamily.family_id })} onPreview={() => { setPreview(openFamily); setOpenFamily(null); }} />
+      )}
+      {recording && <RecordPayment families={rows.filter((r) => r.standing !== "scholarship")} preset={recording.family || ""} onClose={() => setRecording(false)} onSaved={() => { setRecording(false); load(); }} />}
     </div>
   );
 }
 
-function RecordPayment({ families, onClose, onSaved }) {
-  const [f, setF] = useState({ family: "", date: todayISO(), receipt: "", registration: "", tuition: "", uniform: "", canteen: "", other: "", method: "Cash", description: "", status: "issued" });
+async function nextReceiptNo() {
+  const { data } = await supabase.from("tuition_receipts").select("receipt_no").like("receipt_no", "BIS-2026-%");
+  const max = Math.max(0, ...(data || []).map((x) => parseInt(String(x.receipt_no).split("-")[2], 10) || 0));
+  return `BIS-2026-${String(max + 1).padStart(3, "0")}`;
+}
+
+// Myriam's panel for one family: status, registration, every payment, and
+// "Issue receipt" for payments recorded without a receipt yet.
+function FamilyOffice({ fam, onClose, onChanged, onRecord, onPreview }) {
+  const [st, setSt] = useState(fam);
+  const [rec, setRec] = useState(null);
+  const [sch, setSch] = useState([]);
+  const [issuing, setIssuing] = useState(null); // receipt row being issued
+  const [form, setForm] = useState({ no: "", date: todayISO(), method: "Cash" });
+  const [msg, setMsg] = useState("");
+  const short = (iso) => (iso ? parseISO(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "no date");
+
+  async function load() {
+    const [a, b, c] = await Promise.all([
+      supabase.from("tuition_family_status").select("*").eq("family_id", fam.family_id).maybeSingle(),
+      supabase.from("tuition_receipts").select("*").eq("family_id", fam.family_id).neq("receipt_status", "cancelled").order("payment_date", { ascending: true, nullsFirst: false }),
+      supabase.from("tuition_schedule").select("*").eq("family_id", fam.family_id).neq("status", "cancelled").order("due_date")
+    ]);
+    if (a.data) setSt(a.data);
+    setRec(b.data || []);
+    setSch(c.data || []);
+  }
+  useEffect(() => { load(); }, [fam.family_id]);
+
+  async function startIssue(r) {
+    setMsg("");
+    setIssuing(r);
+    setForm({ no: await nextReceiptNo(), date: r.payment_date || todayISO(), method: r.method || "Cash" });
+  }
+  async function issue() {
+    if (!form.no.trim()) { setMsg("Enter the receipt number."); return; }
+    const { error } = await supabase.from("tuition_receipts")
+      .update({ receipt_no: form.no.trim(), payment_date: form.date || null, method: form.method, receipt_status: "issued" })
+      .eq("id", issuing.id);
+    if (error) { setMsg(error.message.includes("duplicate") ? "That receipt number is already used." : error.message); return; }
+    setIssuing(null); load(); onChanged();
+  }
+
+  const input = { padding: 10, border: `1px solid ${LINE}`, borderRadius: 8, fontSize: 14, background: "#FCFAF4", fontFamily: "inherit", minHeight: 44, boxSizing: "border-box" };
+  const [label, bg, fg] = STANDING[st.standing] || [st.standing, GREY_BG, GREY];
+  const regLeft = Number(st.registration_due) - Number(st.registration_paid);
+
+  return (
+    <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, background: "rgba(36,16,18,0.45)", display: "flex", justifyContent: "flex-end", zIndex: 55 }} onClick={onClose}>
+      <div style={{ background: "#FBF7F3", width: "100%", maxWidth: 560, height: "100%", overflowY: "auto", padding: 18, boxSizing: "border-box" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+          <h2 style={{ margin: 0, fontSize: 24 }}>{st.family_name}</h2>
+          <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", minWidth: 44, minHeight: 44 }}><X size={20} /></button>
+        </div>
+        <p style={{ margin: "2px 0 12px", color: MUTED, fontSize: 13 }}>{st.payer_name || "—"}{st.payment_plan ? ` · ${st.payment_plan}` : ""}</p>
+
+        <div style={card}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+            <span style={pill(bg, fg)}>{label}</span>
+            {Number(st.past_due) > 0 && <strong style={{ color: RED }}>{money(st.past_due)} past due</strong>}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 12, fontSize: 13 }}>
+            <div><div style={{ color: MUTED }}>Total</div><strong>{money(st.total_due)}</strong></div>
+            <div><div style={{ color: MUTED }}>Paid</div><strong style={{ color: "#2F7A5C" }}>{money(st.paid)}</strong></div>
+            <div><div style={{ color: MUTED }}>Balance</div><strong>{money(st.balance)}</strong></div>
+          </div>
+          {Number(st.registration_due) > 0 && (
+            <div style={{ ...row, marginTop: 12, fontSize: 13 }}>
+              <span>Registration · {money(st.registration_due)}</span>
+              {regLeft <= 0 ? <span style={pill(GREEN_BG, GREEN)}>Paid</span> : <span style={pill(RED_BG, RED)}>{money(regLeft)} not recorded</span>}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+            <button className="bsf-btn" onClick={onRecord} style={{ minHeight: 44 }}>Record a payment</button>
+            <button onClick={onPreview} style={{ minHeight: 44, background: "none", border: `1px solid ${LINE}`, borderRadius: 10, padding: "0 14px", cursor: "pointer", color: BURGUNDY, fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}><Eye size={16} /> Preview</button>
+          </div>
+        </div>
+
+        <div style={card}>
+          <h3 style={{ margin: "0 0 6px", fontSize: 15 }}>Payments and receipts</h3>
+          {rec === null && <p style={{ color: MUTED }}>Loading…</p>}
+          {rec && rec.length === 0 && <p style={{ color: MUTED, margin: 0 }}>No payment recorded yet.</p>}
+          {(rec || []).map((r) => (
+            <div key={r.id} style={{ borderTop: `1px solid ${LINE}`, padding: "10px 0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+                <div>
+                  <strong style={{ fontSize: 14 }}>{money(r.total)} FCFA</strong>
+                  <div style={{ fontSize: 12, color: MUTED }}>
+                    {[short(r.payment_date), r.method, r.description, r.registration > 0 ? `incl. registration ${money(r.registration)}` : null].filter(Boolean).join(" · ")}
+                  </div>
+                </div>
+                {r.receipt_status === "issued"
+                  ? <span style={pill(GREEN_BG, GREEN)}>{r.receipt_no}</span>
+                  : <button className="bsf-btn" onClick={() => startIssue(r)} style={{ minHeight: 40, whiteSpace: "nowrap" }}>Issue receipt</button>}
+              </div>
+              {issuing?.id === r.id && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: MUTED, gridColumn: "1 / -1" }}>Receipt number<input value={form.no} onChange={(e) => setForm({ ...form, no: e.target.value })} style={input} /></label>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: MUTED }}>Date paid<input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} style={input} /></label>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: MUTED }}>Method
+                    <select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })} style={input}>
+                      {["Cash", "Wave", "Orange Money", "Cheque", "Bank transfer", "Direct deposit"].map((m) => <option key={m}>{m}</option>)}
+                    </select>
+                  </label>
+                  {msg && <p style={{ color: RED, fontSize: 13, margin: 0, gridColumn: "1 / -1" }}>{msg}</p>}
+                  <div style={{ display: "flex", gap: 8, gridColumn: "1 / -1" }}>
+                    <button className="bsf-btn" onClick={issue} style={{ minHeight: 44 }}>Save receipt</button>
+                    <button onClick={() => setIssuing(null)} style={{ minHeight: 44, background: "none", border: "none", cursor: "pointer", color: MUTED, fontFamily: "inherit" }}>Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {sch.length > 0 && (
+          <div style={card}>
+            <h3 style={{ margin: "0 0 6px", fontSize: 15 }}>Payment plan</h3>
+            {sch.map((r) => (
+              <div key={r.id} style={{ ...row, fontSize: 13 }}>
+                <div><strong>{r.label}</strong><div style={{ color: MUTED, fontSize: 12 }}>{short(r.due_date)}{r.amount_status !== "confirmed" ? " · amount to confirm" : ""}</div></div>
+                <div style={{ textAlign: "right" }}>
+                  <div>{r.amount == null ? "?" : money(r.amount)}</div>
+                  <div style={{ fontSize: 12, color: r.status === "paid" ? GREEN : MUTED }}>{r.status === "paid" ? "Paid" : r.received > 0 ? `${money(r.received)} received` : "Due"}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RecordPayment({ families, preset = "", onClose, onSaved }) {
+  const [f, setF] = useState({ family: preset, date: todayISO(), receipt: "", registration: "", tuition: "", uniform: "", canteen: "", other: "", method: "Cash", description: "", status: "issued" });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   useEffect(() => {
-    supabase.from("tuition_receipts").select("receipt_no").like("receipt_no", "BIS-2026-%").then(({ data }) => {
-      const max = Math.max(0, ...(data || []).map((x) => parseInt(String(x.receipt_no).split("-")[2], 10) || 0));
-      setF((p) => (p.receipt ? p : { ...p, receipt: `BIS-2026-${String(max + 1).padStart(3, "0")}` }));
-    });
+    nextReceiptNo().then((no) => setF((p) => (p.receipt ? p : { ...p, receipt: no })));
   }, []);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const num = (v) => Math.max(0, parseInt(String(v).replace(/\s/g, ""), 10) || 0);
