@@ -9,7 +9,7 @@ const CORE_GRADES = [
 
 let GRADES = [...CORE_GRADES];
 
-const TAGS = ["Inquiry", "Literacy", "Numeracy", "Social Emotional", "Creative Arts", "Physical"];
+const TAGS = ["Inquiry", "Literacy", "Numeracy", "French", "Social Emotional", "Creative Arts", "Physical"];
 
 // Unit themes, named as in the school's curriculum documents (staff screens only).
 const THEMES = [

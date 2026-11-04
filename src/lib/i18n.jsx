@@ -128,6 +128,7 @@ const translations = {
   "tag.Inquiry": { en: "Inquiry", fr: "Investigation" },
   "tag.Literacy": { en: "Literacy", fr: "Lecture-écriture" },
   "tag.Numeracy": { en: "Numeracy", fr: "Mathématiques" },
+  "tag.French": { en: "French", fr: "Français" },
   "tag.Social Emotional": { en: "Social Emotional", fr: "Socio-émotionnel" },
   "tag.Creative Arts": { en: "Creative Arts", fr: "Arts créatifs" },
   "tag.Physical": { en: "Physical", fr: "Physique" },
