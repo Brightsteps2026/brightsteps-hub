@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Percent, Briefcase, FolderOpen, Award, LogOut, Utensils, Wallet, NotebookPen, Clock3, Target, Baby, Handshake } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Percent, Briefcase, FolderOpen, Award, LogOut, Utensils, Wallet, Banknote, NotebookPen, Clock3, Target, Baby, Handshake } from "lucide-react";
 import { useAuth } from "./LoginGate";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
 import CanteenTab from "./CanteenTab";
+import FeesTab, { useFeesAccess } from "./FeesTab";
 import IncidentsTab, { IncidentsIcon } from "./IncidentsTab";
 import LeaveTab, { LeaveIcon } from "./LeaveTab";
 import WeeklyUpdatesTab from "./WeeklyUpdates";
@@ -106,6 +107,9 @@ function BrightStepsHubInner() {
   // their own attendance and grades.
   const STUDENT_ALLOWED_TABS = isUpperStudent ? ["portfolio", "attendance", "gradebook", "assignments", "assessment", "messages"] : ["portfolio"];
   const unreadThreads = useUnreadThreads(profile, data);
+  // School fees: only Myriam (office) and parents whose family account she has shared.
+  const feesAccess = useFeesAccess(profile);
+  const canSeeFees = feesAccess.office || feesAccess.family;
   // Phone notifications: re-confirm this phone with the server each time the Hub opens.
   useEffect(() => { if (profile?.id) resyncPush(); }, [profile?.id]);
   const unreadMessageCount = unreadThreads.reduce((n, t) => n + t.count, 0);
@@ -124,7 +128,8 @@ function BrightStepsHubInner() {
     if (tab === "daily" && staffDailyGrades(profile).length === 0) setTab("dashboard");
     if (tab === "conferences" && meetingGrades(profile).length === 0) setTab("dashboard");
     if (tab === "standards") setTab("assessment");
-  }, [isParent, isAdmin, isLearningAssistant, isAccountant, isStudent, tab, profile]);
+    if (tab === "fees" && !canSeeFees) setTab("dashboard");
+  }, [isParent, isAdmin, isLearningAssistant, isAccountant, isStudent, tab, profile, canSeeFees]);
 
   if (loadError) {
     return (
@@ -179,6 +184,7 @@ function BrightStepsHubInner() {
     { id: "reports", label: "Reports", navKey: "nav.reports", icon: FileCheck, category: "compliance" },
     { id: "resources", label: "Resources", navKey: "nav.resources", icon: FolderOpen, category: "compliance" },
     { id: "accreditation", label: "Accreditation", navKey: "nav.accreditation", icon: Award, category: "compliance" },
+    { id: "fees", label: "School fees", navKey: "nav.fees", icon: Banknote, category: "office" },
     { id: "billing", label: "Billing", navKey: "nav.billing", icon: Wallet, category: "office" },
     { id: "updates", label: "Communication", navKey: "nav.updates", icon: Megaphone, category: "office" }
   ];
@@ -189,6 +195,7 @@ function BrightStepsHubInner() {
     .filter((s) => !isParent || !PARENT_HIDDEN_TABS.includes(s.id))
     .filter((s) => isAdmin || isViewer || !ADMIN_ONLY_TABS.includes(s.id))
     .filter((s) => s.id !== "billing" || BILLING_ALLOWED_ROLES.includes(profile?.role))
+    .filter((s) => s.id !== "fees" || canSeeFees)
     .filter((s) => !isLearningAssistant || LEARNING_ASSISTANT_ALLOWED_TABS.includes(s.id))
     .filter((s) => !isAccountant || ACCOUNTANT_ALLOWED_TABS.includes(s.id))
     .filter((s) => !isRestrictedTeacher || RESTRICTED_TEACHER_TABS.includes(s.id))
@@ -303,6 +310,7 @@ function BrightStepsHubInner() {
       {tab === "planning" && !isParent && !isLearningAssistant && <PlanningTab data={data} persist={persist} profile={profile} />}
       {tab === "calendar" && <CalendarTab data={data} persist={persist} profile={profile} />}
       {tab === "canteen" && <CanteenTab profile={profile} />}
+      {tab === "fees" && canSeeFees && <FeesTab office={feesAccess.office} />}
       {tab === "incidents" && <IncidentsTab profile={profile} />}
       {tab === "leave" && <LeaveTab profile={profile} />}
       {tab === "weekly" && !isParent && !isStudent && <WeeklyUpdatesTab profile={profile} data={data} />}

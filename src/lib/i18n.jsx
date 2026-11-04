@@ -36,6 +36,7 @@ const translations = {
     fr: "Le lien du calendrier n'est pas encore disponible. Merci de réessayer plus tard."
   },
   "nav.canteen": { en: "Canteen", fr: "Cantine" },
+  "nav.fees": { en: "School fees", fr: "Frais de scolarité" },
   "nav.checkin": { en: "Staff check-in", fr: "Pointage du personnel" },
   "nav.incidents": { en: "Incidents", fr: "Incidents" },
   "nav.leave": { en: "Leave requests", fr: "Demandes de congé" },
