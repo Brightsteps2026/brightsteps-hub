@@ -9,6 +9,7 @@ import { COLORS, FONT, TONES, card as cardToken, chip, chipOn, primaryBtn, ghost
 import { SCHOOL_YEAR, EARLY, SUBJECTS, SPECIALS, COMMENT_GRADES, termFor, termLevelFor } from "./SchoolGradebook";
 import { isEarlyYears } from "./data/earlyYears";
 import { EarlyYearsDocument, EarlyYearsEditor, earlyYearsDefaults, periodText } from "./EarlyYearsReport";
+import { LeavingLetter, LeavingLetterEditor, letterDefaults } from "./LeavingLetter";
 
 // Term report cards, built from the Gradebook (gb_* tables) and saved in
 // term_reports (see supabase/term-reports.sql).
@@ -476,7 +477,8 @@ function StandardReportDocument({ report, lang, logoUrl }) {
 
 // Prints one report card, or a whole class (one per page), alone on A4
 // (the rest of the Hub is hidden while printing).
-function PrintableReport({ report, reports, lang, logoUrl, label, style = ghostBtn, disabled = false }) {
+// `letter`: for a leaving child, print the withdrawal letter (English, then French) before the report.
+function PrintableReport({ report, reports, lang, logoUrl, label, style = ghostBtn, disabled = false, letter = null }) {
   const list = reports || (report ? [report] : []);
   const [printing, setPrinting] = useState(false);
   useEffect(() => {
@@ -492,8 +494,14 @@ function PrintableReport({ report, reports, lang, logoUrl, label, style = ghostB
       <button style={style} disabled={disabled || !list.length} onClick={() => setPrinting(true)}>{label}</button>
       {printing && createPortal(
         <div className="bs-trc-print-root bsf-printable">
+          {letter && list[0] && (
+            <>
+              <div><LeavingLetter report={list[0]} letter={letter} lang="en" logoUrl={logoUrl} /></div>
+              <div style={{ breakBefore: "page", pageBreakBefore: "always" }}><LeavingLetter report={list[0]} letter={letter} lang="fr" logoUrl={logoUrl} /></div>
+            </>
+          )}
           {list.map((r, i) => (
-            <div key={r.id} style={i > 0 ? { breakBefore: "page", pageBreakBefore: "always" } : undefined}>
+            <div key={r.id} style={i > 0 || letter ? { breakBefore: "page", pageBreakBefore: "always" } : undefined}>
               <TermReportDocument report={r} lang={lang} logoUrl={logoUrl} />
             </div>
           ))}
@@ -770,6 +778,8 @@ function StaffReportModal({ report, student, data, isAdmin, canEdit, busy, onClo
   const editable = canEdit && (!published || isAdmin);
   const c = report.content || {};
   const leaving = !!c.leaving;
+  const hub = (data?.students || []).find((s) => s.id === report.hub_student_id);
+  const letter = leaving ? letterDefaults(report, hub, data?.settings) : null;
 
   useEffect(() => { setPrincipal(report.content?.principalComment || ""); }, [report.id, report.content?.principalComment]);
 
@@ -786,7 +796,8 @@ function StaffReportModal({ report, student, data, isAdmin, canEdit, busy, onClo
       <div className="bsf-noprint" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
         {editable && !published && <button style={ghostBtn} disabled={busy} onClick={onRefresh}>Refresh from Gradebook</button>}
         {editable && c.early && c.kind !== "early-years" && <button style={ghostBtn} onClick={() => setPicking((p) => !p)}>{picking ? "Done choosing photos" : "Choose photos"}</button>}
-        <PrintableReport report={report} lang={lang} logoUrl={logoOf(data)} label="Print" />
+        <PrintableReport report={report} lang={lang} logoUrl={logoOf(data)} label={leaving ? "Print report only" : "Print"} />
+        {leaving && isAdmin && <PrintableReport report={report} lang={lang} logoUrl={logoOf(data)} label="Print letter + report" style={primaryBtn} letter={letter} />}
         {isAdmin && leaving && !published && <button style={ghostBtn} disabled={busy} onClick={() => {
           if (window.confirm("Turn this back into a normal Term report card (whole term, can be published)?")) onNotLeaving();
         }}>Child is staying</button>}
@@ -797,6 +808,8 @@ function StaffReportModal({ report, student, data, isAdmin, canEdit, busy, onClo
       {published && !isAdmin && (
         <p style={{ margin: "0 0 12px", fontSize: 13, color: COLORS.muted }}>This report card is published. Ask the office to unpublish it if something needs changing.</p>
       )}
+
+      {leaving && isAdmin && <LeavingLetterEditor key={report.id} value={letter} onChange={(v) => onSave({ letter: v })} />}
 
       {picking && editable && c.kind !== "early-years" && <PhotoPicker report={report} data={data} onSave={onSave} />}
       {editable && c.kind === "early-years" && <EarlyYearsEditor key={`${report.id}:${c.builtAt || ""}`} report={report} data={data} onSave={onSave} />}
