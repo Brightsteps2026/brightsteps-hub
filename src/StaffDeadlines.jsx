@@ -288,7 +288,7 @@ function AdminDeadlines({ profile }) {
 
   const weekAgo = addDays(today, -7);
   const list = state.deadlines.map((d) => {
-    const people = state.people.filter((p) => d.for_roles.includes(p.role));
+    const people = state.people.filter((p) => d.for_roles.includes(p.role) && !(p.no_weekly && /^\s*weekly\s*update/i.test(d.title || ""))); // specialists and Mr Jonathan don't write weekly updates
     const doneIds = new Set(state.done.filter((x) => x.deadline_id === d.id).map((x) => x.user_id));
     const pending = people.filter((p) => !doneIds.has(p.id));
     return { d, people, doneIds, pending };
