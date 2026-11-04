@@ -100,6 +100,8 @@ function BrightStepsHubInner() {
   const RESTRICTED_TEACHER_TABS = ["daily", "conferences", "weekly", "checkin", "leave", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "planning", "assignments", "timetable", "standards", "reports", "calendar", "incidents", "updates", "resources"];
   // Set per teacher by the admin in the database (profiles.limited_access).
   const isRestrictedTeacher = profile?.role === "teacher" && profile?.limited_access === true;
+  // Specialist teachers (swimming, PE, music...) don't write weekly updates (Myri, 4 Nov 2026).
+  const isSpecialist = profile?.role === "teacher" && Array.isArray(profile?.subjects) && profile.subjects.length > 0;
   // Pre-N through Grade 2: reflections only. Grade 3 and up: can also see (not edit)
   // their own attendance and grades.
   const STUDENT_ALLOWED_TABS = isUpperStudent ? ["portfolio", "attendance", "gradebook", "assignments", "assessment", "messages"] : ["portfolio"];
@@ -122,6 +124,7 @@ function BrightStepsHubInner() {
     if (isParent && PARENT_HIDDEN_TABS.includes(tab)) setTab("dashboard");
     if (!isAdmin && !isViewer && ADMIN_ONLY_TABS.includes(tab)) setTab("dashboard");
     if (tab === "billing") setTab("dashboard"); // Billing tab removed 4 Nov 2026
+    if (tab === "weekly" && isSpecialist) setTab("dashboard");
     if (isLearningAssistant && !LEARNING_ASSISTANT_ALLOWED_TABS.includes(tab)) setTab("dashboard");
     if (isAccountant && !ACCOUNTANT_ALLOWED_TABS.includes(tab)) setTab("dashboard");
     if (isRestrictedTeacher && !RESTRICTED_TEACHER_TABS.includes(tab)) setTab("dashboard");
@@ -196,6 +199,7 @@ function BrightStepsHubInner() {
     .filter((s) => !isParent || !PARENT_HIDDEN_TABS.includes(s.id))
     .filter((s) => isAdmin || isViewer || !ADMIN_ONLY_TABS.includes(s.id))
     .filter((s) => s.id !== "fees" || canSeeFees)
+    .filter((s) => s.id !== "weekly" || !isSpecialist)
     .filter((s) => !isLearningAssistant || LEARNING_ASSISTANT_ALLOWED_TABS.includes(s.id))
     .filter((s) => !isAccountant || ACCOUNTANT_ALLOWED_TABS.includes(s.id))
     .filter((s) => !isRestrictedTeacher || RESTRICTED_TEACHER_TABS.includes(s.id))
@@ -313,7 +317,7 @@ function BrightStepsHubInner() {
       {tab === "fees" && canSeeFees && <FeesTab office={feesAccess.office} />}
       {tab === "incidents" && <IncidentsTab profile={profile} />}
       {tab === "leave" && <LeaveTab profile={profile} />}
-      {tab === "weekly" && !isParent && !isStudent && <WeeklyUpdatesTab profile={profile} data={data} />}
+      {tab === "weekly" && !isParent && !isStudent && !isSpecialist && <WeeklyUpdatesTab profile={profile} data={data} />}
       {tab === "daily" && staffDailyGrades(profile).length > 0 && <DailyLogTab profile={profile} />}
       {tab === "conferences" && meetingGrades(profile).length > 0 && <MeetingsTab profile={profile} />}
       {tab === "checkin" && !isParent && !isStudent && <StaffCheckinTab profile={profile} />}
