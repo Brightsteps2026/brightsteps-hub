@@ -101,7 +101,8 @@ function BrightStepsHubInner() {
   // Set per teacher by the admin in the database (profiles.limited_access).
   const isRestrictedTeacher = profile?.role === "teacher" && profile?.limited_access === true;
   // Specialist teachers (swimming, PE, music...) don't write weekly updates (Myri, 4 Nov 2026).
-  const isSpecialist = profile?.role === "teacher" && Array.isArray(profile?.subjects) && profile.subjects.length > 0;
+  // Also anyone the admin marked as not writing weekly updates (profiles.weekly_exempt, e.g. Mr Jonathan).
+  const isSpecialist = (profile?.role === "teacher" && Array.isArray(profile?.subjects) && profile.subjects.length > 0) || profile?.weekly_exempt === true;
   // Pre-N through Grade 2: reflections only. Grade 3 and up: can also see (not edit)
   // their own attendance and grades.
   const STUDENT_ALLOWED_TABS = isUpperStudent ? ["portfolio", "attendance", "gradebook", "assignments", "assessment", "messages"] : ["portfolio"];
