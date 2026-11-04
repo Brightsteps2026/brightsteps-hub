@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Paperclip, X, Loader2, Download } from "lucide-react";
-import { uploadAttachment, getAttachmentUrl, deleteAttachment, formatFileSize } from "./lib/attachments";
+import { uploadAttachment, getAttachmentUrl, deleteAttachment, formatFileSize, shrinkImage } from "./lib/attachments";
 
 const MAX_SIZE = 50 * 1024 * 1024; // 50MB, matches the Supabase bucket limit
 
@@ -32,7 +32,7 @@ export default function AttachmentField({ folder, files, onChange, readOnly = fa
     try {
       const uploaded = [];
       for (const file of chosen) {
-        const meta = await uploadAttachment(file, folder);
+        const meta = await uploadAttachment(await shrinkImage(file, 1600), folder);
         uploaded.push(meta);
       }
       onChange([...(files || []), ...uploaded]);

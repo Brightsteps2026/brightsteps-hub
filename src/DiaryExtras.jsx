@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Heart, MessageCircle, Camera, Image as ImageIcon, Loader2, Trash2, Send } from "lucide-react";
 import { supabase } from "./lib/supabaseClient";
-import { uploadAttachment, getAttachmentUrl, deleteAttachment, shrinkImage } from "./lib/attachments";
+import { uploadAttachment, getAttachmentUrl, getImageUrl, deleteAttachment, shrinkImage } from "./lib/attachments";
 import { COLORS, card as cardToken, chip, chipOn, primaryBtn, ghostBtn, input, pill } from "./ui/tokens";
 import { eyObservationAreas } from "./data/earlyYears";
 import { useAuth } from "./LoginGate";
@@ -25,11 +25,11 @@ export function PhotoImg({ path, style, alt = "" }) {
   const [url, setUrl] = useState("");
   useEffect(() => {
     let live = true;
-    getAttachmentUrl(path).then((u) => live && setUrl(u)).catch(() => live && setUrl(""));
+    getImageUrl(path, 700).then((u) => live && setUrl(u)).catch(() => live && setUrl(""));
     return () => { live = false; };
   }, [path]);
   return url
-    ? <img src={url} alt={alt} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 14, display: "block", ...style }} />
+    ? <img src={url} alt={alt} loading="lazy" decoding="async" onError={() => getAttachmentUrl(path).then((u) => { if (u !== url) setUrl(u); }).catch(() => {})} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 14, display: "block", ...style }} />
     : <div style={{ width: "100%", height: "100%", minHeight: 80, borderRadius: 14, background: COLORS.neutralBg, ...style }} />;
 }
 

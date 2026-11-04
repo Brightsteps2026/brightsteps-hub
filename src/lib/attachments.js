@@ -62,6 +62,23 @@ export function getAttachmentUrl(path) {
   });
 }
 
+// A small version of a photo, made by Supabase on the fly (Pro plan image resizing).
+// Used wherever a picture is shown small (student circles, diary photos), so the page
+// downloads a few KB instead of the full 2–4 MB phone photo. If resizing ever fails,
+// the <img> falls back to the full photo (see the onError handlers that call getAttachmentUrl).
+const thumbCache = new Map(); // "path|width" -> { url, expires }
+export async function getImageUrl(path, width = 160) {
+  const key = `${path}|${width}`;
+  const cached = thumbCache.get(key);
+  if (cached && cached.expires > Date.now()) return cached.url;
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, LINK_SECONDS, {
+    transform: { width, height: width, resize: "cover", quality: 70 }
+  });
+  if (error || !data?.signedUrl) return getAttachmentUrl(path);
+  thumbCache.set(key, { url: data.signedUrl, expires: Date.now() + REUSE_MS });
+  return data.signedUrl;
+}
+
 // Phone photos are often 3–5 MB. Shrink an image to at most `maxSide` pixels and save it
 // as JPEG before uploading. Returns the original file if it is already small or cannot be read.
 export async function shrinkImage(file, maxSide = 900) {

@@ -1,6 +1,6 @@
 import { Component, useState, useEffect } from "react";
 import { Users, X } from "lucide-react";
-import { getAttachmentUrl } from "../lib/attachments";
+import { getAttachmentUrl, getImageUrl } from "../lib/attachments";
 import { useLanguage } from "../lib/i18n";
 import { GRADES, EVENT_TYPE_COLOR, SHORT_GRADE_LABEL } from "../data/constants";
 import { formatEventWhen, tLabel, eventTypeLabel, todayStr } from "../lib/format";
@@ -188,12 +188,12 @@ function StudentThumb({ photo }) {
   useEffect(() => {
     let cancelled = false;
     if (!photo || !photo.path) { setUrl(""); return; }
-    getAttachmentUrl(photo.path).then((u) => { if (!cancelled) setUrl(u); }).catch(() => {});
+    getImageUrl(photo.path, 160).then((u) => { if (!cancelled) setUrl(u); }).catch(() => {});
     return () => { cancelled = true; };
   }, [photo && photo.path]);
   return (
     <div className="bsf-student-thumb">
-      {url ? <img src={url} alt="" loading="lazy" decoding="async" /> : <Users size={18} />}
+      {url ? <img src={url} alt="" loading="lazy" decoding="async" onError={() => getAttachmentUrl(photo.path).then((u) => { if (u !== url) setUrl(u); }).catch(() => {})} /> : <Users size={18} />}
     </div>
   );
 }
