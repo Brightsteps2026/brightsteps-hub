@@ -43,6 +43,9 @@ function Dashboard({ data, profile, persist, onNavigate }) {
   const [editingAnnId, setEditingAnnId] = useState(null);
   const [emailingAnnId, setEmailingAnnId] = useState(null);
   const [showAllAnn, setShowAllAnn] = useState(false);
+  // Dashboard posts show two lines; "Read more" opens the full text (Nov 2026: keep the Dashboard short).
+  const [openPosts, setOpenPosts] = useState({});
+  const togglePost = (id) => setOpenPosts((o) => ({ ...o, [id]: !o[id] }));
 const [postingAnn, setPostingAnn] = useState(false);
   // Preview of the announcement being written: null (closed), "en" or "fr".
   const [annPreview, setAnnPreview] = useState(null);
@@ -329,8 +332,17 @@ const saveLunchMenu = async () => {
 
          {isParent && (() => {
         // Once this parent has signed a document, it leaves the Dashboard (it stays in Resources).
-        const parentDocs = (data.resources || []).filter((d) => d.visibleToParents && !(d.requiresSignature && (d.signatures || []).some((s) => s.parentId === profile?.id)));
-        if (parentDocs.length === 0) return null;
+        const unsigned = (data.resources || []).filter((d) => d.visibleToParents && !(d.requiresSignature && (d.signatures || []).some((s) => s.parentId === profile?.id)));
+        // Nov 2026: the Dashboard only keeps documents waiting for a signature; the rest live in Resources.
+        const parentDocs = unsigned.filter((d) => d.requiresSignature);
+        const otherDocs = unsigned.length - parentDocs.length;
+        if (unsigned.length === 0) return null;
+        if (parentDocs.length === 0) return (
+          <section className="bsf-card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+            <span>{t("dash.schoolDocuments")} · {otherDocs}</span>
+            <button className="bsf-textbtn" style={{ minHeight: 44 }} onClick={() => onNavigate("resources")}>{isFr ? "Ouvrir les ressources ›" : "Open Resources ›"}</button>
+          </section>
+        );
         return (
           <section className="bsf-card">
             <h2>{t("dash.schoolDocuments")}</h2>
@@ -359,6 +371,11 @@ const saveLunchMenu = async () => {
                 );
               })}
             </div>
+            {otherDocs > 0 && (
+              <button className="bsf-textbtn" style={{ minHeight: 44 }} onClick={() => onNavigate("resources")}>
+                {isFr ? `${otherDocs} autre(s) document(s) dans Ressources ›` : `${otherDocs} more document${otherDocs > 1 ? "s" : ""} in Resources ›`}
+              </button>
+            )}
           </section>
         );
       })()}
@@ -452,15 +469,18 @@ const saveLunchMenu = async () => {
             const showFrench = isParent && language === "fr" && a.titleFr;
             return (
               <div key={a.id} className="bsf-row">
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <strong>{showFrench ? a.titleFr : a.titleEn}</strong>
-                  <LinkedText text={showFrench ? a.bodyFr : a.bodyEn} />
-                  {(() => {
+                  <LinkedText text={showFrench ? a.bodyFr : a.bodyEn} style={openPosts["fu-" + a.id] ? { margin: "4px 0 0" } : { margin: "4px 0 0", ...{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } }} />
+                  {openPosts["fu-" + a.id] && (() => {
                     const postFiles = language === "fr" && (a.filesFr || []).length > 0 ? a.filesFr : (a.files || []).length > 0 ? a.files : a.filesFr || [];
                     return postFiles.length > 0 && (
                       <AttachmentField folder="resources" files={postFiles} onChange={() => {}} readOnly />
                     );
                   })()}
+                  <button className="bsf-textbtn" style={{ fontSize: 13, marginTop: 4 }} onClick={() => togglePost("fu-" + a.id)}>
+                    {openPosts["fu-" + a.id] ? (isFr ? "Réduire" : "Show less") : (isFr ? "Lire la suite" : "Read more")}
+                  </button>
                 </div>
               </div>
             );
@@ -542,13 +562,16 @@ const saveLunchMenu = async () => {
 )}
         </div>
         {visibleAnnouncements.length === 0 && <p className="bsf-empty">{isParent ? t("dash.noAnnouncements") : "No announcements yet."}</p>}
-        {(showAllAnn ? visibleAnnouncements : visibleAnnouncements.slice(0, 3)).map((a) => (
+        {(showAllAnn ? visibleAnnouncements : visibleAnnouncements.slice(0, 2)).map((a) => (
         <div key={a.id} style={{ borderTop: "1px solid #eee", padding: "12px 0" }}>
         <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 4px" }}>{isParent
           ? `${a.audience === "school" || !a.audience ? t("common.wholeSchool") : a.audience === "lower" ? t("dash.audienceLower") : a.audience === "upper" ? t("dash.audienceUpper") : gradeLabel(a.audience, language)} · ${formatTimestampDate(a.created_at, language)}`
           : `${a.audience === "school" ? "Whole school" : a.audience === "lower" ? "Lower school" : a.audience === "upper" ? "Upper school" : a.audience} · ${formatTimestampDate(a.created_at, "en")}${a.edited_at ? " · Edited" : ""}${isAdmin && a.emailed_at ? " · Emailed" : ""}`}</p>
         <p style={{ fontSize: 14, fontWeight: 500, margin: "0 0 2px" }}>{language === "fr" && a.title_fr ? a.title_fr : a.title}</p>
-        <LinkedText text={language === "fr" && a.body_fr ? a.body_fr : a.body} style={{ fontSize: 13, color: "#3B4A4C", margin: 0, lineHeight: 1.6 }} />
+        <LinkedText text={language === "fr" && a.body_fr ? a.body_fr : a.body} style={{ fontSize: 13, color: "#3B4A4C", margin: 0, lineHeight: 1.6, ...(openPosts["an-" + a.id] ? {} : { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }) }} />
+        <button className="bsf-textbtn" style={{ fontSize: 13, marginTop: 4 }} onClick={() => togglePost("an-" + a.id)}>
+          {openPosts["an-" + a.id] ? (isFr ? "Réduire" : "Show less") : (isFr ? "Lire la suite" : "Read more")}
+        </button>
         {isAdmin && (
   <div style={{ display: "flex", gap: 14, marginTop: 6 }}>
     <button className="bsf-textbtn" style={{ fontSize: 12 }} onClick={() => openEditAnnouncement(a)}>Edit</button>
@@ -563,7 +586,7 @@ const saveLunchMenu = async () => {
 )}
         </div>
         ))}
-        {visibleAnnouncements.length > 3 && (
+        {visibleAnnouncements.length > 2 && (
           <button className="bsf-textbtn" style={{ fontSize: 13, marginTop: 4 }} onClick={() => setShowAllAnn(!showAllAnn)}>
             {showAllAnn
               ? (isParent ? t("dash.showFewerAnnouncements") : "Show fewer")
