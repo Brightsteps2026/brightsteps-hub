@@ -30,7 +30,7 @@ const T = {
   },
   upToDate: { en: "Up to date — thank you", fr: "À jour — merci" },
   nextPayment: { en: "Next payment", fr: "Prochain paiement" },
-  on: { en: "on", fr: "le" },
+  on: { en: "due by", fr: "à régler au plus tard le" },
   paidInFull: { en: "Paid in full — thank you", fr: "Payé en totalité — merci" },
   nothingMore: { en: "Nothing more to pay for 2026–2027.", fr: "Plus rien à payer pour 2026–2027." },
   balance: { en: "Balance remaining", fr: "Reste à payer" },
@@ -40,7 +40,7 @@ const T = {
   and: { en: "and", fr: "et" },
   plan: { en: "Plan", fr: "Formule" },
   paymentPlan: { en: "Payment plan", fr: "Échéancier" },
-  dueOn: { en: "Due", fr: "À payer le" },
+  dueOn: { en: "Due by", fr: "À régler au plus tard le" },
   wasDue: { en: "Was due", fr: "Était dû le" },
   paid: { en: "Paid", fr: "Payé" },
   partPaid: { en: "Part paid", fr: "Payé en partie" },
@@ -141,7 +141,7 @@ function useStatusLine() {
       return { bg: RED_BG, fg: RED, icon: AlertCircle, text: fr ? `Paiement en retard — ${amt} depuis le ${day(s.oldest_past)}` : `Payment overdue — ${amt} since ${day(s.oldest_past)}` };
     }
     const next = s.next_due_date && Number(s.next_due_amount) > 0
-      ? (fr ? ` · prochain paiement ${money(s.next_due_amount)} FCFA le ${day(s.next_due_date)}` : ` · next payment ${money(s.next_due_amount)} FCFA on ${day(s.next_due_date)}`)
+      ? (fr ? ` · prochain paiement ${money(s.next_due_amount)} FCFA à régler au plus tard le ${day(s.next_due_date)}` : ` · next payment ${money(s.next_due_amount)} FCFA due by ${day(s.next_due_date)}`)
       : "";
     return { bg: GREEN_BG, fg: GREEN, icon: CheckCircle2, text: (fr ? "À jour" : "Up to date") + next };
   };
