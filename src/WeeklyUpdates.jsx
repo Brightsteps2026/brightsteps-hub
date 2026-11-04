@@ -61,6 +61,13 @@ const FAMILY = {
   }
 };
 
+// Nov 2026 (Myri): an unread weekly update must be obvious to families.
+const NEWT = {
+  en: { newTag: "NEW", toRead: "New · please read", confirmed: "Read", prompt: "Please read this update and confirm at the bottom." },
+  fr: { newTag: "NOUVEAU", toRead: "Nouveau · à lire", confirmed: "Lu", prompt: "Merci de lire ce point et de confirmer en bas de la page." }
+};
+const NEW_PILL = { background: "#B23A3A", color: "#FFFFFF", fontSize: 11, fontWeight: 700, letterSpacing: ".06em", padding: "3px 9px", borderRadius: 100, whiteSpace: "nowrap" };
+
 const T = {
   en: {
     title: "Weekly updates", week: (r) => `Weekly update · ${r}`, whose: (n) => `${n}'s week`, from: (t) => `from ${t}`,
@@ -794,7 +801,10 @@ function WeeklyUpdatesFamilyInner({ student, language }) {
 
   return (
     <section className="bsf-card" id="bs-weekly-updates">
-      <h2>{t.title}</h2>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <h2 style={{ margin: 0 }}>{t.title}</h2>
+        {rows.some((r) => !r.ack_at) && <span style={NEW_PILL}>{NEWT[lang].newTag}</span>}
+      </div>
       {rows.map((r, i) => (
         open === r.id
           ? <FamilyWeek key={r.id} row={r} notes={notes[`${r.grade}:${r.week_start}`]} name={name} teacher={teacher} lang={lang} onAcked={load} />
@@ -802,7 +812,9 @@ function WeeklyUpdatesFamilyInner({ student, language }) {
             <button key={r.id} onClick={() => setOpen(r.id)} className="bsf-textbtn"
               style={{ display: "flex", justifyContent: "space-between", width: "100%", padding: "12px 0", borderTop: `1px solid ${COLORS.line}`, textAlign: "left" }}>
               <span>{i === 1 ? `${t.earlier} · ` : ""}{t.week(weekRange(r.week_start, lang))}</span>
-              <span style={{ color: r.ack_at ? COLORS.ok : COLORS.warn }}>{r.ack_at ? "✓" : "•"}</span>
+              {r.ack_at
+                ? <span style={{ color: COLORS.ok, fontSize: 13 }}>✓ {NEWT[lang].confirmed}</span>
+                : <span style={NEW_PILL}>{NEWT[lang].toRead}</span>}
             </button>
           )
       ))}
@@ -832,6 +844,12 @@ function FamilyWeek({ row, notes, name, teacher, lang, onAcked }) {
 
   return (
     <div style={{ borderTop: `1px solid ${COLORS.line}`, paddingTop: 12 }}>
+      {!row.ack_at && (
+        <div style={{ background: "#FCE8E8", color: "#8E2626", borderRadius: 12, padding: "10px 12px", margin: "0 0 12px", fontSize: 14, display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={NEW_PILL}>{NEWT[lang].newTag}</span>
+          <span>{NEWT[lang].prompt}</span>
+        </div>
+      )}
       <p style={{ margin: 0, fontSize: 12, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase", color: COLORS.brand }}>{t.week(weekRange(row.week_start, lang))}</p>
       <h3 style={{ margin: "4px 0 2px", fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600 }}>{t.whose(name)}</h3>
       {teacher && <p className="bsf-muted" style={{ margin: 0 }}>{t.from(teacher)}</p>}
@@ -1122,16 +1140,19 @@ export function WeeklyUpdateCard({ students, language, onOpen }) {
   const names = kids.map((k) => firstName(k.name) || k.name);
   const list = names.length === 1 ? names[0] : names.slice(0, -1).join(", ") + (lang === "fr" ? " et " : " and ") + names[names.length - 1];
   return (
-    <section className="bsf-card" style={{ border: `2px solid ${COLORS.brand}` }}>
-      <h2 style={{ marginTop: 0 }}>{lang === "fr" ? "Nouveau point de la semaine" : "New weekly update"}</h2>
-      <p style={{ margin: "0 0 12px" }}>
+    <section className="bsf-card" style={{ background: COLORS.brand, color: "#FFFFFF", border: "none" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+        <span style={{ background: "#FFFFFF", color: COLORS.brand, fontSize: 11, fontWeight: 700, letterSpacing: ".08em", padding: "3px 9px", borderRadius: 100 }}>{lang === "fr" ? "NOUVEAU" : "NEW"}</span>
+        <h2 style={{ margin: 0, color: "#FFFFFF" }}>{lang === "fr" ? "Point de la semaine à lire" : "Weekly update to read"}</h2>
+      </div>
+      <p style={{ margin: "0 0 12px", color: "#FFFFFF" }}>
         {lang === "fr"
           ? `Le point de la semaine de ${list} est prêt. Merci de le lire et de confirmer votre lecture.`
           : `${list}'s weekly update is ready. Please read it and confirm.`}
       </p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {kids.map((k) => (
-          <button key={k.id} className="bsf-btn" onClick={() => onOpen(k.id)}>
+          <button key={k.id} className="bsf-btn" onClick={() => onOpen(k.id)} style={{ background: "#FFFFFF", color: COLORS.brand, fontWeight: 700, minHeight: 44 }}>
             {lang === "fr" ? `Lire · ${firstName(k.name) || k.name}` : `Read · ${firstName(k.name) || k.name}`}
           </button>
         ))}

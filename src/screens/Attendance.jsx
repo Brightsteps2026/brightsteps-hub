@@ -12,7 +12,7 @@ const STATUS_LABEL = { present: "Present", absent: "Absent", late: "Late", excus
 
 const STATUS_COLOR = { present: "#2F7A5C", absent: "#B5473B", late: "#8A6420", excused: "#6B5BA6" };
 
-// School rule (Nov 2026): class starts at 8:00, register taken by 8:10.
+// School rule (Nov 2026): class starts at 8:00, register taken by 8:20 (was 8:10; Myri changed it 4 Nov).
 // A child who arrives after 8:00 is Late (never left Absent once they are here).
 const CLASS_START = "08:00";
 const nowHHMM = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
@@ -159,7 +159,7 @@ function AttendanceTab({ data, persist, profile }) {
       {!isSelfOnly && !weekend && (
         <section className="bsf-card" style={{ padding: "12px 16px" }}>
           <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
-            <strong>Class starts at 8:00.</strong> Take the register by 8:10. A child who arrives after 8:00 is <strong>Late</strong>: if you marked them Absent, tap again to change it to Late and check the arrival time.
+            <strong>Class starts at 8:00.</strong> Take the register by 8:20. A child who arrives after 8:00 is <strong>Late</strong>: if you marked them Absent, tap again to change it to Late and check the arrival time.
           </p>
         </section>
       )}
