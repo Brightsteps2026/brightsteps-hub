@@ -37,6 +37,7 @@ const translations = {
   },
   "nav.canteen": { en: "Canteen", fr: "Cantine" },
   "nav.fees": { en: "School fees", fr: "Frais de scolarité" },
+  "nav.bus": { en: "School bus", fr: "Transport scolaire" },
   "nav.checkin": { en: "Staff check-in", fr: "Pointage du personnel" },
   "nav.incidents": { en: "Incidents", fr: "Incidents" },
   "nav.leave": { en: "Leave requests", fr: "Demandes de congé" },

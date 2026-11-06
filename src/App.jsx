@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Percent, Briefcase, FolderOpen, Award, LogOut, Utensils, Banknote, NotebookPen, Clock3, Target, Baby, Handshake } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Percent, Briefcase, FolderOpen, Award, LogOut, Utensils, Bus, Banknote, NotebookPen, Clock3, Target, Baby, Handshake } from "lucide-react";
 import { useAuth } from "./LoginGate";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
 import CanteenTab from "./CanteenTab";
 import FeesTab, { useFeesAccess } from "./FeesTab";
+import BusTab, { useBusAccess } from "./BusTab";
 import IncidentsTab, { IncidentsIcon } from "./IncidentsTab";
 import LeaveTab, { LeaveIcon } from "./LeaveTab";
 import WeeklyUpdatesTab from "./WeeklyUpdates";
@@ -110,6 +111,9 @@ function BrightStepsHubInner() {
   // School fees: only Myriam (office) and parents whose family account she has shared.
   const feesAccess = useFeesAccess(profile);
   const canSeeFees = feesAccess.office || feesAccess.family;
+  // School bus: the admin, and parents with a child switched on for the bus (6 Nov 2026).
+  const busAccess = useBusAccess(profile);
+  const canSeeBus = busAccess.office || busAccess.family;
   useEffect(() => {
     const go = (e) => { setTab(e.detail); setShowMenu(false); };
     window.addEventListener("bs-goto-tab", go);
@@ -135,7 +139,8 @@ function BrightStepsHubInner() {
     if (tab === "conferences" && meetingGrades(profile).length === 0) setTab("dashboard");
     if (tab === "standards") setTab("assessment");
     if (tab === "fees" && !canSeeFees) setTab("dashboard");
-  }, [isParent, isAdmin, isLearningAssistant, isAccountant, isStudent, tab, profile, canSeeFees]);
+    if (tab === "bus" && !canSeeBus) setTab("dashboard");
+  }, [isParent, isAdmin, isLearningAssistant, isAccountant, isStudent, tab, profile, canSeeFees, canSeeBus]);
 
   if (loadError) {
     return (
@@ -191,6 +196,7 @@ function BrightStepsHubInner() {
     { id: "resources", label: "Resources", navKey: "nav.resources", icon: FolderOpen, category: "compliance" },
     { id: "accreditation", label: "Accreditation", navKey: "nav.accreditation", icon: Award, category: "compliance" },
     { id: "fees", label: "School fees", navKey: "nav.fees", icon: Banknote, category: "office" },
+    { id: "bus", label: "School bus", navKey: "nav.bus", icon: Bus, category: "office" },
     { id: "updates", label: "Communication", navKey: "nav.updates", icon: Megaphone, category: "office" }
   ];
   const allSections = allSectionsRaw
@@ -200,6 +206,7 @@ function BrightStepsHubInner() {
     .filter((s) => !isParent || !PARENT_HIDDEN_TABS.includes(s.id))
     .filter((s) => isAdmin || isViewer || !ADMIN_ONLY_TABS.includes(s.id))
     .filter((s) => s.id !== "fees" || canSeeFees)
+    .filter((s) => s.id !== "bus" || canSeeBus)
     .filter((s) => s.id !== "weekly" || !isSpecialist)
     .filter((s) => !isLearningAssistant || LEARNING_ASSISTANT_ALLOWED_TABS.includes(s.id))
     .filter((s) => !isAccountant || ACCOUNTANT_ALLOWED_TABS.includes(s.id))
@@ -316,6 +323,7 @@ function BrightStepsHubInner() {
       {tab === "calendar" && <CalendarTab data={data} persist={persist} profile={profile} />}
       {tab === "canteen" && <CanteenTab profile={profile} />}
       {tab === "fees" && canSeeFees && <FeesTab office={feesAccess.office} />}
+      {tab === "bus" && canSeeBus && <BusTab office={busAccess.office} />}
       {tab === "incidents" && <IncidentsTab profile={profile} />}
       {tab === "leave" && <LeaveTab profile={profile} />}
       {tab === "weekly" && !isParent && !isStudent && !isSpecialist && <WeeklyUpdatesTab profile={profile} data={data} />}
