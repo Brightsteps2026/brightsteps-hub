@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 import { useLanguage } from "./lib/i18n";
 import { COLORS, card as cardToken, chip, chipOn, primaryBtn, ghostBtn, input, pill } from "./ui/tokens";
+import BusRun from "./BusRun";
+import BusMap from "./BusMap";
 
 // School Bus Service (Myriam, 6 Nov 2026).
 // The school runs the bus itself: payments go to Myriam, receipts are emailed
 // automatically, and only families switched ON for the bus see this section.
 // Tables: bus_riders, bus_payments (supabase/school-bus-service.sql).
-// Later steps: boarding check-in from the bus phone, and live bus location.
+// 7 Nov 2026: trips tracked from the bus phone (BusRun.jsx): children on/off, live location,
+// parents' "not taking the bus" notices (morning by 06:30, afternoon by 12:00).
 
 // Monthly prices: same as public.bus_zone_fee() in the database.
 export const BUS_ZONES = [
@@ -49,7 +52,29 @@ const T = {
   needLocation: { en: "Use your current location or paste a link first.", fr: "Utilisez votre position actuelle ou collez d'abord un lien." },
   geoFailed: { en: "Your phone did not share its location. Please allow location access, or paste a link instead.", fr: "Votre téléphone n'a pas partagé sa position. Autorisez l'accès à la localisation, ou collez plutôt un lien." },
   gotHere: { en: "Location found", fr: "Position trouvée" },
-  coming: { en: "Coming soon: a notification when your child gets on the bus, live bus location, and arrival at school.", fr: "Bientôt : une notification quand votre enfant monte dans le car, la position du car en direct et l'arrivée à l'école." },
+  today: { en: "Today", fr: "Aujourd'hui" },
+  morning: { en: "Morning", fr: "Matin" },
+  afternoon: { en: "Afternoon", fr: "Après-midi" },
+  waiting: { en: "Bus not left yet", fr: "Le car n'est pas encore parti" },
+  onTheWay: { en: "Bus on its way", fr: "Le car est en route" },
+  onBusAt: { en: "On the bus at", fr: "Dans le car à" },
+  atSchoolAt: { en: "At school at", fr: "À l'école à" },
+  homeAt: { en: "Dropped home at", fr: "Déposé(e) à" },
+  tripDone: { en: "Trip finished", fr: "Trajet terminé" },
+  notTaking: { en: "Not taking the bus", fr: "Ne prend pas le car" },
+  followBus: { en: "Where the bus is now", fr: "Où est le car" },
+  skipTitle: { en: "My child won't take the bus", fr: "Mon enfant ne prendra pas le car" },
+  skipHelp: { en: "Tell the bus not to come. Morning trip: before 6:30 the same day. Afternoon trip: before 12:00. After that, please call the school.", fr: "Prévenez le car de ne pas venir. Trajet du matin : avant 6h30 le jour même. Trajet de l'après-midi : avant 12h00. Après, merci d'appeler l'école." },
+  date: { en: "Date", fr: "Date" },
+  which: { en: "Which trip", fr: "Quel trajet" },
+  both: { en: "Both", fr: "Les deux" },
+  reason: { en: "Reason (optional)", fr: "Motif (facultatif)" },
+  send: { en: "Tell the school", fr: "Prévenir l'école" },
+  sent: { en: "Thank you. The bus knows not to pick up your child.", fr: "Merci. Le car sait qu'il ne doit pas venir chercher votre enfant." },
+  tooLate: { en: "It's too late to change this trip on the Hub. Please call the school.", fr: "Il est trop tard pour modifier ce trajet sur le Hub. Merci d'appeler l'école." },
+  upcoming: { en: "Coming up", fr: "À venir" },
+  undoSkip: { en: "Cancel", fr: "Annuler" },
+  skipOpen: { en: "Not taking the bus?", fr: "Ne prend pas le car ?" },
   loading: { en: "Loading…", fr: "Chargement…" },
   noBus: { en: "None of your children uses the school bus.", fr: "Aucun de vos enfants n'utilise le transport scolaire." }
 };
@@ -109,7 +134,40 @@ export function useBusAccess(profile) {
 }
 
 export default function BusTab({ office }) {
-  return office ? <BusOffice /> : <BusFamily />;
+  return office ? <BusOfficeTabs /> : <BusFamily />;
+}
+
+function BusOfficeTabs() {
+  const [view, setView] = useState("today");
+  const [skips, setSkips] = useState([]);
+  useEffect(() => {
+    if (view !== "today") return;
+    supabase.rpc("bus_skips_upcoming").then(({ data }) => setSkips(data || []));
+  }, [view]);
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 7, padding: "16px 16px 0" }}>
+        <button style={view === "today" ? chipOn : chip} onClick={() => setView("today")}>Today's trips</button>
+        <button style={view === "list" ? chipOn : chip} onClick={() => setView("list")}>Riders & payments</button>
+      </div>
+      {view === "today" ? (
+        <div style={{ padding: "12px 16px 90px" }}>
+          <BusRun />
+          {skips.length > 0 && (
+            <div style={card}>
+              <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Not taking the bus · coming up</p>
+              {skips.map((k) => (
+                <p key={`${k.student_id}${k.skip_date}${k.trip}`} style={{ margin: "4px 0", fontSize: 14 }}>
+                  {new Date(`${k.skip_date}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · {k.trip} · <strong>{k.name}</strong>
+                  {k.note ? <span style={{ color: COLORS.muted }}> · {k.note}</span> : null}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : <BusOffice />}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -424,6 +482,16 @@ function BusFamily() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [status, setStatus] = useState("");
+  const [today, setToday] = useState([]);
+  const [skips, setSkips] = useState([]);
+  const [skipFor, setSkipFor] = useState(null);
+
+  async function loadToday() {
+    const [t, k] = await Promise.all([supabase.rpc("bus_family_today"), supabase.rpc("bus_skips_upcoming")]);
+    setToday(t.data || []);
+    setSkips(k.data || []);
+  }
+  useEffect(() => { loadToday(); const id = setInterval(loadToday, 20000); return () => clearInterval(id); }, []);
 
   async function load() {
     const r = await supabase.from("bus_riders").select("student_id, zone, active, home_link, home_lat, home_lng, home_note");
@@ -462,6 +530,34 @@ function BusFamily() {
             <p style={{ margin: "2px 0 10px", fontSize: 13, color: COLORS.muted }}>
               {tr("area")}: {z.label} · {money(z.fee)} FCFA {tr("perMonth")}
             </p>
+
+            <TodayTrips info={today.find((x) => x.student_id === r.student_id)} tr={tr} locale={locale} />
+
+            <div style={{ padding: "10px 0", borderTop: `1px solid ${COLORS.line}` }}>
+              {skips.filter((k) => k.student_id === r.student_id).map((k) => (
+                <div key={`${k.skip_date}${k.trip}`} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, padding: "4px 0" }}>
+                  <span style={pill("warn")}>{tr("notTaking")}</span>
+                  <span>{new Date(`${k.skip_date}T12:00:00`).toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" })} · {tr(k.trip)}</span>
+                  <button style={{ ...chip, marginLeft: "auto", padding: "4px 10px" }} onClick={async () => {
+                    const { error } = await supabase.rpc("bus_skip_remove", { p_student: r.student_id, p_date: k.skip_date, p_trip: k.trip });
+                    setStatus(error ? (/TOO_LATE/.test(error.message) ? tr("tooLate") : error.message) : "");
+                    loadToday();
+                  }}>{tr("undoSkip")}</button>
+                </div>
+              ))}
+              {skipFor === r.student_id ? (
+                <SkipForm tr={tr} onCancel={() => setSkipFor(null)} onSend={async (v) => {
+                  for (const trip of v.trips) {
+                    // eslint-disable-next-line no-await-in-loop
+                    const { error } = await supabase.rpc("bus_skip_set", { p_student: r.student_id, p_date: v.date, p_trip: trip, p_note: v.note || null });
+                    if (error) { setStatus(/TOO_LATE/.test(error.message) ? tr("tooLate") : error.message); loadToday(); return; }
+                  }
+                  setStatus(tr("sent")); setSkipFor(null); loadToday();
+                }} />
+              ) : (
+                <button style={{ ...ghostBtn, marginTop: 4 }} onClick={() => { setStatus(""); setSkipFor(r.student_id); }}>{tr("skipOpen")}</button>
+              )}
+            </div>
 
             <div style={{ padding: "10px 0", borderTop: `1px solid ${COLORS.line}` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -522,7 +618,74 @@ function BusFamily() {
         ))}
       </div>
 
-      <p style={{ fontSize: 13, color: COLORS.muted, margin: "4px 4px 0" }}>{tr("coming")}</p>
+    </div>
+  );
+}
+
+// Parents: today's morning and afternoon trips for one child, with the live bus.
+function TodayTrips({ info, tr, locale }) {
+  if (!info) return null;
+  const t = (iso) => new Date(iso).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  const line = (trip) => {
+    const x = info.trips?.[trip] || {};
+    const isM = trip === "morning";
+    const text = x.skip ? tr("notTaking")
+      : x.off_at ? `${isM ? tr("atSchoolAt") : tr("homeAt")} ${t(x.off_at)}`
+      : x.on_at ? `${tr("onBusAt")} ${t(x.on_at)}`
+      : x.live ? tr("onTheWay")
+      : x.started ? tr("tripDone") : tr("waiting");
+    const tone = x.skip ? "warn" : x.off_at ? "ok" : x.on_at || x.live ? "info" : "neutral";
+    return (
+      <div key={trip} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
+        <span style={{ fontSize: 14, minWidth: 92 }}>{tr(trip)}</span>
+        <span style={pill(tone)}>{text}</span>
+      </div>
+    );
+  };
+  const liveTrip = ["morning", "afternoon"].find((k) => info.trips?.[k]?.bus);
+  const lt = liveTrip ? info.trips[liveTrip] : null;
+  return (
+    <div style={{ padding: "10px 0", borderTop: `1px solid ${COLORS.line}` }}>
+      <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600 }}>{tr("today")}</p>
+      {line("morning")}{line("afternoon")}
+      {lt && (
+        <div style={{ marginTop: 8 }}>
+          <p style={{ margin: "0 0 6px", fontSize: 13, color: COLORS.muted }}>{tr("followBus")} · {t(lt.bus.at)}</p>
+          <BusMap bus={lt.bus} path={lt.path || []} height={220} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SkipForm({ tr, onSend, onCancel }) {
+  const now = new Date();
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const [date, setDate] = useState(mins < 12 * 60 ? iso(now) : iso(tomorrow));
+  const [which, setWhich] = useState(mins < 6 * 60 + 30 ? "both" : mins < 12 * 60 ? "afternoon" : "both");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const trips = which === "both" ? ["morning", "afternoon"] : [which];
+  return (
+    <div style={{ background: COLORS.surface2, borderRadius: 12, padding: 12, marginTop: 6 }}>
+      <p style={{ margin: "0 0 4px", fontWeight: 600, fontSize: 14 }}>{tr("skipTitle")}</p>
+      <p style={{ margin: "0 0 10px", fontSize: 13, color: COLORS.muted }}>{tr("skipHelp")}</p>
+      <label style={{ fontSize: 13, color: COLORS.muted }}>{tr("date")}
+        <input type="date" min={iso(now)} value={date} onChange={(e) => setDate(e.target.value)} style={{ ...input, marginTop: 4 }} />
+      </label>
+      <p style={{ fontSize: 13, color: COLORS.muted, margin: "10px 0 4px" }}>{tr("which")}</p>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {["morning", "afternoon", "both"].map((k) => <button key={k} style={which === k ? chipOn : chip} onClick={() => setWhich(k)}>{tr(k)}</button>)}
+      </div>
+      <label style={{ display: "block", fontSize: 13, color: COLORS.muted, marginTop: 10 }}>{tr("reason")}
+        <input value={note} onChange={(e) => setNote(e.target.value)} style={{ ...input, marginTop: 4 }} />
+      </label>
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button style={primaryBtn} disabled={busy || !date} onClick={async () => { setBusy(true); await onSend({ date, trips, note }); setBusy(false); }}>{tr("send")}</button>
+        <button style={ghostBtn} onClick={onCancel}>{tr("cancel")}</button>
+      </div>
     </div>
   );
 }

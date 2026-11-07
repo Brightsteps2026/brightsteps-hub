@@ -1,5 +1,6 @@
 import React, { useState, useEffect, createContext, useContext } from "react";
 import { supabase } from "./lib/supabaseClient";
+import BusRun from "./BusRun";
 
 const AuthContext = createContext(null);
 export function useAuth() {
@@ -200,7 +201,9 @@ export default function LoginGate({ children }) {
   // Signs someone out automatically after 10 minutes of no activity, a normal
   // safety practice for a system holding student and family information.
   useEffect(() => {
-    if (!session) return;
+    // The bus phone stays on the trip screen without being touched for long stretches
+    // while it shares the bus location, so the bus account is not signed out when idle.
+    if (!session || profile?.role === "bus") return;
     const IDLE_LIMIT_MS = 10 * 60 * 1000;
     let idleTimer;
 
@@ -219,7 +222,7 @@ export default function LoginGate({ children }) {
       clearTimeout(idleTimer);
       activityEvents.forEach((evt) => window.removeEventListener(evt, resetTimer));
     };
-  }, [session]);
+  }, [session, profile?.role]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -519,7 +522,7 @@ export default function LoginGate({ children }) {
 
   return (
     <AuthContext.Provider value={{ session, profile, signOut: handleSignOut, updateProfileLocal: (patch) => setProfile((p) => (p ? { ...p, ...patch } : p)) }}>
-      {children}
+      {profile.role === "bus" ? <BusRun standalone onSignOut={handleSignOut} /> : children}
     </AuthContext.Provider>
   );
 }
