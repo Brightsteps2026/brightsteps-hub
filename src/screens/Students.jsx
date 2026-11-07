@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Trash2, UserCheck, Flag } from "lucide-react";
+import { Plus, UserMinus, UserCheck, Flag, Printer } from "lucide-react";
 import StudentPhotoField from "../StudentPhotoField";
 import { GRADES, behaviorGradesFor, GENDERS } from "../data/constants";
 import { COUNTRIES } from "../data/countries";
@@ -9,6 +9,7 @@ import { FamilyViewModal } from "./ParentStudentView";
 import { StudentMessages } from "./Messages";
 import { StudentBehavior } from "./Behavior";
 import { pending } from "../data/pending";
+import { WithdrawStudentModal, WithdrawnStudents, printStudentRecord, attendanceOf } from "../StudentRecords";
 
 const emptyStudentForm = {
   firstName: "", middleName: "", lastName: "", grade: GRADES[0], dob: "", gender: "", nationalities: [],
@@ -97,6 +98,9 @@ function StudentsTab({ data, persist, profile }) {
   const isTeacherRole = profile?.role === "teacher" || isLearningAssistant;
   const myAssignedGrades = profile?.grades_assigned || [];
   const canEditStudents = !isTeacherRole;
+  // Withdrawing, withdrawn students and printed records: the admin only (Myri, 7 Nov 2026).
+  const isAdmin = profile?.role === "admin";
+  const [withdrawingId, setWithdrawingId] = useState(null);
 
   const importBulkStudents = () => {
     setBulkError("");
@@ -214,7 +218,9 @@ function StudentsTab({ data, persist, profile }) {
     const name = st ? (st.name || `${st.firstName || ""} ${st.lastName || ""}`.trim()) : "this student";
     if (!window.confirm(`Remove ${name} from the Hub? Their profile and their message thread with parents will be deleted. This cannot be undone.`)) return;
     persist({ ...data, students: data.students.filter((s) => s.id !== id) });
+    setWithdrawingId(null);
   };
+  const withdrawingStudent = data.students.find((s) => s.id === withdrawingId);
 
   const editingStudent = data.students.find((s) => s.id === editingId);
   const total = visibleStudents.length;
@@ -243,7 +249,8 @@ function StudentsTab({ data, persist, profile }) {
         {myBehaviorGrades.includes(s.grade) && (
           <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); setBehaviorId(s.id); }} aria-label="Behaviour" title="Behaviour"><Flag size={16} /></button>
         )}
-        {canEditStudents && <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); removeStudent(s.id); }} aria-label="Remove"><Trash2 size={16} /></button>}
+        {isAdmin && <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); printStudentRecord({ student: s, attendance: attendanceOf(data, s.id), logoUrl: data?.settings?.branding?.logoUrl || "/logo.png" }); }} aria-label="Print student record" title="Print student record"><Printer size={16} /></button>}
+        {isAdmin && <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); setWithdrawingId(s.id); }} aria-label="Withdraw" title="Withdraw student"><UserMinus size={16} /></button>}
       </div>
     </div>
   );
@@ -286,6 +293,13 @@ function StudentsTab({ data, persist, profile }) {
             </section>
           ))
       }
+
+      {isAdmin && <WithdrawnStudents data={data} persist={persist} />}
+
+      {withdrawingStudent && isAdmin && (
+        <WithdrawStudentModal student={withdrawingStudent} data={data} persist={persist}
+          onClose={() => setWithdrawingId(null)} onDelete={() => removeStudent(withdrawingStudent.id)} />
+      )}
 
       {showForm && canEditStudents && (
         <Modal title={editingId ? "Edit student" : "Add student"} onClose={() => setShowForm(false)}>
