@@ -121,7 +121,7 @@ function StandardsTab({ profile }) {
       const [st, as, stu] = await Promise.all([
         supabase.from("gb_standards").select("*").eq("grade", grade).order("sort").order("code"),
         supabase.from("gb_assessments").select("id, title, subject, term, assessed_on, grading").eq("grade", grade).order("assessed_on", { ascending: false, nullsFirst: false }),
-        supabase.from("students").select("id, full_name").eq("grade", grade).order("full_name")
+        supabase.from("students").select("id, full_name").is("withdrawn_on", null).eq("grade", grade).order("full_name")
       ]);
       if (cancelled) return;
       if (st.error || as.error || stu.error) {

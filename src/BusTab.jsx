@@ -133,7 +133,7 @@ function BusOffice() {
   async function load(m = month) {
     setError("");
     const [s, r, p] = await Promise.all([
-      supabase.from("students").select("id, full_name, grade").order("full_name"),
+      supabase.from("students").select("id, full_name, grade").is("withdrawn_on", null).order("full_name"),
       supabase.from("bus_riders").select("*"),
       supabase.from("bus_payments").select("*").eq("month", m)
     ]);

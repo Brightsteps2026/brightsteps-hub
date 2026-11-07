@@ -444,7 +444,7 @@ function StaffAssignment({ a, canEdit, onClose, onEdit, onChanged }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const st = await supabase.from("students").select("id, full_name, legacy_id, grade").in("grade", a.grades || []).order("full_name");
+      const st = await supabase.from("students").select("id, full_name, legacy_id, grade").is("withdrawn_on", null).in("grade", a.grades || []).order("full_name");
       const sb = await supabase.from("hw_submissions").select("*").eq("assignment_id", a.id);
       const g = a.gb_assessment_id
         ? await supabase.from("gb_assessments").select("id, grading, max_points").eq("id", a.gb_assessment_id).maybeSingle()

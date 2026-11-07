@@ -120,7 +120,7 @@ const subjectOrder = (a, b) => {
 
 // Everything needed to build the report cards of one class for one term.
 async function loadClassSources(grade, term) {
-  const st = await supabase.from("students").select("id, full_name, grade, legacy_id").eq("grade", grade).order("full_name");
+  const st = await supabase.from("students").select("id, full_name, grade, legacy_id, withdrawn_on").eq("grade", grade).order("full_name");
   if (st.error) throw st.error;
   const students = st.data || [];
   const ids = students.map((s) => s.id);
@@ -544,7 +544,7 @@ function TermReportsStaff({ profile, data }) {
     if (!grade) return;
     setLoading(true); setError("");
     const [st, tr] = await Promise.all([
-      supabase.from("students").select("id, full_name, legacy_id").eq("grade", grade).order("full_name"),
+      supabase.from("students").select("id, full_name, legacy_id, withdrawn_on").eq("grade", grade).order("full_name"),
       supabase.from("term_reports").select("*").eq("grade", grade).eq("term", term).eq("school_year", SCHOOL_YEAR)
     ]);
     if (st.error || tr.error) {
@@ -567,7 +567,7 @@ function TermReportsStaff({ profile, data }) {
     setBusy(true); setStatus(""); setError("");
     try {
       const src = await loadClassSources(grade, term);
-      const targets = src.students.filter((s) => !onlyStudentId || s.id === onlyStudentId);
+      const targets = src.students.filter((s) => (onlyStudentId ? s.id === onlyStudentId : !s.withdrawn_on));
       // Read the saved report cards again, so text a teacher just saved is kept.
       const fresh = await supabase.from("term_reports").select("id, student_id, status, content")
         .eq("grade", grade).eq("term", term).eq("school_year", SCHOOL_YEAR);
@@ -644,7 +644,9 @@ function TermReportsStaff({ profile, data }) {
   if (!viewGrades.length) return null;
 
   // Leaving progress reports are print only: never published to families.
-  const drafts = Object.values(reports).filter((r) => r.status === "draft" && !r.content?.leaving);
+  // Withdrawn children (Nov 2026): never published, left out of the class print; leaving report still possible.
+  const withdrawn = new Set(students.filter((s) => s.withdrawn_on).map((s) => s.id));
+  const drafts = Object.values(reports).filter((r) => r.status === "draft" && !r.content?.leaving && !withdrawn.has(r.student_id));
   const leavingCount = Object.values(reports).filter((r) => r.content?.leaving).length;
   const publishedCount = Object.values(reports).filter((r) => r.status === "published").length;
   const open = openId ? Object.values(reports).find((r) => r.id === openId) : null;
@@ -675,7 +677,7 @@ function TermReportsStaff({ profile, data }) {
             {Object.keys(reports).length > 0 && (
               <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
                 <PrintableReport
-                  reports={students.map((st) => reports[st.id]).filter(Boolean)}
+                  reports={students.filter((st) => !st.withdrawn_on).map((st) => reports[st.id]).filter(Boolean)}
                   lang={printLang} logoUrl={logoOf(data)}
                   label={`Print whole class (${printLang === "fr" ? "French" : "English"})`} disabled={busy} />
                 <button style={printLang === "en" ? chipOn : chip} onClick={() => setPrintLang("en")}>EN</button>
@@ -742,8 +744,9 @@ function TermReportsStaff({ profile, data }) {
             return (
               <button key={s.id} onClick={() => r && setOpenId(r.id)} disabled={!r}
                 style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "11px 2px", background: "none", border: "none", borderTop: `1px solid ${COLORS.line}`, cursor: r ? "pointer" : "default", fontFamily: "inherit", fontSize: 14, color: COLORS.ink, textAlign: "left" }}>
-                <span>{s.full_name}</span>
+                <span>{s.full_name}{s.withdrawn_on && <span style={{ fontSize: 12, color: COLORS.muted }}> · withdrawn</span>}</span>
                 {r?.content?.leaving ? <span style={pill("info")}>Leaving · print only</span>
+                  : r && s.withdrawn_on && r.status !== "published" ? <span style={pill("neutral")}>Not published · withdrawn</span>
                   : r ? <span style={pill(r.status === "published" ? "ok" : "warn")}>{r.status === "published" ? (r.emailed_at ? "Published · emailed" : "Published") : "Draft"}</span>
                   : <span style={{ fontSize: 13, color: COLORS.muted }}>Not made yet</span>}
               </button>

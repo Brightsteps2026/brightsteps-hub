@@ -65,7 +65,7 @@ export default function MeetingsTab({ profile }) {
     const list = sl.data || [];
     const grades = [...new Set(list.flatMap((s) => s.grades))];
     const st = grades.length
-      ? await supabase.from("students").select("id, legacy_id, full_name, first_name, grade").in("grade", grades).order("first_name")
+      ? await supabase.from("students").select("id, legacy_id, full_name, first_name, grade").is("withdrawn_on", null).in("grade", grades).order("first_name")
       : { data: [] };
     setRound(r.data || null);
     setSlots(list);

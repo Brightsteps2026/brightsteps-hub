@@ -195,7 +195,7 @@ export default function DailyLogTab({ profile }) {
   const [roster, setRoster] = useState([]);
   useEffect(() => {
     if (!grade) return;
-    supabase.from("students").select("id, full_name, first_name, legacy_id, no_photos").eq("grade", grade).order("first_name").then(({ data }) => setRoster(data || []));
+    supabase.from("students").select("id, full_name, first_name, legacy_id, no_photos").is("withdrawn_on", null).eq("grade", grade).order("first_name").then(({ data }) => setRoster(data || []));
   }, [grade]);
 
   if (!grades.length) return <p style={{ ...card, color: COLORS.muted }}>The Pre-N Diary is for Pre-N staff. No Pre-N class is assigned to you.</p>;
@@ -251,7 +251,7 @@ function ClassDay({ grade, day, profile }) {
 
   const load = useCallback(async () => {
     const [st, ph, su, cd] = await Promise.all([
-      supabase.from("students").select("id, full_name, first_name, legacy_id, no_photos").eq("grade", grade).order("first_name"),
+      supabase.from("students").select("id, full_name, first_name, legacy_id, no_photos").is("withdrawn_on", null).eq("grade", grade).order("first_name"),
       supabase.from("daily_photos").select("*").eq("grade", grade).eq("day", day).order("created_at", { ascending: false }),
       supabase.from("daily_summaries").select("*").eq("grade", grade).eq("day", day),
       supabase.from("daily_class_days").select("*").eq("grade", grade).eq("day", day).maybeSingle()

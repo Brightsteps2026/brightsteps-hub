@@ -262,7 +262,7 @@ function ClassWeek({ grade, week, data, profile, canEdit, canSend }) {
 
   async function load() {
     setLoading(true); setError("");
-    const st = await supabase.from("students").select("id, full_name, legacy_id").eq("grade", grade).order("full_name");
+    const st = await supabase.from("students").select("id, full_name, legacy_id").is("withdrawn_on", null).eq("grade", grade).order("full_name");
     if (st.error) { setError(st.error.message); setLoading(false); return; }
     const [wu, cn, lw] = await Promise.all([
       supabase.from("weekly_updates").select("*").eq("grade", grade).eq("week_start", week),

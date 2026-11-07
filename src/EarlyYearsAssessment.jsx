@@ -70,7 +70,7 @@ export default function EarlyYearsAssessment({ grades, editGrades, profile, data
 
   async function load() {
     setLoading(true); setError("");
-    const st = await supabase.from("students").select("id, full_name, legacy_id, grade").eq("grade", grade).order("full_name");
+    const st = await supabase.from("students").select("id, full_name, legacy_id, grade").is("withdrawn_on", null).eq("grade", grade).order("full_name");
     if (st.error) { setError(st.error.message); setLoading(false); return; }
     const ob = await supabase.from("ey_observations").select("*")
       .eq("grade", grade).eq("term", term).eq("school_year", SCHOOL_YEAR)

@@ -281,7 +281,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection, onlySubjects 
 
   // Student counts for the class buttons.
   useEffect(() => {
-    supabase.from("students").select("grade").in("grade", grades).then(({ data }) => {
+    supabase.from("students").select("grade").is("withdrawn_on", null).in("grade", grades).then(({ data }) => {
       const c = {};
       (data || []).forEach((s) => { c[s.grade] = (c[s.grade] || 0) + 1; });
       setCounts(c);
@@ -298,7 +298,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection, onlySubjects 
   async function load() {
     setLoading(true);
     setError("");
-    const st = await supabase.from("students").select("id, full_name, grade").eq("grade", grade).order("full_name");
+    const st = await supabase.from("students").select("id, full_name, grade").is("withdrawn_on", null).eq("grade", grade).order("full_name");
     if (st.error) { setError(st.error.message); setLoading(false); return; }
     const pickAssessments = (cols) => supabase
       .from("gb_assessments")
@@ -980,7 +980,7 @@ function SubjectComments({ grade, subject, term, canEdit, oneLine = false }) {
     let alive = true;
     (async () => {
       setLoading(true); setError(""); setStatus(""); setDrafts({}); setAiDrafts({});
-      const st = await supabase.from("students").select("id, full_name").eq("grade", grade).order("full_name");
+      const st = await supabase.from("students").select("id, full_name").is("withdrawn_on", null).eq("grade", grade).order("full_name");
       if (st.error) { if (alive) { setError(st.error.message); setLoading(false); } return; }
       const ids = (st.data || []).map((x) => x.id);
       let c = {};
@@ -1114,7 +1114,7 @@ function SkillsGradebook({ grades, editGrades }) {
     let alive = true;
     (async () => {
       setLoading(true); setError(""); setStatus(""); setDrafts({}); setAiDrafts({});
-      const st = await supabase.from("students").select("id, full_name").eq("grade", grade).order("full_name");
+      const st = await supabase.from("students").select("id, full_name").is("withdrawn_on", null).eq("grade", grade).order("full_name");
       if (st.error) { if (alive) { setError(st.error.message); setLoading(false); } return; }
       const ids = (st.data || []).map((x) => x.id);
       const r = {}, n = {};

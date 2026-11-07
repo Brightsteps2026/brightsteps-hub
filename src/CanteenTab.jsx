@@ -216,7 +216,7 @@ export default function CanteenTab({ profile }) {
   async function load() {
     setLoading(true);
     setError("");
-    const s = await supabase.from("students").select("id, full_name, grade").order("full_name");
+    const s = await supabase.from("students").select("id, full_name, grade").is("withdrawn_on", null).order("full_name");
     if (s.error) { setError(s.error.message); setLoading(false); return; }
     const cols = "id, student_id, pass_type, start_date, end_date, amount, paid";
     let p = await supabase
