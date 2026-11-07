@@ -42,7 +42,8 @@ const homeUrl = (r) => (r.home_lat != null && r.home_lng != null ? `https://www.
 const card = { background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 14, marginBottom: 10 };
 
 export default function BusRun({ standalone = false, onSignOut }) {
-  const [lang, setLang] = useState(() => { try { return localStorage.getItem("bs-bus-lang") || "fr"; } catch { return "fr"; } });
+  // Bus phone: French by default, with an FR/EN switch. Admin screen: always English (staff screens are English only).
+  const [lang, setLang] = useState(() => { if (!standalone) return "en"; try { return localStorage.getItem("bs-bus-lang") || "fr"; } catch { return "fr"; } });
   const L = T[lang];
   const [trip, setTrip] = useState(() => (new Date().getHours() < 12 ? "morning" : "afternoon"));
   const [run, setRun] = useState(null);
