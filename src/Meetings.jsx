@@ -1,8 +1,11 @@
-// Parent–teacher conferences.
-// The school sets each child's conference time (parent booking is off for now). The admin or the
-// class teacher fills in times for a class, then publishes; families get a bell + phone notice,
-// see the time on My child, confirm "I'll be there" or say they can't make it, and can add it
-// to their phone calendar. Changing a time and publishing again notifies that family again.
+// Parent–teacher conferences — parents book their own time (Myri, 7 Nov 2026).
+// The school creates the time slots (20 min + 5 min break) per teacher. The admin opens booking;
+// every family of those classes gets a notice. Parents pick a free time on My child — first come,
+// first served: once a time is booked it disappears for everyone else. Parents can change or cancel
+// while booking is open. Staff see the schedule; the admin can open/close booking, remind families
+// who haven't booked, book for a family (e.g. by phone) and remove a booking.
+// Term 1: PreK, KG, Grade 1 & 2 also have Tue 24 Nov 15:30–17:00; everyone has Wed 25 Nov
+// 8:00–15:30 with lunch 12:00–13:00. Slots live in pt_slots; a booking also writes pt_meetings.
 // Staff screens are English only; the family view follows the EN/FR toggle.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -26,8 +29,11 @@ const dateLong = (s, lang = "en") =>
   new Date(`${s}T12:00:00`).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-GB", { weekday: "long", day: "numeric", month: "long" });
 const firstName = (st) => st.first_name || (st.full_name || "").split(" ")[0] || "Child";
 const ROUND = "Term 1 conferences";
-// Term 1 conferences are on Wednesday 25 November 2026.
-const CONFERENCE_DAY = "2026-11-25";
+const byDay = (slots) => {
+  const out = {};
+  slots.forEach((s) => { (out[s.slot_date] = out[s.slot_date] || []).push(s); });
+  return Object.entries(out).sort(([a], [b]) => a.localeCompare(b));
+};
 
 export function meetingGrades(profile) {
   if (!profile) return [];
@@ -42,175 +48,160 @@ export function meetingGrades(profile) {
 // ======================================================================================
 
 export default function MeetingsTab({ profile }) {
-  const grades = meetingGrades(profile);
-  const [grade, setGrade] = useState(grades[0] || null);
-  const [round, setRound] = useState(ROUND);
-  if (!grades.length) return <p style={{ ...card, color: COLORS.muted }}>No class is assigned to you yet.</p>;
-  return (
-    <div style={{ maxWidth: 900, margin: "0 auto" }}>
-      <div style={{ ...card }}>
-        <p style={{ margin: 0, fontSize: 12, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase", color: COLORS.brand }}>Parent–teacher conferences</p>
-        <h1 style={{ margin: "4px 0 10px", fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 600 }}>{grade} · {round}</h1>
-        <label style={{ ...small, display: "block", marginBottom: 6 }}>Conference round</label>
-        <input value={round} onChange={(e) => setRound(e.target.value)} style={{ ...input, maxWidth: 320 }} />
-        <p style={{ ...small, marginTop: 6 }}>Times are set by the school. Online booking by parents is turned off for now.</p>
-      </div>
-      <div style={{ ...card, display: "flex", gap: 7, flexWrap: "wrap" }}>
-        {grades.map((g) => <button key={g} style={g === grade ? chipOn : chip} onClick={() => setGrade(g)}>{g}</button>)}
-      </div>
-      <ClassMeetings key={`${grade}-${round}`} grade={grade} round={round.trim() || ROUND} profile={profile} />
-    </div>
-  );
-}
-
-function ClassMeetings({ grade, round, profile }) {
+  const isAdmin = profile?.role === "admin";
+  const [round, setRound] = useState(null);
+  const [slots, setSlots] = useState([]);
   const [students, setStudents] = useState([]);
-  const [rows, setRows] = useState({});
-  const [drafts, setDrafts] = useState({});
-  const [teacher, setTeacher] = useState("");
-  const [fill, setFill] = useState({ date: CONFERENCE_DAY, start: "15:40", length: 20, gap: 0, place: "", mode: "in_person" });
-  const [canEdit, setCanEdit] = useState(false);
+  const [group, setGroup] = useState(null);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [st, mt, gs, ce] = await Promise.all([
-      supabase.from("students").select("id, full_name, first_name").eq("grade", grade).order("first_name"),
-      supabase.from("pt_meetings").select("*").eq("grade", grade).eq("round", round),
-      supabase.from("grade_staff").select("homeroom_teacher").eq("grade", grade).maybeSingle(),
-      supabase.rpc("weekly_can_send", { p_grade: grade })
+    const [r, sl] = await Promise.all([
+      supabase.from("pt_rounds").select("*").eq("round", ROUND).maybeSingle(),
+      supabase.from("pt_slots").select("*").eq("round", ROUND).order("slot_date").order("start_time")
     ]);
-    const byStudent = Object.fromEntries((mt.data || []).map((m) => [m.student_id, m]));
+    const list = sl.data || [];
+    const grades = [...new Set(list.flatMap((s) => s.grades))];
+    const st = grades.length
+      ? await supabase.from("students").select("id, legacy_id, full_name, first_name, grade").in("grade", grades).order("first_name")
+      : { data: [] };
+    setRound(r.data || null);
+    setSlots(list);
     setStudents(st.data || []);
-    setRows(byStudent);
-    setDrafts(Object.fromEntries((st.data || []).map((s) => {
-      const m = byStudent[s.id];
-      return [s.id, { date: m?.meet_date || "", time: hm(m?.start_time) || "" }];
-    })));
-    const t = (mt.data || []).find((m) => m.teacher_name)?.teacher_name || gs.data?.homeroom_teacher || "";
-    setTeacher(t);
-    const first = (mt.data || [])[0];
-    if (first) setFill((f) => ({ ...f, length: first.length_min, place: first.place || "", mode: first.mode }));
-    setCanEdit(!!ce.data);
     setLoading(false);
-  }, [grade, round]);
-
+  }, []);
   useEffect(() => { load(); }, [load]);
 
-  const autoFill = () => {
-    let t = fill.start;
-    const next = { ...drafts };
-    students.forEach((s) => {
-      next[s.id] = { date: fill.date, time: t };
-      t = addMin(t, Number(fill.length) + Number(fill.gap || 0));
-    });
-    setDrafts(next);
-    setMsg("Times filled in. Check them, then save.");
-  };
+  const groups = useMemo(() => {
+    const m = new Map();
+    slots.forEach((s) => { if (!m.has(s.teacher_name)) m.set(s.teacher_name, s.grades); });
+    return [...m.entries()].map(([teacher, grades]) => ({ teacher, grades }));
+  }, [slots]);
+  const current = groups.find((g) => g.teacher === group) || groups[0];
 
-  const save = async () => {
+  const setOpen = async (open) => {
+    const q = open
+      ? "Open booking? Every family of these classes gets a notice to choose their time (first come, first served)."
+      : "Close booking? Families will no longer be able to book, change or cancel.";
+    if (!window.confirm(q)) return;
     setBusy(true); setMsg("");
-    const toSave = students.filter((s) => drafts[s.id]?.date && drafts[s.id]?.time);
-    const upserts = toSave.map((s) => ({
-      round, student_id: s.id, teacher_name: teacher.trim() || null, meet_date: drafts[s.id].date,
-      start_time: drafts[s.id].time, length_min: Number(fill.length) || 20, place: fill.place.trim() || null, mode: fill.mode
-    }));
-    const { error } = upserts.length ? await supabase.from("pt_meetings").upsert(upserts, { onConflict: "student_id,round" }) : { error: null };
+    const { data: n, error } = await supabase.rpc("pt_set_open", { p_round: ROUND, p_open: open });
     setBusy(false);
-    setMsg(error ? "Could not save. Only the admin or the class teacher can set conference times." : `Saved ${upserts.length} conference time${upserts.length === 1 ? "" : "s"}.`);
+    setMsg(error ? "Could not change booking. Please try again." : open ? `Booking is open. ${n} notice${n === 1 ? "" : "s"} sent to families.` : "Booking is closed.");
     load();
   };
 
-  const publish = async () => {
-    if (!window.confirm("Save and send these conference times to the families?")) return;
-    await save();
-    setBusy(true);
-    const { data: n, error } = await supabase.rpc("pt_publish", { p_grade: grade, p_round: round });
+  const remind = async () => {
+    if (!window.confirm("Send a reminder to every family who hasn't booked yet?")) return;
+    setBusy(true); setMsg("");
+    const { data: n, error } = await supabase.rpc("pt_remind_unbooked", { p_round: ROUND });
     setBusy(false);
-    setMsg(error ? "Could not send. Please try again." : n ? `Sent to ${n} ${n === 1 ? "family" : "families"}.` : "Nothing new to send.");
+    setMsg(error ? "Could not send the reminder." : n ? `Reminder sent to ${n} parent${n === 1 ? "" : "s"}.` : "Every family has booked.");
+  };
+
+  const bookFor = async (slot, legacyId) => {
+    if (!legacyId) return;
+    const { error } = await supabase.rpc("pt_book", { p_slot: slot.id, p_hub_student_id: legacyId });
+    setMsg(error ? (/SLOT_TAKEN/.test(error.message) ? "Could not book: this time was just taken." : "Could not book this time.") : "Booked.");
     load();
   };
 
-  const remove = async (s) => {
-    const m = rows[s.id];
-    if (!m || !window.confirm(`Remove ${firstName(s)}'s conference? The family will no longer see it.`)) return;
-    await supabase.from("pt_meetings").delete().eq("id", m.id);
+  const cancel = async (st) => {
+    if (!window.confirm(`Remove ${firstName(st)}'s booking? The time becomes free for other families.`)) return;
+    const { error } = await supabase.rpc("pt_cancel", { p_hub_student_id: st.legacy_id, p_round: ROUND });
+    setMsg(error ? "Could not remove the booking." : "Booking removed.");
     load();
   };
-
-  const counts = useMemo(() => {
-    const list = Object.values(rows);
-    return {
-      published: list.filter((m) => m.status === "published").length,
-      attending: list.filter((m) => m.reply === "attending").length,
-      cannot: list.filter((m) => m.reply === "cannot").length
-    };
-  }, [rows]);
 
   if (loading) return <p style={{ ...card, color: COLORS.muted }}>Loading…</p>;
-  if (!students.length) return <p style={{ ...card, color: COLORS.muted }}>No children are listed in {grade} yet.</p>;
 
-  const lbl = { ...small, display: "block", margin: "0 0 4px" };
+  const isOpen = !!round?.is_open;
+  const bookedIds = new Set(slots.filter((s) => s.booked_student_id).map((s) => s.booked_student_id));
+  const allBooked = students.filter((s) => bookedIds.has(s.id)).length;
+  const stById = Object.fromEntries(students.map((s) => [s.id, s]));
+  const gSlots = current ? slots.filter((s) => s.teacher_name === current.teacher) : [];
+  const gKids = current ? students.filter((s) => current.grades.includes(s.grade)) : [];
+  const gUnbooked = gKids.filter((s) => !bookedIds.has(s.id));
+
   return (
-    <>
-      {canEdit && (
-        <section style={card}>
-          <h2 style={{ margin: "0 0 10px", fontSize: 17 }}>Fill in times quickly</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
-            <div><label style={lbl}>Day</label><input type="date" value={fill.date} onChange={(e) => setFill({ ...fill, date: e.target.value })} style={input} /></div>
-            <div><label style={lbl}>First conference</label><input type="time" value={fill.start} onChange={(e) => setFill({ ...fill, start: e.target.value })} style={input} /></div>
-            <div><label style={lbl}>Minutes each</label><input type="number" min="5" max="120" value={fill.length} onChange={(e) => setFill({ ...fill, length: e.target.value })} style={input} /></div>
-            <div><label style={lbl}>Break between (min)</label><input type="number" min="0" max="60" value={fill.gap} onChange={(e) => setFill({ ...fill, gap: e.target.value })} style={input} /></div>
+    <div style={{ maxWidth: 900, margin: "0 auto" }}>
+      <div style={card}>
+        <p style={{ margin: 0, fontSize: 12, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase", color: COLORS.brand }}>Parent–teacher conferences</p>
+        <h1 style={{ margin: "4px 0 6px", fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 600 }}>{ROUND}</h1>
+        <p style={{ ...small, margin: "0 0 10px" }}>
+          Parents choose their own time on the Hub — first come, first served. Each conference is 20 minutes with a 5-minute break after it.
+        </p>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={pill(isOpen ? "ok" : "neutral")}>{isOpen ? "Booking open" : "Booking closed"}</span>
+          <span style={small}>{allBooked} of {students.length} children booked</span>
+        </div>
+        {isAdmin && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+            {isOpen
+              ? <button style={ghostBtn} disabled={busy} onClick={() => setOpen(false)}>Close booking</button>
+              : <button style={primaryBtn} disabled={busy} onClick={() => setOpen(true)}>Open booking for families</button>}
+            {isOpen && <button style={ghostBtn} disabled={busy} onClick={remind}>Remind families who haven't booked</button>}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginTop: 10 }}>
-            <div><label style={lbl}>Teacher shown to families</label><input value={teacher} onChange={(e) => setTeacher(e.target.value)} placeholder="e.g. Miss Agnes" style={input} /></div>
-            <div><label style={lbl}>Where</label><input value={fill.place} onChange={(e) => setFill({ ...fill, place: e.target.value })} placeholder="e.g. Grade 2 classroom" style={input} /></div>
-            <div><label style={lbl}>How</label>
-              <div style={{ display: "flex", gap: 6 }}>
-                <button style={fill.mode === "in_person" ? chipOn : chip} onClick={() => setFill({ ...fill, mode: "in_person" })}>At school</button>
-                <button style={fill.mode === "video" ? chipOn : chip} onClick={() => setFill({ ...fill, mode: "video" })}>Video call</button>
-              </div>
-            </div>
-          </div>
-          <button style={{ ...ghostBtn, marginTop: 12 }} onClick={autoFill}>Fill times for the whole class</button>
-        </section>
+        )}
+        {msg && <p style={{ ...pill(/Could not/.test(msg) ? "bad" : "ok"), display: "block", whiteSpace: "normal", fontSize: 13, padding: "8px 12px", marginTop: 10 }}>{msg}</p>}
+      </div>
+
+      {groups.length > 1 && (
+        <div style={{ ...card, display: "flex", gap: 7, flexWrap: "wrap" }}>
+          {groups.map((g) => (
+            <button key={g.teacher} style={g.teacher === current?.teacher ? chipOn : chip} onClick={() => setGroup(g.teacher)}>
+              {g.teacher} · {g.grades.join(", ")}
+            </button>
+          ))}
+        </div>
       )}
 
-      <section style={card}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 6 }}>
-          <h2 style={{ margin: 0, fontSize: 17 }}>Conferences</h2>
-          <span style={small}>{counts.published} sent · {counts.attending} coming · {counts.cannot} can't make it</span>
-        </div>
-        {students.map((s) => {
-          const m = rows[s.id];
-          const d = drafts[s.id] || { date: "", time: "" };
-          return (
-            <div key={s.id} style={{ borderTop: `1px solid ${COLORS.line}`, padding: "10px 0", display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-              <strong style={{ minWidth: 120, flex: "1 1 120px" }}>{s.full_name || firstName(s)}</strong>
-              <input type="date" disabled={!canEdit} value={d.date} onChange={(e) => setDrafts({ ...drafts, [s.id]: { ...d, date: e.target.value } })} style={{ ...input, width: 160 }} aria-label={`Date for ${firstName(s)}`} />
-              <input type="time" disabled={!canEdit} value={d.time} onChange={(e) => setDrafts({ ...drafts, [s.id]: { ...d, time: e.target.value } })} style={{ ...input, width: 120 }} aria-label={`Time for ${firstName(s)}`} />
-              <span style={{ flex: "1 1 160px", display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                {!m ? <span style={pill("neutral")}>Not set</span>
-                  : m.status === "draft" ? <span style={pill("warn")}>Not sent yet</span>
-                  : m.reply === "attending" ? <span style={pill("ok")}>Coming</span>
-                  : m.reply === "cannot" ? <span style={pill("bad")}>Can't make it</span>
-                  : <span style={pill("info")}>Sent · no answer</span>}
-                {m && canEdit && <button style={{ ...ghostBtn, minHeight: 32, padding: "4px 10px" }} onClick={() => remove(s)}>Remove</button>}
-              </span>
-              {m?.reply_note && <p style={{ ...small, flexBasis: "100%", margin: 0 }}>Family note: {m.reply_note}</p>}
-            </div>
-          );
-        })}
-        {msg && <p style={{ ...pill(/Could not/.test(msg) ? "bad" : "ok"), display: "block", whiteSpace: "normal", fontSize: 13, padding: "8px 12px", marginTop: 10 }}>{msg}</p>}
-        {canEdit ? (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-            <button style={ghostBtn} disabled={busy} onClick={save}>Save without sending</button>
-            <button style={primaryBtn} disabled={busy} onClick={publish}>{busy ? "Working…" : "Send times to families"}</button>
+      {current && (
+        <section style={card}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
+            <h2 style={{ margin: 0, fontSize: 17 }}>{current.teacher} · {current.grades.join(", ")}</h2>
+            <span style={small}>{gKids.length - gUnbooked.length} of {gKids.length} booked</span>
           </div>
-        ) : <p style={{ ...small, marginTop: 10 }}>Only the admin or the class teacher can set and send conference times.</p>}
-      </section>
-    </>
+          {byDay(gSlots).map(([day, list]) => (
+            <div key={day} style={{ marginTop: 14 }}>
+              <h3 style={{ margin: "0 0 6px", fontSize: 14, textTransform: "capitalize" }}>{dateLong(day)}</h3>
+              {list.map((s) => {
+                const st = s.booked_student_id ? stById[s.booked_student_id] : null;
+                return (
+                  <div key={s.id} style={{ borderTop: `1px solid ${COLORS.line}`, padding: "8px 0", display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                    <strong style={{ width: 110 }}>{hm(s.start_time)} – {addMin(hm(s.start_time), s.length_min)}</strong>
+                    {st ? (
+                      <>
+                        <span style={{ flex: "1 1 160px" }}>{st.full_name || firstName(st)} <span style={small}>· {st.grade}</span></span>
+                        {isAdmin && <button style={{ ...ghostBtn, minHeight: 32, padding: "4px 10px" }} onClick={() => cancel(st)}>Remove</button>}
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ ...pill("neutral"), flex: "0 0 auto" }}>Free</span>
+                        {isAdmin && gUnbooked.length > 0 && (
+                          <select defaultValue="" onChange={(e) => bookFor(s, e.target.value)} style={{ ...input, width: "auto", minHeight: 32, marginLeft: "auto" }} aria-label={`Book ${hm(s.start_time)} for a family`}>
+                            <option value="">Book for a family…</option>
+                            {gUnbooked.map((k) => <option key={k.id} value={k.legacy_id}>{k.full_name || firstName(k)}</option>)}
+                          </select>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+          <div style={{ marginTop: 16 }}>
+            <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>Not booked yet ({gUnbooked.length})</h3>
+            {gUnbooked.length
+              ? <p style={{ ...small, margin: 0 }}>{gUnbooked.map((k) => `${k.full_name || firstName(k)} (${k.grade})`).join(" · ")}</p>
+              : <p style={{ ...small, margin: 0 }}>Every family in this class has booked.</p>}
+          </div>
+        </section>
+      )}
+    </div>
   );
 }
 
@@ -219,14 +210,20 @@ function ClassMeetings({ grade, round, profile }) {
 // ======================================================================================
 
 const F = {
-  en: { title: "Parent–teacher conference", with: "With", where: "Where", video: "Video call", atSchool: "At school",
-        coming: "I'll be there", cannot: "Can't make this time", cal: "Add to calendar", thanks: "Thank you, the school knows you are coming.",
-        sorry: "The school knows this time doesn't work. They will suggest another time.", note: "Add a note for the school (optional)",
-        send: "Send", change: "Change my answer", min: "min" },
-  fr: { title: "Conférence parents–enseignant", with: "Avec", where: "Lieu", video: "Appel vidéo", atSchool: "À l'école",
-        coming: "Je serai là", cannot: "Cet horaire ne me convient pas", cal: "Ajouter au calendrier", thanks: "Merci, l'école sait que vous venez.",
-        sorry: "L'école sait que cet horaire ne vous convient pas. Elle vous proposera un autre horaire.", note: "Ajouter un mot pour l'école (facultatif)",
-        send: "Envoyer", change: "Modifier ma réponse", min: "min" }
+  en: { title: "Parent–teacher conference", book: "Choose your conference time",
+        intro: "Pick the time that works best for you. First come, first served: once a time is booked by another family, it is no longer available. Each conference lasts 20 minutes.",
+        with: "With", atSchool: "At school", cal: "Add to calendar", change: "Change time", cancel: "Cancel booking",
+        booked: "Your conference is booked. See you then!", none: "All times are booked. Please contact the school.",
+        confirm: (d, t, who) => `Book ${d} at ${t} with ${who}?`, cancelQ: "Cancel this booking? The time will become free for other families.",
+        taken: "Sorry, another family has just booked this time. Please choose another one.", error: "Something went wrong. Please try again.",
+        back: "Keep my current time" },
+  fr: { title: "Conférence parents–enseignant", book: "Choisissez l'horaire de votre conférence",
+        intro: "Choisissez l'horaire qui vous convient le mieux. Premier arrivé, premier servi : dès qu'un horaire est réservé par une autre famille, il n'est plus disponible. Chaque conférence dure 20 minutes.",
+        with: "Avec", atSchool: "À l'école", cal: "Ajouter au calendrier", change: "Changer d'horaire", cancel: "Annuler la réservation",
+        booked: "Votre conférence est réservée. À bientôt !", none: "Tous les horaires sont réservés. Merci de contacter l'école.",
+        confirm: (d, t, who) => `Réserver le ${d} à ${t} avec ${who} ?`, cancelQ: "Annuler cette réservation ? L'horaire sera libéré pour d'autres familles.",
+        taken: "Désolé, une autre famille vient de réserver cet horaire. Merci d'en choisir un autre.", error: "Une erreur s'est produite. Merci de réessayer.",
+        back: "Garder mon horaire actuel" }
 };
 
 function downloadIcs(m, childName) {
@@ -251,72 +248,103 @@ function downloadIcs(m, childName) {
 export function MeetingFamily({ student, language = "en" }) {
   const lang = language === "fr" ? "fr" : "en";
   const L = F[lang];
-  const [list, setList] = useState([]);
-  const [noteFor, setNoteFor] = useState(null);
-  const [note, setNote] = useState("");
-  const [editing, setEditing] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [meeting, setMeeting] = useState(null);
+  const [free, setFree] = useState([]);
+  const [picking, setPicking] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!student?.id) return;
-    const { data } = await supabase.from("pt_meetings").select("*").eq("hub_student_id", student.id)
-      .eq("status", "published").gte("meet_date", today()).order("meet_date");
-    setList(data || []);
+    const [r, m, f] = await Promise.all([
+      supabase.from("pt_rounds").select("is_open").eq("round", ROUND).maybeSingle(),
+      supabase.from("pt_meetings").select("*").eq("hub_student_id", student.id).eq("round", ROUND)
+        .eq("status", "published").gte("meet_date", today()).maybeSingle(),
+      supabase.rpc("pt_free_slots", { p_hub_student_id: student.id })
+    ]);
+    setOpen(!!r.data?.is_open);
+    setMeeting(m.data || null);
+    setFree(f.data || []);
   }, [student?.id]);
   useEffect(() => { load(); }, [load]);
 
-  const reply = async (m, r, n) => {
-    const { error } = await supabase.rpc("pt_reply", { p_id: m.id, p_reply: r, p_note: n || null });
-    if (!error) { setNoteFor(null); setNote(""); setEditing(null); load(); }
+  const book = async (s) => {
+    if (!window.confirm(L.confirm(dateLong(s.slot_date, lang), hm(s.start_time), s.teacher_name))) return;
+    setBusy(true); setMsg("");
+    const { error } = await supabase.rpc("pt_book", { p_slot: s.id, p_hub_student_id: student.id });
+    setBusy(false);
+    if (error) setMsg(/SLOT_TAKEN/.test(error.message) ? L.taken : L.error);
+    else setPicking(false);
+    load();
   };
 
-  if (!list.length) return null;
-  const childName = student.firstName || (student.name || "").split(" ")[0];
+  const cancel = async () => {
+    if (!window.confirm(L.cancelQ)) return;
+    setBusy(true);
+    const { error } = await supabase.rpc("pt_cancel", { p_hub_student_id: student.id, p_round: ROUND });
+    setBusy(false);
+    if (error) setMsg(L.error);
+    load();
+  };
 
-  return list.map((m) => {
-    const answered = m.reply && editing !== m.id;
-    return (
-      <section key={m.id} className="bsf-card">
-        <h2 style={{ marginTop: 0 }}>{L.title}</h2>
+  if (!meeting && !open) return null;
+  const childName = student.firstName || (student.name || "").split(" ")[0];
+  const showPicker = open && (!meeting || picking);
+
+  return (
+    <section className="bsf-card">
+      <h2 style={{ marginTop: 0 }}>{showPicker && !meeting ? L.book : L.title}</h2>
+
+      {meeting && (
         <div style={{ display: "flex", gap: 14, alignItems: "center", background: COLORS.tint, borderRadius: 14, padding: 14 }}>
           <div style={{ width: 62, minWidth: 62, height: 66, borderRadius: 12, background: "#fff", border: `1px solid ${COLORS.line}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.brand, textTransform: "uppercase" }}>
-              {new Date(`${m.meet_date}T12:00:00`).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-GB", { month: "short" })}
+              {new Date(`${meeting.meet_date}T12:00:00`).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-GB", { month: "short" })}
             </div>
-            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 700, lineHeight: 1 }}>{Number(m.meet_date.slice(8))}</div>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 700, lineHeight: 1 }}>{Number(meeting.meet_date.slice(8))}</div>
           </div>
           <div>
-            <div style={{ fontSize: 13, color: COLORS.muted, textTransform: "capitalize" }}>{dateLong(m.meet_date, lang)}</div>
-            <div style={{ fontSize: 21, fontWeight: 700 }}>{hm(m.start_time)} – {addMin(hm(m.start_time), m.length_min)}</div>
+            <div style={{ fontSize: 13, color: COLORS.muted, textTransform: "capitalize" }}>{dateLong(meeting.meet_date, lang)}</div>
+            <div style={{ fontSize: 21, fontWeight: 700 }}>{hm(meeting.start_time)} – {addMin(hm(meeting.start_time), meeting.length_min)}</div>
             <div style={{ fontSize: 13, color: COLORS.muted }}>
-              {m.teacher_name ? `${L.with} ${m.teacher_name} · ` : ""}{m.mode === "video" ? L.video : (m.place || L.atSchool)}
+              {meeting.teacher_name ? `${L.with} ${meeting.teacher_name} · ` : ""}{meeting.place || L.atSchool}
             </div>
           </div>
         </div>
+      )}
 
-        {answered ? (
-          <>
-            <p style={{ ...pill(m.reply === "attending" ? "ok" : "warn"), display: "block", whiteSpace: "normal", padding: "8px 12px", fontSize: 13, marginTop: 12 }}>
-              {m.reply === "attending" ? L.thanks : L.sorry}
-            </p>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-              <button style={ghostBtn} onClick={() => downloadIcs(m, childName)}><CalendarPlus size={15} style={{ verticalAlign: "-3px", marginRight: 6 }} />{L.cal}</button>
-              <button style={ghostBtn} onClick={() => setEditing(m.id)}>{L.change}</button>
+      {meeting && !picking && (
+        <>
+          <p style={{ ...pill("ok"), display: "block", whiteSpace: "normal", padding: "8px 12px", fontSize: 13, marginTop: 12 }}>{L.booked}</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+            <button style={ghostBtn} onClick={() => downloadIcs(meeting, childName)}><CalendarPlus size={15} style={{ verticalAlign: "-3px", marginRight: 6 }} />{L.cal}</button>
+            {open && <button style={ghostBtn} disabled={busy} onClick={() => { setMsg(""); setPicking(true); }}>{L.change}</button>}
+            {open && <button style={ghostBtn} disabled={busy} onClick={cancel}>{L.cancel}</button>}
+          </div>
+        </>
+      )}
+
+      {showPicker && (
+        <div style={{ marginTop: meeting ? 14 : 0 }}>
+          <p style={{ ...small, margin: "0 0 12px" }}>{L.intro}</p>
+          {msg && <p style={{ ...pill("bad"), display: "block", whiteSpace: "normal", padding: "8px 12px", fontSize: 13, margin: "0 0 12px" }}>{msg}</p>}
+          {!free.length && <p style={{ ...small }}>{L.none}</p>}
+          {byDay(free).map(([day, list]) => (
+            <div key={day} style={{ marginBottom: 14 }}>
+              <h3 style={{ margin: "0 0 8px", fontSize: 15, textTransform: "capitalize" }}>
+                {dateLong(day, lang)} <span style={{ ...small, fontWeight: 400, textTransform: "none" }}>· {L.with} {list[0].teacher_name}</span>
+              </h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(92px, 1fr))", gap: 8 }}>
+                {list.map((s) => (
+                  <button key={s.id} disabled={busy} onClick={() => book(s)} style={{ ...ghostBtn, minHeight: 44, fontWeight: 600 }}>{hm(s.start_time)}</button>
+                ))}
+              </div>
             </div>
-          </>
-        ) : noteFor === m.id ? (
-          <div style={{ marginTop: 12 }}>
-            <label style={{ ...small, display: "block", marginBottom: 6 }}>{L.note}</label>
-            <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} style={{ ...input, resize: "vertical" }} />
-            <button style={{ ...primaryBtn, marginTop: 8 }} onClick={() => reply(m, "cannot", note)}>{L.send}</button>
-          </div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginTop: 12 }}>
-            <button style={{ ...primaryBtn, background: COLORS.ok, minHeight: 48 }} onClick={() => reply(m, "attending")}>{L.coming}</button>
-            <button style={{ ...ghostBtn, minHeight: 48 }} onClick={() => setNoteFor(m.id)}>{L.cannot}</button>
-            <button style={{ ...ghostBtn, minHeight: 48 }} onClick={() => downloadIcs(m, childName)}>{L.cal}</button>
-          </div>
-        )}
-      </section>
-    );
-  });
+          ))}
+          {meeting && <button style={{ ...ghostBtn, marginTop: 4 }} onClick={() => { setMsg(""); setPicking(false); }}>{L.back}</button>}
+        </div>
+      )}
+    </section>
+  );
 }
