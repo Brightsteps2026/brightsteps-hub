@@ -94,11 +94,11 @@ function BrightStepsHubInner() {
   const ADMIN_ONLY_TABS = ["accreditation","staff","admissions"];
   // A learning assistant supports specific grades day to day; they don't need
   // enrollment, staffing, or school-wide admin tools, just the classroom-facing ones.
-  const LEARNING_ASSISTANT_ALLOWED_TABS = ["daily", "conferences", "weekly", "checkin", "leave", "gradebook", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "classes", "calendar", "timetable", "standards", "assignments", "updates", "resources"];
+  const LEARNING_ASSISTANT_ALLOWED_TABS = ["bus", "daily", "conferences", "weekly", "checkin", "leave", "gradebook", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "classes", "calendar", "timetable", "standards", "assignments", "updates", "resources"];
   // An accountant only ever needs billing, nothing about students' academic
   // records, behavior, or staff information.
-  const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "checkin", "leave"]; // Billing tab removed 4 Nov 2026 (Myri)
-  const RESTRICTED_TEACHER_TABS = ["daily", "conferences", "weekly", "checkin", "leave", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "planning", "assignments", "timetable", "standards", "reports", "calendar", "incidents", "updates", "resources"];
+  const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "checkin", "leave", "bus"]; // Billing tab removed 4 Nov 2026 (Myri)
+  const RESTRICTED_TEACHER_TABS = ["bus", "daily", "conferences", "weekly", "checkin", "leave", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "planning", "assignments", "timetable", "standards", "reports", "calendar", "incidents", "updates", "resources"];
   // Set per teacher by the admin in the database (profiles.limited_access).
   const isRestrictedTeacher = profile?.role === "teacher" && profile?.limited_access === true;
   // Specialist teachers (swimming, PE, music...) don't write weekly updates (Myri, 4 Nov 2026).
@@ -113,7 +113,7 @@ function BrightStepsHubInner() {
   const canSeeFees = feesAccess.office || feesAccess.family;
   // School bus: the admin, and parents with a child switched on for the bus (6 Nov 2026).
   const busAccess = useBusAccess(profile);
-  const canSeeBus = busAccess.office || busAccess.family;
+  const canSeeBus = busAccess.office || busAccess.family || busAccess.helper;
   useEffect(() => {
     const go = (e) => { setTab(e.detail); setShowMenu(false); };
     window.addEventListener("bs-goto-tab", go);
@@ -323,7 +323,7 @@ function BrightStepsHubInner() {
       {tab === "calendar" && <CalendarTab data={data} persist={persist} profile={profile} />}
       {tab === "canteen" && <CanteenTab profile={profile} />}
       {tab === "fees" && canSeeFees && <FeesTab office={feesAccess.office} />}
-      {tab === "bus" && canSeeBus && <BusTab office={busAccess.office} />}
+      {tab === "bus" && canSeeBus && <BusTab office={busAccess.office} helper={busAccess.helper} />}
       {tab === "incidents" && <IncidentsTab profile={profile} />}
       {tab === "leave" && <LeaveTab profile={profile} />}
       {tab === "weekly" && !isParent && !isStudent && !isSpecialist && <WeeklyUpdatesTab profile={profile} data={data} />}

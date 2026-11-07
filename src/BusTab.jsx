@@ -115,6 +115,11 @@ export function useBusAccess(profile) {
   const [access, setAccess] = useState({ office: false, family: false });
   useEffect(() => {
     let live = true;
+    // A staff member the admin allowed to mark children at school (profiles.bus_helper).
+    if (profile?.id && profile.bus_helper && ["teacher", "learning_assistant", "accountant"].includes(profile.role)) {
+      setAccess({ office: false, family: false, helper: true });
+      return;
+    }
     if (!profile?.id || !["admin", "parent"].includes(profile.role)) {
       setAccess({ office: false, family: false });
       return;
@@ -129,11 +134,12 @@ export function useBusAccess(profile) {
       if (live) setAccess({ office: false, family: !error && (count || 0) > 0 });
     })();
     return () => { live = false; };
-  }, [profile?.id, profile?.role]);
+  }, [profile?.id, profile?.role, profile?.bus_helper]);
   return access;
 }
 
-export default function BusTab({ office }) {
+export default function BusTab({ office, helper }) {
+  if (helper) return <div style={{ padding: "16px 16px 90px" }}><BusRun /></div>;
   return office ? <BusOfficeTabs /> : <BusFamily />;
 }
 

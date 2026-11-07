@@ -21,7 +21,8 @@ const T = {
     skipping: "Not taking the bus today", undo: "Undo", map: "Map", call: "Call",
     endWarn: (n) => `${n} child${n === 1 ? " is" : "ren are"} still marked on the bus. End the trip anyway?`,
     signOut: "Sign out", notStarted: "Trip not started", liveAt: "Last position", none: "No children on the bus list.",
-    confirmUndo: "Undo this tap? The family already got a notice."
+    confirmUndo: "Undo this tap? The family already got a notice.",
+    near: "Near this home", notNow: "Not now", away: "m away"
   },
   fr: {
     title: "Transport scolaire", morning: "Matin · vers l'école", afternoon: "Après-midi · retour",
@@ -33,12 +34,21 @@ const T = {
     skipping: "Ne prend pas le car aujourd'hui", undo: "Annuler", map: "Carte", call: "Appeler",
     endWarn: (n) => `${n} enfant${n === 1 ? " est encore marqué" : "s sont encore marqués"} dans le car. Terminer quand même ?`,
     signOut: "Se déconnecter", notStarted: "Trajet pas encore démarré", liveAt: "Dernière position", none: "Aucun enfant sur la liste du car.",
-    confirmUndo: "Annuler ce pointage ? La famille a déjà reçu une notification."
+    confirmUndo: "Annuler ce pointage ? La famille a déjà reçu une notification.",
+    near: "Près de cette maison", notNow: "Pas maintenant", away: "m"
   }
 };
 
 const hm = (iso) => (iso ? new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "");
 const homeUrl = (r) => (r.home_lat != null && r.home_lng != null ? `https://www.google.com/maps?q=${r.home_lat},${r.home_lng}` : r.home_link && /^https:\/\//i.test(r.home_link) ? r.home_link : null);
+// Distance in metres between two points.
+const metres = (a, b) => {
+  const R = 6371000, rad = (x) => (x * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+};
+const NEAR_M = 150;
 const card = { background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 14, marginBottom: 10 };
 
 export default function BusRun({ standalone = false, onSignOut }) {
@@ -56,6 +66,8 @@ export default function BusRun({ standalone = false, onSignOut }) {
   const lastSent = useRef(0);
   const lastPos = useRef(null);
   const wake = useRef(null);
+  const [pos, setPos] = useState(null);          // for driver mode on the bus phone
+  const [dismissed, setDismissed] = useState({}); // child id -> time "Not now" was pressed
 
   const switchLang = (l) => { setLang(l); try { localStorage.setItem("bs-bus-lang", l); } catch { /* not needed */ } };
 
@@ -89,6 +101,7 @@ export default function BusRun({ standalone = false, onSignOut }) {
       (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
         lastPos.current = { lat, lng };
+        setPos({ lat, lng });
         const now = Date.now();
         if (now - lastSent.current < 15000) return;   // every 15 seconds at most
         lastSent.current = now;
@@ -161,6 +174,20 @@ export default function BusRun({ standalone = false, onSignOut }) {
   const dropped = going.filter((r) => r.off_at).length;
   const isMorning = trip === "morning";
   const homes = going.map((r) => ({ lat: r.home_lat, lng: r.home_lng, label: r.name, done: isMorning ? !!r.on_at : !!r.off_at }));
+  // Driver mode (bus phone only, no assistant on board): the child whose home the bus is next to,
+  // shown at the top with one big button, so the driver taps once while stopped.
+  const nearest = (() => {
+    if (!standalone || !live || !pos) return null;
+    let best = null;
+    going.forEach((r) => {
+      if (r.home_lat == null || r.home_lng == null) return;
+      const pending = isMorning ? !r.on_at : r.on_at && !r.off_at;
+      if (!pending || (dismissed[r.student_id] && Date.now() - dismissed[r.student_id] < 5 * 60 * 1000)) return;
+      const d = metres(pos, { lat: r.home_lat, lng: r.home_lng });
+      if (d <= NEAR_M && (!best || d < best.d)) best = { r, d };
+    });
+    return best;
+  })();
   const busPos = sharing && lastPos.current ? lastPos.current : t?.last_lat != null ? { lat: t.last_lat, lng: t.last_lng } : null;
 
   const tile = (label, value) => (
@@ -188,6 +215,21 @@ export default function BusRun({ standalone = false, onSignOut }) {
         <button style={{ ...(isMorning ? chipOn : chip), flex: 1 }} onClick={() => setTrip("morning")}>{L.morning}</button>
         <button style={{ ...(!isMorning ? chipOn : chip), flex: 1 }} onClick={() => setTrip("afternoon")}>{L.afternoon}</button>
       </div>
+
+      {nearest && (
+        <div style={{ ...card, border: `3px solid ${COLORS.brand}`, padding: 18, textAlign: "center" }}>
+          <p style={{ margin: 0, fontSize: 13, color: COLORS.muted }}>{L.near} · {Math.round(nearest.d)} {L.away}</p>
+          <p style={{ margin: "6px 0 2px", fontSize: 30, fontWeight: 700, lineHeight: 1.15 }}>{nearest.r.name}</p>
+          <p style={{ margin: "0 0 14px", fontSize: 14, color: COLORS.muted }}>{nearest.r.grade}</p>
+          <button
+            style={{ ...primaryBtn, width: "100%", minHeight: 84, fontSize: 24, background: isMorning ? COLORS.brand : COLORS.ok }}
+            disabled={busy === nearest.r.student_id + (isMorning ? "on" : "off")}
+            onClick={() => mark(nearest.r, isMorning ? "on" : "off")}>
+            {isMorning ? L.onM : L.offA}
+          </button>
+          <button style={{ ...ghostBtn, marginTop: 10 }} onClick={() => setDismissed({ ...dismissed, [nearest.r.student_id]: Date.now() })}>{L.notNow}</button>
+        </div>
+      )}
 
       <div style={card}>
         {!t || t.ended_at ? (
