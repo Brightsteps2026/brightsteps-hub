@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 import { COLORS, chip, chipOn, primaryBtn, ghostBtn, pill } from "./ui/tokens";
 import BusMap from "./BusMap";
+import { minsToTime } from "./BusTab";
 
 const T = {
   en: {
@@ -22,7 +23,7 @@ const T = {
     endWarn: (n) => `${n} child${n === 1 ? " is" : "ren are"} still marked on the bus. End the trip anyway?`,
     signOut: "Sign out", notStarted: "Trip not started", liveAt: "Last position", none: "No children on the bus list.",
     confirmUndo: "Undo this tap? The family already got a notice.",
-    near: "Near this home", notNow: "Not now", away: "m away"
+    near: "Near this home", notNow: "Not now", away: "m away", usual: "usually"
   },
   fr: {
     title: "Transport scolaire", morning: "Matin · vers l'école", afternoon: "Après-midi · retour",
@@ -35,7 +36,7 @@ const T = {
     endWarn: (n) => `${n} enfant${n === 1 ? " est encore marqué" : "s sont encore marqués"} dans le car. Terminer quand même ?`,
     signOut: "Se déconnecter", notStarted: "Trajet pas encore démarré", liveAt: "Dernière position", none: "Aucun enfant sur la liste du car.",
     confirmUndo: "Annuler ce pointage ? La famille a déjà reçu une notification.",
-    near: "Près de cette maison", notNow: "Pas maintenant", away: "m"
+    near: "Près de cette maison", notNow: "Pas maintenant", away: "m", usual: "d'habitude"
   }
 };
 
@@ -68,6 +69,10 @@ export default function BusRun({ standalone = false, onSignOut }) {
   const wake = useRef(null);
   const [pos, setPos] = useState(null);          // for driver mode on the bus phone
   const [dismissed, setDismissed] = useState({}); // child id -> time "Not now" was pressed
+  const [usual, setUsual] = useState({});
+  useEffect(() => {
+    supabase.rpc("bus_usual_times").then(({ data }) => setUsual(Object.fromEntries((data || []).map((u) => [u.student_id, u]))));
+  }, []);
 
   const switchLang = (l) => { setLang(l); try { localStorage.setItem("bs-bus-lang", l); } catch { /* not needed */ } };
 
@@ -279,7 +284,14 @@ export default function BusRun({ standalone = false, onSignOut }) {
             <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
               <div style={{ flex: 1 }}>
                 <strong style={{ fontSize: 16 }}>{r.name}</strong>
-                <div style={{ fontSize: 13, color: COLORS.muted }}>{r.grade} · {r.zone}{r.home_note ? ` · ${r.home_note}` : ""}</div>
+                <div style={{ fontSize: 13, color: COLORS.muted }}>
+                  {r.grade} · {r.zone}{r.home_note ? ` · ${r.home_note}` : ""}
+                  {(() => {
+                    const u = usual[r.student_id];
+                    const m = isMorning ? (u?.morning_trips ? u.morning_on : null) : (u?.afternoon_trips ? u.afternoon_off : null);
+                    return m != null ? ` · ${L.usual} ${minsToTime(m)}` : "";
+                  })()}
+                </div>
                 <div style={{ fontSize: 13, marginTop: 2 }}>
                   {r.on_at && <span>{onLabel} {hm(r.on_at)}</span>}
                   {r.off_at && <span> · {offLabel} {hm(r.off_at)}</span>}

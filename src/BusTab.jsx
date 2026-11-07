@@ -53,6 +53,8 @@ const T = {
   geoFailed: { en: "Your phone did not share its location. Please allow location access, or paste a link instead.", fr: "Votre téléphone n'a pas partagé sa position. Autorisez l'accès à la localisation, ou collez plutôt un lien." },
   gotHere: { en: "Location found", fr: "Position trouvée" },
   today: { en: "Today", fr: "Aujourd'hui" },
+  usualPick: { en: "Usual pickup: around", fr: "Ramassage habituel : vers" },
+  usualDrop: { en: "Usual drop-off: around", fr: "Dépose habituelle : vers" },
   morning: { en: "Morning", fr: "Matin" },
   afternoon: { en: "Afternoon", fr: "Après-midi" },
   waiting: { en: "Bus not left yet", fr: "Le car n'est pas encore parti" },
@@ -108,6 +110,12 @@ function mapUrl(r) {
   if (r?.home_link && /^https:\/\//i.test(r.home_link)) return r.home_link;
   return null;
 }
+// Minutes after midnight -> "6:25". round5: nearest 5 minutes (for families: "around 6:25").
+export function minsToTime(m, round5 = false) {
+  if (m == null) return "";
+  const v = round5 ? Math.round(m / 5) * 5 : m;
+  return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, "0")}`;
+}
 const hasHome = (r) => !!(r && (r.home_link || (r.home_lat != null && r.home_lng != null)));
 
 // Who sees the School bus menu item: the admin, and parents with a child switched ON.
@@ -146,10 +154,22 @@ export default function BusTab({ office, helper }) {
 function BusOfficeTabs() {
   const [view, setView] = useState("today");
   const [skips, setSkips] = useState([]);
+  const [usual, setUsual] = useState([]);
+  const [names, setNames] = useState({});
   useEffect(() => {
     if (view !== "today") return;
     supabase.rpc("bus_skips_upcoming").then(({ data }) => setSkips(data || []));
+    supabase.rpc("bus_usual_times").then(async ({ data }) => {
+      const rows = data || [];
+      setUsual(rows);
+      if (rows.length) {
+        const { data: st } = await supabase.from("students").select("id, full_name").in("id", rows.map((r) => r.student_id));
+        setNames(Object.fromEntries((st || []).map((x) => [x.id, x.full_name])));
+      }
+    });
   }, [view]);
+  const timed = usual.filter((u) => u.morning_trips || u.afternoon_trips)
+    .sort((a, b) => (a.morning_on ?? 9999) - (b.morning_on ?? 9999));
   return (
     <div>
       <div style={{ display: "flex", gap: 7, padding: "16px 16px 0" }}>
@@ -159,6 +179,30 @@ function BusOfficeTabs() {
       {view === "today" ? (
         <div style={{ padding: "12px 16px 90px" }}>
           <BusRun />
+          <div style={card}>
+            <p style={{ margin: "0 0 4px", fontWeight: 600 }}>Usual times</p>
+            <p style={{ margin: "0 0 8px", fontSize: 13, color: COLORS.muted }}>
+              Worked out by the Hub from the last 10 school-day trips, and updated after every trip. Families see their own child's time.
+            </p>
+            {timed.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>No trips recorded yet. The times appear after the first trip.</p>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                <thead><tr style={{ textAlign: "left", color: COLORS.muted, fontSize: 12 }}>
+                  <th style={{ padding: "4px 0" }}>Child</th><th>Morning pickup</th><th>Afternoon drop-off</th>
+                </tr></thead>
+                <tbody>
+                  {timed.map((u) => (
+                    <tr key={u.student_id} style={{ borderTop: `1px solid ${COLORS.line}` }}>
+                      <td style={{ padding: "6px 0" }}>{names[u.student_id] || "…"}</td>
+                      <td>{u.morning_trips ? <>{minsToTime(u.morning_on)} <span style={{ color: COLORS.muted, fontSize: 12 }}>({u.morning_trips} trip{u.morning_trips === 1 ? "" : "s"})</span></> : "—"}</td>
+                      <td>{u.afternoon_trips ? <>{minsToTime(u.afternoon_off)} <span style={{ color: COLORS.muted, fontSize: 12 }}>({u.afternoon_trips} trip{u.afternoon_trips === 1 ? "" : "s"})</span></> : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
           {skips.length > 0 && (
             <div style={card}>
               <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Not taking the bus · coming up</p>
@@ -491,12 +535,14 @@ function BusFamily() {
   const [today, setToday] = useState([]);
   const [skips, setSkips] = useState([]);
   const [skipFor, setSkipFor] = useState(null);
+  const [usual, setUsual] = useState([]);
 
   async function loadToday() {
     const [t, k] = await Promise.all([supabase.rpc("bus_family_today"), supabase.rpc("bus_skips_upcoming")]);
     setToday(t.data || []);
     setSkips(k.data || []);
   }
+  useEffect(() => { supabase.rpc("bus_usual_times").then(({ data }) => setUsual(data || [])); }, []);
   useEffect(() => { loadToday(); const id = setInterval(loadToday, 20000); return () => clearInterval(id); }, []);
 
   async function load() {
@@ -537,6 +583,17 @@ function BusFamily() {
               {tr("area")}: {z.label} · {money(z.fee)} FCFA {tr("perMonth")}
             </p>
 
+            {(() => {
+              const u = usual.find((x) => x.student_id === r.student_id);
+              if (!u || (!u.morning_trips && !u.afternoon_trips)) return null;
+              return (
+                <p style={{ margin: "0 0 10px", fontSize: 14 }}>
+                  {u.morning_trips ? <span>{tr("usualPick")} <strong>{minsToTime(u.morning_on, true)}</strong></span> : null}
+                  {u.morning_trips && u.afternoon_trips ? " · " : null}
+                  {u.afternoon_trips ? <span>{tr("usualDrop")} <strong>{minsToTime(u.afternoon_off, true)}</strong></span> : null}
+                </p>
+              );
+            })()}
             <TodayTrips info={today.find((x) => x.student_id === r.student_id)} tr={tr} locale={locale} />
 
             <div style={{ padding: "10px 0", borderTop: `1px solid ${COLORS.line}` }}>
