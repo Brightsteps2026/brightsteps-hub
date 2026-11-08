@@ -110,7 +110,9 @@ export default function BusRun({ standalone = false, onSignOut }) {
         const now = Date.now();
         if (now - lastSent.current < 15000) return;   // every 15 seconds at most
         lastSent.current = now;
-        supabase.rpc("bus_post_position", { p_trip_id: tripId, p_lat: lat, p_lng: lng });
+        // supabase.rpc() only sends the request once it is awaited or .then() is called
+        supabase.rpc("bus_post_position", { p_trip_id: tripId, p_lat: lat, p_lng: lng })
+          .then(({ error }) => { if (error) setMsg(error.message); });
         setPath((p) => [...p, [lat, lng]]);
       },
       () => { setGeoError(L.geoOff); },
