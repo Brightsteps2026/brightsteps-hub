@@ -543,7 +543,7 @@ function BusFamily() {
     setSkips(k.data || []);
   }
   useEffect(() => { supabase.rpc("bus_usual_times").then(({ data }) => setUsual(data || [])); }, []);
-  useEffect(() => { loadToday(); const id = setInterval(loadToday, 20000); return () => clearInterval(id); }, []);
+  useEffect(() => { loadToday(); const id = setInterval(loadToday, 10000); return () => clearInterval(id); }, []);
 
   async function load() {
     const r = await supabase.from("bus_riders").select("student_id, zone, active, home_link, home_lat, home_lng, home_note");
@@ -569,6 +569,7 @@ function BusFamily() {
 
   return (
     <div style={{ padding: "16px 16px 90px" }}>
+      <BusLiveBanner data={today} />
       {status && <div style={{ ...card, background: COLORS.okBg, borderColor: COLORS.okBg, fontSize: 14 }}>{status}</div>}
 
       {riders.map((r) => {
@@ -685,6 +686,112 @@ function BusFamily() {
   );
 }
 
+// Parents: a big, hard-to-miss banner about today's bus (Myri, 9 Nov 2026).
+// Shown at the top of the parent's Hub on every screen while a trip is live, and at the top of School bus.
+// Pass `data` (from bus_family_today) to reuse it; without it the banner loads it itself every 15 seconds.
+const BANNER_TEXT = {
+  near: { en: "The bus is about 5 minutes away!", fr: "Le car arrive dans environ 5 minutes !" },
+  nearM: { en: (n) => `Please have ${n} ready at the door.`, fr: (n) => `Merci de préparer ${n} devant la porte.` },
+  nearA: { en: (n) => `${n} will be home very soon.`, fr: (n) => `${n} arrive très bientôt à la maison.` },
+  coming: { en: "The school bus is on its way", fr: "Le car scolaire est en route" },
+  comingSub: { en: (n) => `Coming to pick up ${n}.`, fr: (n) => `Il vient chercher ${n}.` },
+  onM: { en: "On the bus to school", fr: "En route vers l'école" },
+  onA: { en: "On the bus home", fr: "En route vers la maison" },
+  onSub: { en: (n) => `${n} is on the school bus.`, fr: (n) => `${n} est dans le car scolaire.` },
+  school: { en: "Arrived at school", fr: "Arrivé(e) à l'école" },
+  home: { en: "Dropped off", fr: "Déposé(e)" },
+  doneSub: { en: (n, t) => `${n} got off the bus at ${t}.`, fr: (n, t) => `${n} est descendu(e) du car à ${t}.` },
+  follow: { en: "Follow the bus", fr: "Suivre le car" }
+};
+const RECENT_MS = 30 * 60 * 1000;
+
+function bannerStates(list) {
+  const out = [];
+  (list || []).forEach((c) => {
+    const name = c.first_name || "";
+    ["morning", "afternoon"].forEach((trip) => {
+      const x = c.trips?.[trip];
+      if (!x || x.skip || !x.started) return;
+      const isM = trip === "morning";
+      const recentOff = x.off_at && Date.now() - new Date(x.off_at).getTime() < RECENT_MS;
+      let kind = null;
+      if (!x.live && !recentOff) return;
+      if (isM && !x.on_at && x.live) kind = x.near_at ? "nearM" : x.bus ? "coming" : null;
+      else if (!isM && x.on_at && !x.off_at && x.live) kind = x.near_at ? "nearA" : "onA";
+      else if (isM && x.on_at && !x.off_at && x.live) kind = "onM";
+      else if (recentOff) kind = isM ? "school" : "home";
+      if (kind) out.push({ kind, name, at: x.off_at, live: x.live && !!x.bus });
+    });
+  });
+  // One banner per state; brothers and sisters in the same state share it.
+  const order = ["nearM", "nearA", "coming", "onM", "onA", "school", "home"];
+  const groups = {};
+  out.forEach((s) => { (groups[s.kind] = groups[s.kind] || []).push(s); });
+  return order.filter((k) => groups[k]).map((k) => ({ kind: k, items: groups[k] }));
+}
+
+export function BusLiveBanner({ data, onOpen, style }) {
+  const { language } = useLanguage();
+  const lang = language === "fr" ? "fr" : "en";
+  const locale = lang === "fr" ? "fr-FR" : "en-GB";
+  const [own, setOwn] = useState(null);
+  useEffect(() => {
+    if (data) return undefined;
+    let alive = true;
+    const go = () => supabase.rpc("bus_family_today").then(({ data: d }) => { if (alive) setOwn(d || []); });
+    go();
+    const id = setInterval(go, 15000);
+    return () => { alive = false; clearInterval(id); };
+  }, [data]);
+  const groups = bannerStates(data || own);
+  if (!groups.length) return null;
+  const tx = (k) => BANNER_TEXT[k][lang];
+  const join = (items) => {
+    const n = items.map((i) => i.name);
+    return n.length > 1 ? `${n.slice(0, -1).join(", ")} ${lang === "fr" ? "et" : "&"} ${n[n.length - 1]}` : n[0];
+  };
+  const hm = (iso) => new Date(iso).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  const look = {
+    near: { bg: "#FFF1D6", line: "#E08A00", ink: "#7A4500" },
+    live: { bg: "#E6F0F7", line: "#3B6E8F", ink: "#1F4660" },
+    done: { bg: COLORS.okBg, line: COLORS.ok, ink: COLORS.ink }
+  };
+  return (
+    <div style={{ margin: "0 0 12px", ...style }}>
+      <style>{"@keyframes bisPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.35);opacity:.55}}"}</style>
+      {groups.map(({ kind, items }) => {
+        const near = kind === "nearM" || kind === "nearA";
+        const done = kind === "school" || kind === "home";
+        const c = near ? look.near : done ? look.done : look.live;
+        const names = join(items);
+        const title = near ? tx("near") : kind === "coming" ? tx("coming") : kind === "onM" ? tx("onM") : kind === "onA" ? tx("onA") : tx(kind);
+        const sub = near ? tx(kind)(names)
+          : kind === "coming" ? tx("comingSub")(names)
+          : done ? items.map((i) => tx("doneSub")(i.name, hm(i.at))).join(" ")
+          : tx("onSub")(names);
+        const canFollow = onOpen && !done && items.some((i) => i.live);
+        return (
+          <div key={kind} role={near ? "alert" : "status"}
+            style={{ background: c.bg, border: `3px solid ${c.line}`, borderRadius: 16, padding: "16px 18px", marginBottom: 10, color: c.ink, boxShadow: near ? "0 4px 16px rgba(224,138,0,.25)" : "none" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span aria-hidden="true" style={{ flex: "0 0 auto", width: 16, height: 16, borderRadius: "50%", background: c.line, animation: done ? "none" : "bisPulse 1.4s ease-in-out infinite" }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: near ? 24 : 20, fontWeight: 800, lineHeight: 1.2 }}>{title}</p>
+                <p style={{ margin: "4px 0 0", fontSize: 17, fontWeight: 500, lineHeight: 1.35 }}>{sub}</p>
+              </div>
+            </div>
+            {canFollow && (
+              <button onClick={onOpen} style={{ ...primaryBtn, width: "100%", minHeight: 48, marginTop: 12, fontSize: 17, background: c.line, borderColor: c.line }}>
+                {tx("follow")} →
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // Parents: today's morning and afternoon trips for one child, with the live bus.
 function TodayTrips({ info, tr, locale }) {
   if (!info) return null;
@@ -714,7 +821,7 @@ function TodayTrips({ info, tr, locale }) {
       {lt && (
         <div style={{ marginTop: 8 }}>
           <p style={{ margin: "0 0 6px", fontSize: 13, color: COLORS.muted }}>{tr("followBus")} · {t(lt.bus.at)}</p>
-          <BusMap bus={lt.bus} path={lt.path || []} height={220} />
+          <BusMap bus={lt.bus} path={lt.path || []} height={340} />
         </div>
       )}
     </div>

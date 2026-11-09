@@ -23,7 +23,10 @@ const T = {
     endWarn: (n) => `${n} child${n === 1 ? " is" : "ren are"} still marked on the bus. End the trip anyway?`,
     signOut: "Sign out", notStarted: "Trip not started", liveAt: "Last position", none: "No children on the bus list.",
     confirmUndo: "Undo this tap? The family already got a notice.",
-    near: "Near this home", notNow: "Not now", away: "m away", usual: "usually"
+    near: "Near this home", notNow: "Not now", away: "m away", usual: "usually",
+    farHome: (n, d) => `Careful: you are ${d} from ${n}'s home. Drop ${n} off here anyway?`,
+    noHome: (n) => `${n}'s home is not saved on the Hub. Is ${n} really at home? Tap OK only if ${n} is at home.`,
+    noGps: (n) => `The phone does not know where the bus is. Is ${n} really at home? Tap OK only if ${n} is at home.`
   },
   fr: {
     title: "Transport scolaire", morning: "Matin · vers l'école", afternoon: "Après-midi · retour",
@@ -36,7 +39,10 @@ const T = {
     endWarn: (n) => `${n} enfant${n === 1 ? " est encore marqué" : "s sont encore marqués"} dans le car. Terminer quand même ?`,
     signOut: "Se déconnecter", notStarted: "Trajet pas encore démarré", liveAt: "Dernière position", none: "Aucun enfant sur la liste du car.",
     confirmUndo: "Annuler ce pointage ? La famille a déjà reçu une notification.",
-    near: "Près de cette maison", notNow: "Pas maintenant", away: "m", usual: "d'habitude"
+    near: "Près de cette maison", notNow: "Pas maintenant", away: "m", usual: "d'habitude",
+    farHome: (n, d) => `Attention : vous êtes à ${d} de la maison de ${n}. Déposer ${n} ici quand même ?`,
+    noHome: (n) => `La maison de ${n} n'est pas enregistrée sur le Hub. ${n} est-il/elle bien chez lui/elle ? Appuyez sur OK seulement si ${n} est à la maison.`,
+    noGps: (n) => `Le téléphone ne sait pas où est le car. ${n} est-il/elle bien chez lui/elle ? Appuyez sur OK seulement si ${n} est à la maison.`
   }
 };
 
@@ -145,8 +151,18 @@ export default function BusRun({ standalone = false, onSignOut }) {
   };
 
   const mark = async (r, kind) => {
-    setBusy(r.student_id + kind);
     const p = lastPos.current;
+    // Afternoon drop-off: make the driver confirm when the bus is not at the child's home (Myri, 9 Nov 2026).
+    if (trip === "afternoon" && kind === "off") {
+      const name = (r.name || "").split(" ")[0];
+      if (!p) { if (!window.confirm(L.noGps(name))) return; }
+      else if (r.home_lat == null || r.home_lng == null) { if (!window.confirm(L.noHome(name))) return; }
+      else {
+        const d = metres(p, { lat: r.home_lat, lng: r.home_lng });
+        if (d > 300 && !window.confirm(L.farHome(name, d >= 1000 ? `${(d / 1000).toFixed(1).replace(".", ",")} km` : `${Math.round(d)} m`))) return;
+      }
+    }
+    setBusy(r.student_id + kind);
     const { error } = await supabase.rpc("bus_mark", { p_trip_id: run.trip.id, p_student: r.student_id, p_kind: kind, p_lat: p?.lat ?? null, p_lng: p?.lng ?? null });
     setBusy("");
     if (error) setMsg(error.message);

@@ -4,7 +4,7 @@ import { useAuth } from "./LoginGate";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
 import CanteenTab from "./CanteenTab";
 import FeesTab, { useFeesAccess } from "./FeesTab";
-import BusTab, { useBusAccess } from "./BusTab";
+import BusTab, { useBusAccess, BusLiveBanner } from "./BusTab";
 import IncidentsTab, { IncidentsIcon } from "./IncidentsTab";
 import LeaveTab, { LeaveIcon } from "./LeaveTab";
 import WeeklyUpdatesTab from "./WeeklyUpdates";
@@ -297,6 +297,7 @@ function BrightStepsHubInner() {
       </div>
 
       <TabErrorBoundary key={tab} language={language}>
+      {isParent && busAccess.family && tab !== "bus" && <BusLiveBanner onOpen={() => goTo("bus")} style={{ padding: "12px 16px 0", maxWidth: 960, marginLeft: "auto", marginRight: "auto" }} />}
       {tab === "dashboard" && !isParent && !isStudent && <CheckinBanner profile={profile} onOpen={() => goTo("checkin")} />}
       {tab === "dashboard" && <Dashboard data={data} profile={profile} persist={persist} onNavigate={goTo} />}
       {tab === "students" && (isParent ? <ParentStudentView data={data} persist={persist} profile={profile} /> : <StudentsTab data={data} persist={persist} profile={profile} />)}
