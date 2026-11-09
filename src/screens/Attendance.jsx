@@ -5,6 +5,7 @@ import { GRADES } from "../data/constants";
 import { todayStr, gradeLabel, isWeekendStr, lastSchoolDayStr } from "../lib/format";
 import { StudentThumb } from "../ui/common";
 import { AbsenceNotices } from "./Messages";
+import { AttendanceRange } from "./AttendanceRange";
 
 const STATUS_CYCLE = ["present", "absent", "late"];
 
@@ -21,6 +22,7 @@ const fmtTime = (hhmm) => { if (!hhmm) return ""; const [h, m] = hhmm.split(":")
 function AttendanceTab({ data, persist, profile }) {
   const { t, language } = useLanguage();
   const [date, setDate] = useState(lastSchoolDayStr());
+  const [view, setView] = useState("day"); // "day" register, or "range" (staff: totals over a period)
   const isParent = profile?.role === "parent";
   const isStudent = profile?.role === "student";
   const isSelfOnly = isParent || isStudent;
@@ -104,6 +106,27 @@ function AttendanceTab({ data, persist, profile }) {
   const isToday = date === lastSchoolDayStr();
   const markedTotal = summary.present + summary.absent + summary.late;
 
+  if (!isSelfOnly && view === "range") {
+    return (
+      <div className="bsf-screen">
+        <div className="bsf-hero">
+          <p className="bsf-eyebrow">{t("nav.attendance")}</p>
+          <h1>Attendance over a period</h1>
+          <div className="bsf-viewswitch">
+            <button onClick={() => setView("day")}>Day</button>
+            <button className="active">Period</button>
+          </div>
+        </div>
+        <AttendanceRange
+          data={data}
+          grades={isStaffScoped ? myGrades : GRADES}
+          allowAllGrades={!isStaffScoped || myGrades.length > 1}
+          onOpenDay={(d) => { setDate(d); setView("day"); }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="bsf-screen">
       <div className="bsf-hero">
@@ -127,7 +150,15 @@ function AttendanceTab({ data, persist, profile }) {
             </div>
           )}
         </div>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bsf-dateinput" style={{ marginTop: 12 }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bsf-dateinput" style={{ marginTop: 12 }} />
+          {!isSelfOnly && (
+            <div className="bsf-viewswitch">
+              <button className="active">Day</button>
+              <button onClick={() => setView("range")}>Period</button>
+            </div>
+          )}
+        </div>
       </div>
 
       {(isSelfOnly || isStaffScoped) && myGrades.length > 1 && (
