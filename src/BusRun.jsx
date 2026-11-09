@@ -23,6 +23,7 @@ const T = {
     endWarn: (n) => `${n} child${n === 1 ? " is" : "ren are"} still marked on the bus. End the trip anyway?`,
     signOut: "Sign out", notStarted: "Trip not started", liveAt: "Last position", none: "No children on the bus list.",
     confirmUndo: "Undo this tap? The family already got a notice.",
+    next: "Next stop", nextNone: "No home saved for the next children: follow your usual order.",
     near: "Near this home", notNow: "Not now", away: "m away", usual: "usually",
     farHome: (n, d) => `Careful: you are ${d} from ${n}'s home. Drop ${n} off here anyway?`,
     noHome: (n) => `${n}'s home is not saved on the Hub. Is ${n} really at home? Tap OK only if ${n} is at home.`,
@@ -39,6 +40,7 @@ const T = {
     endWarn: (n) => `${n} enfant${n === 1 ? " est encore marqué" : "s sont encore marqués"} dans le car. Terminer quand même ?`,
     signOut: "Se déconnecter", notStarted: "Trajet pas encore démarré", liveAt: "Dernière position", none: "Aucun enfant sur la liste du car.",
     confirmUndo: "Annuler ce pointage ? La famille a déjà reçu une notification.",
+    next: "Prochain arrêt", nextNone: "Pas de maison enregistrée pour les prochains enfants : suivez votre ordre habituel.",
     near: "Près de cette maison", notNow: "Pas maintenant", away: "m", usual: "d'habitude",
     farHome: (n, d) => `Attention : vous êtes à ${d} de la maison de ${n}. Déposer ${n} ici quand même ?`,
     noHome: (n) => `La maison de ${n} n'est pas enregistrée sur le Hub. ${n} est-il/elle bien chez lui/elle ? Appuyez sur OK seulement si ${n} est à la maison.`,
@@ -55,7 +57,7 @@ const metres = (a, b) => {
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 };
-const NEAR_M = 150;
+const NEAR_M = 200;   // big "tap now" card when the bus is this close to a home
 const card = { background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 14, marginBottom: 10 };
 
 export default function BusRun({ standalone = false, onSignOut }) {
@@ -188,7 +190,25 @@ export default function BusRun({ standalone = false, onSignOut }) {
   };
 
   const riders = run?.riders || [];
-  const going = riders.filter((r) => !r.skip);
+  const isMorningTrip = trip === "morning";
+  // The list follows the route (Myri, 9 Nov 2026): children still to pick up / drop off come first,
+  // the closest home to the bus at the top; children already done go to the bottom.
+  const here = pos || lastPos.current || (run?.trip?.last_lat != null ? { lat: run.trip.last_lat, lng: run.trip.last_lng } : null);
+  const distTo = (r) => (here && r.home_lat != null && r.home_lng != null ? metres(here, { lat: r.home_lat, lng: r.home_lng }) : null);
+  // Morning: 0 = to pick up, 1 = on board, 2 = at school. Afternoon: 0 = boarding at school, 1 = to drop off, 2 = dropped.
+  const stage = (r) => (!r.on_at ? 0 : !r.off_at ? 1 : 2);
+  const usualMin = (r) => { const u = usual[r.student_id]; return isMorningTrip ? (u?.morning_trips ? u.morning_on : null) : (u?.afternoon_trips ? u.afternoon_off : null); };
+  const going = riders.filter((r) => !r.skip).map((r) => ({ ...r, dist: distTo(r) })).sort((a, b) => {
+    if (stage(a) !== stage(b)) return stage(a) - stage(b);
+    if (a.dist != null && b.dist != null) return a.dist - b.dist;
+    if (a.dist != null) return -1;
+    if (b.dist != null) return 1;
+    const ua = usualMin(a), ub = usualMin(b);
+    if (ua != null && ub != null) return ua - ub;
+    return ua != null ? -1 : ub != null ? 1 : 0;
+  });
+  // The next stop: the closest child still to pick up (morning) or to drop off (afternoon).
+  const nextStop = going.find((r) => stage(r) === (isMorningTrip ? 0 : 1)) || null;
   const skipping = riders.filter((r) => r.skip);
   const t = run?.trip;
   const live = t && !t.ended_at;
@@ -219,6 +239,18 @@ export default function BusRun({ standalone = false, onSignOut }) {
       <div style={{ fontSize: 20, fontWeight: 700 }}>{value}</div>
     </div>
   );
+
+  // On the bus phone the children come first (the driver taps them); the map goes below the list.
+  const mapCard = t && (
+    <div style={card}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+        {tile(L.toPick, toPick)}{tile(L.onBoard, onBoard)}{tile(L.dropped, dropped)}
+      </div>
+      <BusMap bus={busPos} path={path} homes={homes} height={standalone ? 220 : 280} />
+      {t.last_at && <p style={{ fontSize: 12, color: COLORS.muted, margin: "6px 0 0" }}>{L.liveAt}: {hm(t.last_at)}</p>}
+    </div>
+  );
+  const distLabel = (d) => (d == null ? "" : d >= 1000 ? `${(d / 1000).toFixed(1).replace(".", ",")} km` : `${Math.round(d)} m`);
 
   return (
     <div style={{ padding: standalone ? "14px 14px 40px" : 0, maxWidth: 720, margin: "0 auto", fontFamily: "'Work Sans', system-ui, sans-serif", color: COLORS.ink }}>
@@ -275,15 +307,7 @@ export default function BusRun({ standalone = false, onSignOut }) {
         {msg && <p style={{ fontSize: 13, color: COLORS.bad, margin: "8px 0 0" }}>{msg}</p>}
       </div>
 
-      {t && (
-        <div style={card}>
-          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            {tile(L.toPick, toPick)}{tile(L.onBoard, onBoard)}{tile(L.dropped, dropped)}
-          </div>
-          <BusMap bus={busPos} path={path} homes={homes} height={standalone ? 220 : 280} />
-          {t.last_at && <p style={{ fontSize: 12, color: COLORS.muted, margin: "6px 0 0" }}>{L.liveAt}: {hm(t.last_at)}</p>}
-        </div>
-      )}
+      {!standalone && mapCard}
 
       {live && isMorning && onBoard > 0 && (
         <button style={{ ...primaryBtn, width: "100%", minHeight: 48, marginBottom: 10, background: COLORS.ok }} disabled={busy === "all"} onClick={allAtSchool}>
@@ -297,11 +321,26 @@ export default function BusRun({ standalone = false, onSignOut }) {
         const url = homeUrl(r);
         const onLabel = isMorning ? L.onM : L.onA;
         const offLabel = isMorning ? L.offM : L.offA;
+        const isNext = live && nextStop && nextStop.student_id === r.student_id;
+        const pendingHere = stage(r) === (isMorning ? 0 : 1);
         return (
-          <div key={r.student_id} style={{ ...card, borderColor: r.off_at ? COLORS.line : r.on_at ? COLORS.ok : COLORS.line, background: r.off_at ? COLORS.surface2 : "#fff" }}>
+          <div key={r.student_id} style={{
+            ...card,
+            borderColor: isNext ? COLORS.brand : r.off_at ? COLORS.line : r.on_at ? COLORS.ok : COLORS.line,
+            borderWidth: isNext ? 3 : 1,
+            padding: isNext ? 18 : card.padding,
+            background: r.off_at ? COLORS.surface2 : "#fff",
+            boxShadow: isNext ? "0 4px 14px rgba(128,21,36,.18)" : "none"
+          }}>
+            {isNext && (
+              <p style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 700, color: COLORS.brand, textTransform: "uppercase", letterSpacing: ".5px" }}>
+                {L.next}{r.dist != null ? ` · ${distLabel(r.dist)}` : ""}
+              </p>
+            )}
             <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
               <div style={{ flex: 1 }}>
-                <strong style={{ fontSize: 16 }}>{r.name}</strong>
+                <strong style={{ fontSize: isNext ? 28 : 16, lineHeight: 1.15 }}>{r.name}</strong>
+                {!isNext && live && pendingHere && r.dist != null && <span style={{ fontSize: 13, color: COLORS.muted }}> · {distLabel(r.dist)}</span>}
                 <div style={{ fontSize: 13, color: COLORS.muted }}>
                   {r.grade} · {r.zone}{r.home_note ? ` · ${r.home_note}` : ""}
                   {(() => {
@@ -322,14 +361,16 @@ export default function BusRun({ standalone = false, onSignOut }) {
             </div>
             {live && (
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                {!r.on_at && <button style={{ ...primaryBtn, flex: 1, minHeight: 48 }} disabled={busy === r.student_id + "on"} onClick={() => mark(r, "on")}>{onLabel}</button>}
-                {r.on_at && !r.off_at && <button style={{ ...primaryBtn, flex: 1, minHeight: 48, background: COLORS.ok }} disabled={busy === r.student_id + "off"} onClick={() => mark(r, "off")}>{offLabel}</button>}
+                {!r.on_at && <button style={{ ...primaryBtn, flex: 1, minHeight: isNext ? 72 : 48, fontSize: isNext ? 22 : undefined }} disabled={busy === r.student_id + "on"} onClick={() => mark(r, "on")}>{onLabel}</button>}
+                {r.on_at && !r.off_at && <button style={{ ...primaryBtn, flex: 1, minHeight: isNext ? 72 : 48, fontSize: isNext ? 22 : undefined, background: COLORS.ok }} disabled={busy === r.student_id + "off"} onClick={() => mark(r, "off")}>{offLabel}</button>}
                 {(r.on_at || r.off_at) && <button style={{ ...ghostBtn, minHeight: 48 }} onClick={() => unmark(r, r.off_at ? "off" : "on")}>{L.undo}</button>}
               </div>
             )}
           </div>
         );
       })}
+
+      {standalone && mapCard}
 
       {skipping.length > 0 && (
         <div style={{ ...card, background: COLORS.surface2 }}>
