@@ -42,12 +42,15 @@ const fmtPct = (v) => (v === null ? "–" : `${v % 1 === 0 ? v : v.toFixed(1)}%`
 
 function AttendanceRange({ data, grades, allowAllGrades, onOpenDay }) {
   const attendance = data.attendance || {};
+  // "Since we started" = first day of the school year (Settings), so stray test
+  // marks saved before term are not counted; otherwise the first register taken.
+  const yearStart = data.settings?.academicYear?.startDate || "";
   const firstDay = useMemo(() => {
     const dates = Object.entries(attendance)
-      .filter(([d, day]) => !isWeekendStr(d) && Object.keys(day || {}).length > 0)
+      .filter(([d, day]) => !isWeekendStr(d) && d >= yearStart && Object.keys(day || {}).length > 0)
       .map(([d]) => d).sort();
-    return dates[0] || lastSchoolDayStr();
-  }, [attendance]);
+    return yearStart || dates[0] || lastSchoolDayStr();
+  }, [attendance, yearStart]);
   const today = lastSchoolDayStr();
 
   const presets = useMemo(() => {
