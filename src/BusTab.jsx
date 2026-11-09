@@ -40,6 +40,7 @@ const T = {
   home: { en: "Home location", fr: "Localisation du domicile" },
   homeSaved: { en: "Saved", fr: "Enregistrée" },
   homeMissing: { en: "Not saved yet. The bus needs it to plan the route.", fr: "Pas encore enregistrée. Le car en a besoin pour organiser le trajet." },
+  homeLinkOnly: { en: "Your map link is saved, but the Hub cannot read the exact spot from it. When you are at home, tap \"I'm at home\" below so you get the \"bus 5 minutes away\" alert.", fr: "Votre lien de carte est enregistré, mais le Hub ne peut pas y lire l'emplacement exact. Quand vous êtes à la maison, appuyez sur « Je suis à la maison » ci-dessous pour recevoir l'alerte « car dans 5 minutes »." },
   openMap: { en: "Open on the map", fr: "Voir sur la carte" },
   change: { en: "Change", fr: "Modifier" },
   useHere: { en: "I'm at home: use my current location", fr: "Je suis à la maison : utiliser ma position actuelle" },
@@ -116,7 +117,9 @@ export function minsToTime(m, round5 = false) {
   const v = round5 ? Math.round(m / 5) * 5 : m;
   return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, "0")}`;
 }
-const hasHome = (r) => !!(r && (r.home_link || (r.home_lat != null && r.home_lng != null)));
+// A home counts as saved only with exact coordinates: short Google Maps links (maps.app.goo.gl) cannot be read by the Hub,
+// and the bus alerts (5 minutes away, drop-off check) need the exact spot (Myri, 9 Nov 2026).
+const hasHome = (r) => !!(r && r.home_lat != null && r.home_lng != null);
 
 // Who sees the School bus menu item: the admin, and parents with a child switched ON.
 export function useBusAccess(profile) {
@@ -639,7 +642,7 @@ function BusFamily() {
               <p style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 600 }}>{tr("home")}</p>
               {editing === r.student_id || !hasHome(r) ? (
                 <>
-                  {!hasHome(r) && <p style={{ fontSize: 13, color: COLORS.warn, margin: "0 0 10px" }}>{tr("homeMissing")}</p>}
+                  {!hasHome(r) && <p style={{ fontSize: 14, fontWeight: 600, color: COLORS.warn, margin: "0 0 10px" }}>{tr(r.home_link ? "homeLinkOnly" : "homeMissing")}</p>}
                   <HomeForm
                     rider={r}
                     lang={lang}
