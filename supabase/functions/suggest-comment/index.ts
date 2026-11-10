@@ -73,8 +73,11 @@ async function weekly(kind: string, body: Record<string, unknown>) {
       EARLY.includes(grade)
         ? "This is an early years class: simple, warm, everyday words for parents of a young child."
         : "Older pupil: you may mention study habits and responsibility.",
-      "Write 3 to 4 sentences: how the week went in Math and English Language Arts (using the topics), how STUDENT took part and behaved, the highlight if there is one, and one gentle next step. 'Needs support' or 'Sometimes' must be written as an encouraging next step, never as a problem.",
-      "Rules: American English spelling; call the child STUDENT and do not use he/she/him/her; use ONLY the facts below and never invent events, numbers or grades; no greeting or sign-off.",
+      "Write 3 to 4 sentences that could only be about THIS child. Build the note around the teacher's own observation: open with it, in specific terms. Then say how STUDENT is doing in Math and English Language Arts on this week's topics, using the levels and the recent gradebook results to understand where STUDENT really stands. End with ONE specific next step tied to the actual topic and STUDENT's results (what exactly to practice, and how the family can help at home in a few minutes), not a general wish such as 'keep up the good work' or 'continue to practice'.",
+      "'Needs support', 'Practicing', 'Emerging', 'still developing' or 'Sometimes' must be written as a clear, encouraging next step, never as a problem.",
+      "Never mention attendance, days at school, being present, punctuality or absences in any way.",
+      "Avoid stock phrases that would fit any child (for example 'had a great week', 'worked hard', 'is a pleasure to have in class').",
+      "Rules: American English spelling; call the child STUDENT and do not use he/she/him/her; use ONLY the facts below and never invent events, numbers or grades; do not quote marks, letters, percentages or level names; no greeting or sign-off.",
       "Also give the same note in natural French as used in Côte d'Ivoire (keep STUDENT; avoid gendered adjectives for STUDENT).",
       "",
       "This week:",

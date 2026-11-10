@@ -185,6 +185,33 @@ function plannedTopics(plans, grade, monday) {
   return out;
 }
 
+// One child's Math and ELA results from the Assessment gradebook, from the three weeks
+// before this week up to its Friday, as plain text for the AI (no name or ID sent).
+const GB_LEVELS = { emerging: "Emerging", developing: "Developing", meeting: "Meeting", exceeding: "Exceeding" };
+async function recentResults(studentId, grade, monday) {
+  const as = await supabase.from("gb_assessments").select("id, title, subject, assess_type, max_points, assessed_on")
+    .eq("grade", grade).in("subject", ["Math", "English Language Arts"])
+    .gte("assessed_on", addDays(monday, -21)).lte("assessed_on", addDays(monday, 4))
+    .order("assessed_on", { ascending: true });
+  if (as.error || !(as.data || []).length) return "";
+  const mk = await supabase.from("gb_marks").select("assessment_id, points, letter, level, excused, note")
+    .eq("student_id", studentId).in("assessment_id", as.data.map((a) => a.id));
+  if (mk.error) return "";
+  const byId = {};
+  (mk.data || []).forEach((m) => { byId[m.assessment_id] = m; });
+  return as.data.map((a) => {
+    const m = byId[a.id];
+    if (!m || m.excused) return "";
+    const pct = m.points != null && a.max_points ? Math.round((100 * m.points) / a.max_points) : null;
+    const r = m.level ? GB_LEVELS[m.level] || m.level
+      : m.letter ? "band " + m.letter.charAt(0)
+      : pct != null ? (pct >= 80 ? "strong" : pct >= 65 ? "secure" : "still developing") : "";
+    if (!r) return "";
+    const note = m.note ? ` (teacher's note: ${String(m.note).slice(0, 200)})` : "";
+    return `- ${a.subject}, ${a.title || a.assess_type || "assessment"}: ${r}${note}`;
+  }).filter(Boolean).join("\n");
+}
+
 async function ai(body) {
   const { data, error } = await supabase.functions.invoke("suggest-comment", { body });
   if (error || data?.error) throw new Error(data?.error || error?.message || "No answer");
@@ -314,24 +341,28 @@ function ClassWeek({ grade, week, data, profile, canEdit, canSend }) {
     return saved;
   }
 
-  function factsFor(stu, r) {
+  // Attendance is deliberately NOT sent: the note must never mention days at school (Myri, 10 Nov 2026).
+  function factsFor(stu, r, results) {
     const name = firstName(stu.full_name);
-    const a = weekAttendance(data?.attendance, stu.legacy_id, week);
     const lbl = (list, id) => list.find((x) => x.id === id)?.label || "not given";
     return [
+      r.highlight ? `The teacher's own observation of STUDENT this week (the heart of the note): ${withoutName(r.highlight, name)}` : "",
       `Math this week: ${form.math_topic || "(topic not given)"}. Level this week: ${lbl(LEVELS, r.math)}.`,
       `English Language Arts this week: ${form.ela_topic || "(topic not given)"}. Level this week: ${lbl(LEVELS, r.ela)}.`,
       form.uoi_topic ? `Unit of inquiry: ${form.uoi_topic}.` : "",
       `Participation: ${lbl(FREQ, r.participation)}. Behavior and school values: ${lbl(FREQ, r.behavior)}. Effort and independence: ${lbl(FREQ, r.effort)}.`,
-      r.highlight ? `Highlight: ${withoutName(r.highlight, name)}` : "",
-      a.days ? `At school ${a.at} of ${a.days} days this week.` : ""
+      results ? `Recent results in the gradebook (for the teacher's understanding; do not quote marks):\n${withoutName(results, name)}` : ""
     ].filter(Boolean).join("\n");
   }
 
-  async function writeNote(stu) {
-    const r = rows[stu.id] || {};
+  async function writeNote(stu, obs) {
+    const r = { ...(rows[stu.id] || {}), ...(obs ? { highlight: obs } : {}) };
+    if ((r.highlight || "").trim().length < 15) throw new Error("Write your own observation of this child first.");
+    if (obs && obs !== (rows[stu.id]?.highlight || "")) await saveChild(stu, { highlight: obs });
     const name = firstName(stu.full_name) || "Your child";
-    const out = await ai({ kind: "weekly", grade, facts: factsFor(stu, r), current: withoutName(r.note_en, name) });
+    let results = "";
+    try { results = await recentResults(stu.id, grade, week); } catch (e) { results = ""; }
+    const out = await ai({ kind: "weekly", grade, facts: factsFor(stu, r, results), current: withoutName(r.note_en, name) });
     if (!out.en) throw new Error("No draft came back.");
     return saveChild(stu, { note_en: withName(out.en, name), note_fr: withName(out.fr, name), status: "draft" });
   }
@@ -352,7 +383,7 @@ function ClassWeek({ grade, week, data, profile, canEdit, canSend }) {
   }
 
   const [writingAll, setWritingAll] = useState("");
-  const toWrite = students.filter((s) => TAPS.every((k) => rows[s.id]?.[k]) && !rows[s.id]?.note_en && rows[s.id]?.status !== "sent");
+  const toWrite = students.filter((s) => TAPS.every((k) => rows[s.id]?.[k]) && (rows[s.id]?.highlight || "").trim().length >= 15 && !rows[s.id]?.note_en && rows[s.id]?.status !== "sent");
   async function writeAll() {
     if (writingAll || !toWrite.length) return;
     let done = 0, failed = 0;
@@ -490,13 +521,13 @@ function ClassWeek({ grade, week, data, profile, canEdit, canSend }) {
           )}
         </div>
         <p style={{ ...small, margin: "0 0 4px" }}>
-          Tap Math, ELA and the three habits, and add a highlight if you like. This can be done any day of the week: everything saves as you go.
+          Tap Math, ELA and the three habits, check the child's recent results in Assessment, and write your own observation of the child. This can be done any day of the week: everything saves as you go.
           {canSend ? " Then write the notes, check each one and press Looks good." : " The class teacher checks each note and sends them on Friday."}
         </p>
         {students.length === 0 && <p style={small}>No students in {grade}.</p>}
         {students.map((s) => (
           <ChildRow key={s.id} stu={s} row={rows[s.id] || {}} canEdit={canEdit} canApprove={canSend} data={data} week={week}
-            onTap={(patch) => saveChild(s, patch)} onWrite={() => writeNote(s)} onApprove={(text) => approve(s, text)}
+            onTap={(patch) => saveChild(s, patch)} onWrite={(obs) => writeNote(s, obs)} onApprove={(text) => approve(s, text)}
             onSaveDraft={(text) => saveDraft(s, text)} />
         ))}
       </section>
@@ -522,7 +553,7 @@ function ClassWeek({ grade, week, data, profile, canEdit, canSend }) {
       </section>
 
       <p style={{ ...small, fontSize: 12, lineHeight: 1.6, margin: "0 4px 20px" }}>
-        The AI draft uses only the taps, the topics and the highlight: the child is called "STUDENT", and no name, surname or ID is sent.
+        The AI draft is built on your observation, the taps, the topics and the child's recent Math and ELA results in Assessment. It never mentions attendance: the child is called "STUDENT", and no name, surname or ID is sent.
         "Needs support" and "Sometimes" are always written as a next step. Real concerns go by message or phone call, and behavior notes stay private.
         Nothing reaches families until the class teacher presses Send.
       </p>
@@ -532,6 +563,7 @@ function ClassWeek({ grade, week, data, profile, canEdit, canSend }) {
 
 function ChildRow({ stu, row, canEdit, canApprove, data, week, onTap, onWrite, onApprove, onSaveDraft }) {
   const [highlight, setHighlight] = useState(row.highlight || "");
+  const observed = highlight.trim().length >= 15;
   const [text, setText] = useState(row.note_en || "");
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
@@ -587,8 +619,8 @@ function ChildRow({ stu, row, canEdit, canApprove, data, week, onTap, onWrite, o
       </div>
 
       <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 13, fontWeight: 600 }}>
-        Highlight (optional)
-        <input value={highlight} disabled={locked} placeholder={`One thing ${firstName(stu.full_name)} did this week`}
+        Your observation this week (required)
+        <input value={highlight} disabled={locked} placeholder={`What did you notice about ${firstName(stu.full_name)} this week? A moment, a strength, a difficulty`}
           onChange={(e) => setHighlight(e.target.value)}
           onBlur={() => { if (highlight.trim() !== (row.highlight || "")) onTap({ highlight: highlight.trim() || null }); }}
           style={{ ...input, fontWeight: 400 }} />
@@ -596,10 +628,11 @@ function ChildRow({ stu, row, canEdit, canApprove, data, week, onTap, onWrite, o
 
       {!locked && !row.note_en && (
         <div>
-          <button style={{ ...primaryBtn, opacity: tapsDone && !busy ? 1 : 0.5 }} disabled={!tapsDone || !!busy} onClick={() => run("Writing…", onWrite)}>
+          <button style={{ ...primaryBtn, opacity: tapsDone && observed && !busy ? 1 : 0.5 }} disabled={!tapsDone || !observed || !!busy} onClick={() => run("Writing…", () => onWrite(highlight.trim()))}>
             {busy || "Write the note with AI"}
           </button>
-          {!tapsDone && <span style={{ ...small, marginLeft: 10 }}>Tap all five first.</span>}
+          {!tapsDone ? <span style={{ ...small, marginLeft: 10 }}>Tap all five first.</span>
+            : !observed && <span style={{ ...small, marginLeft: 10 }}>Write your own observation first (at least one full sentence).</span>}
         </div>
       )}
 
@@ -610,7 +643,7 @@ function ChildRow({ stu, row, canEdit, canApprove, data, week, onTap, onWrite, o
               {sent ? "Sent to the family" : row.status === "ready" ? "Ready to send" : canApprove ? "AI draft · read it and change anything before it is sent" : "AI draft · waiting for the class teacher to check it"}
             </span>
             <span style={{ display: "flex", gap: 14 }}>
-              {!noteLocked && <button type="button" style={{ background: "none", border: "none", padding: 0, color: COLORS.brand, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }} onClick={() => run("Writing…", onWrite)} disabled={!!busy}>Write again</button>}
+              {!noteLocked && <button type="button" style={{ background: "none", border: "none", padding: 0, color: COLORS.brand, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }} onClick={() => run("Writing…", () => onWrite(highlight.trim()))} disabled={!!busy}>Write again</button>}
               <button type="button" style={{ background: "none", border: "none", padding: 0, color: COLORS.brand, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }} onClick={() => setShowFr(!showFr)}>{showFr ? "Show English" : "Show French"}</button>
             </span>
           </div>
