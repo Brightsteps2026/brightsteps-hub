@@ -220,7 +220,8 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
   const going = riders.filter((r) => !r.skip).map((r) => ({ ...r, dist: distTo(r) })).sort((a, b) => {
     if (stage(a) !== stage(b)) return stage(a) - stage(b);
     // Morning: follow the pickup order set by Myri (10 Nov 2026)
-    if (isMorningTrip && a.route_order != null && b.route_order != null) return a.route_order - b.route_order;
+    // Afternoon: the same route in reverse (Madim and Mila first, Bloom last)
+    if (a.route_order != null && b.route_order != null) return isMorningTrip ? a.route_order - b.route_order : b.route_order - a.route_order;
     if (a.dist != null && b.dist != null) return a.dist - b.dist;
     if (a.dist != null) return -1;
     if (b.dist != null) return 1;
@@ -377,7 +378,7 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
               </div>
               <span style={{ display: "flex", gap: 6 }}>
                 {url && <a href={url} target="_blank" rel="noopener noreferrer" style={{ ...chip, textDecoration: "none" }}>{L.map}</a>}
-                {r.phones?.[0] && <a href={`tel:${r.phones[0].replace(/\s/g, "")}`} style={{ ...chip, textDecoration: "none" }}>{L.call}</a>}
+                {!standalone && !helper && r.phones?.[0] && <a href={`tel:${r.phones[0].replace(/\s/g, "")}`} style={{ ...chip, textDecoration: "none" }}>{L.call}</a>}
               </span>
             </div>
             {live && (
