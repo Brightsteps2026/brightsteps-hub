@@ -6,6 +6,10 @@
 // who haven't booked, book for a family (e.g. by phone) and remove a booking.
 // Term 1: PreK, KG, Grade 1 & 2 also have Tue 24 Nov 15:30–17:00; everyone has Wed 25 Nov
 // 8:00–15:30 with lunch 12:00–13:00. Slots live in pt_slots; a booking also writes pt_meetings.
+// 10 Nov 2026: a child can have several conferences — one per teacher (homeroom, Ms Maryliz for
+// Grade 6–7, Mr Jonathan for French, 10 min). Each teacher has their own slots; a family books one
+// time per teacher, and two of a child's conferences can't overlap. Parents only see the teacher's
+// name (and subject), never the list of classes.
 // Staff screens are English only; the family view follows the EN/FR toggle.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -76,14 +80,14 @@ export default function MeetingsTab({ profile }) {
 
   const groups = useMemo(() => {
     const m = new Map();
-    slots.forEach((s) => { if (!m.has(s.teacher_name)) m.set(s.teacher_name, s.grades); });
-    return [...m.entries()].map(([teacher, grades]) => ({ teacher, grades }));
+    slots.forEach((s) => { if (!m.has(s.teacher_name)) m.set(s.teacher_name, { grades: s.grades, subject: s.subject }); });
+    return [...m.entries()].map(([teacher, g]) => ({ teacher, ...g }));
   }, [slots]);
   const current = groups.find((g) => g.teacher === group) || groups[0];
 
   const setOpen = async (open) => {
     const q = open
-      ? "Open booking? Every family of these classes gets a notice to choose their time (first come, first served)."
+      ? "Open booking? Every family of these classes gets a notice to choose their times (first come, first served)."
       : "Close booking? Families will no longer be able to book, change or cancel.";
     if (!window.confirm(q)) return;
     setBusy(true); setMsg("");
@@ -104,13 +108,14 @@ export default function MeetingsTab({ profile }) {
   const bookFor = async (slot, legacyId) => {
     if (!legacyId) return;
     const { error } = await supabase.rpc("pt_book", { p_slot: slot.id, p_hub_student_id: legacyId });
-    setMsg(error ? (/SLOT_TAKEN/.test(error.message) ? "Could not book: this time was just taken." : "Could not book this time.") : "Booked.");
+    setMsg(error ? (/SLOT_TAKEN/.test(error.message) ? "Could not book: this time was just taken."
+      : /TIME_CLASH/.test(error.message) ? "Could not book: this child already has another conference at that time." : "Could not book this time.") : "Booked.");
     load();
   };
 
   const cancel = async (st) => {
     if (!window.confirm(`Remove ${firstName(st)}'s booking? The time becomes free for other families.`)) return;
-    const { error } = await supabase.rpc("pt_cancel", { p_hub_student_id: st.legacy_id, p_round: ROUND });
+    const { error } = await supabase.rpc("pt_cancel", { p_hub_student_id: st.legacy_id, p_round: ROUND, p_teacher: current.teacher });
     setMsg(error ? "Could not remove the booking." : "Booking removed.");
     load();
   };
@@ -118,12 +123,14 @@ export default function MeetingsTab({ profile }) {
   if (loading) return <p style={{ ...card, color: COLORS.muted }}>Loading…</p>;
 
   const isOpen = !!round?.is_open;
-  const bookedIds = new Set(slots.filter((s) => s.booked_student_id).map((s) => s.booked_student_id));
-  const allBooked = students.filter((s) => bookedIds.has(s.id)).length;
+  const bookedKey = new Set(slots.filter((s) => s.booked_student_id).map((s) => `${s.teacher_name}|${s.booked_student_id}`));
+  const needed = groups.reduce((n, g) => n + students.filter((s) => g.grades.includes(s.grade)).length, 0);
+  const allBooked = bookedKey.size;
   const stById = Object.fromEntries(students.map((s) => [s.id, s]));
   const gSlots = current ? slots.filter((s) => s.teacher_name === current.teacher) : [];
   const gKids = current ? students.filter((s) => current.grades.includes(s.grade)) : [];
-  const gUnbooked = gKids.filter((s) => !bookedIds.has(s.id));
+  const gUnbooked = gKids.filter((s) => !bookedKey.has(`${current.teacher}|${s.id}`));
+  const label = (g) => `${g.teacher}${g.subject ? ` (${g.subject})` : ""}`;
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto" }}>
@@ -131,11 +138,11 @@ export default function MeetingsTab({ profile }) {
         <p style={{ margin: 0, fontSize: 12, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase", color: COLORS.brand }}>Parent–teacher conferences</p>
         <h1 style={{ margin: "4px 0 6px", fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 600 }}>{ROUND}</h1>
         <p style={{ ...small, margin: "0 0 10px" }}>
-          Parents choose their own time on the Hub — first come, first served. Each conference is 20 minutes with a 5-minute break after it.
+          Parents choose their own times on the Hub — first come, first served. Class conferences are 20 minutes with a 5-minute break; French with Mr Jonathan is 10 minutes. A family books one time per teacher, and a child's conferences can't overlap.
         </p>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span style={pill(isOpen ? "ok" : "neutral")}>{isOpen ? "Booking open" : "Booking closed"}</span>
-          <span style={small}>{allBooked} of {students.length} children booked</span>
+          <span style={small}>{allBooked} of {needed} conferences booked</span>
         </div>
         {isAdmin && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
@@ -152,7 +159,7 @@ export default function MeetingsTab({ profile }) {
         <div style={{ ...card, display: "flex", gap: 7, flexWrap: "wrap" }}>
           {groups.map((g) => (
             <button key={g.teacher} style={g.teacher === current?.teacher ? chipOn : chip} onClick={() => setGroup(g.teacher)}>
-              {g.teacher} · {g.grades.join(", ")}
+              {label(g)} · {g.grades.join(", ")}
             </button>
           ))}
         </div>
@@ -161,7 +168,7 @@ export default function MeetingsTab({ profile }) {
       {current && (
         <section style={card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
-            <h2 style={{ margin: 0, fontSize: 17 }}>{current.teacher} · {current.grades.join(", ")}</h2>
+            <h2 style={{ margin: 0, fontSize: 17 }}>{label(current)} · {current.grades.join(", ")}</h2>
             <span style={small}>{gKids.length - gUnbooked.length} of {gKids.length} booked</span>
           </div>
           {byDay(gSlots).map(([day, list]) => (
@@ -211,19 +218,23 @@ export default function MeetingsTab({ profile }) {
 
 const F = {
   en: { title: "Parent–teacher conference", book: "Choose your conference time",
-        intro: "Pick the time that works best for you. First come, first served: once a time is booked by another family, it is no longer available. Each conference lasts 20 minutes.",
+        intro: "Pick the time that works best for you with each teacher. First come, first served: once a time is booked by another family, it is no longer available.",
         with: "With", atSchool: "At school", cal: "Add to calendar", change: "Change time", cancel: "Cancel booking",
         booked: "Your conference is booked. See you then!", none: "All times are booked. Please contact the school.",
         confirm: (d, t, who) => `Book ${d} at ${t} with ${who}?`, cancelQ: "Cancel this booking? The time will become free for other families.",
         taken: "Sorry, another family has just booked this time. Please choose another one.", error: "Something went wrong. Please try again.",
-        back: "Keep my current time" },
+        back: "Keep my current time", minutes: (n) => `${n} min`, todo: "Not booked yet",
+        clash: "Your child already has another conference at that time. Please choose another one.",
+        subj: { French: "French" } },
   fr: { title: "Conférence parents–enseignant", book: "Choisissez l'horaire de votre conférence",
-        intro: "Choisissez l'horaire qui vous convient le mieux. Premier arrivé, premier servi : dès qu'un horaire est réservé par une autre famille, il n'est plus disponible. Chaque conférence dure 20 minutes.",
+        intro: "Choisissez l'horaire qui vous convient le mieux avec chaque enseignant(e). Premier arrivé, premier servi : dès qu'un horaire est réservé par une autre famille, il n'est plus disponible.",
         with: "Avec", atSchool: "À l'école", cal: "Ajouter au calendrier", change: "Changer d'horaire", cancel: "Annuler la réservation",
         booked: "Votre conférence est réservée. À bientôt !", none: "Tous les horaires sont réservés. Merci de contacter l'école.",
         confirm: (d, t, who) => `Réserver le ${d} à ${t} avec ${who} ?`, cancelQ: "Annuler cette réservation ? L'horaire sera libéré pour d'autres familles.",
         taken: "Désolé, une autre famille vient de réserver cet horaire. Merci d'en choisir un autre.", error: "Une erreur s'est produite. Merci de réessayer.",
-        back: "Garder mon horaire actuel" }
+        back: "Garder mon horaire actuel", minutes: (n) => `${n} min`, todo: "Pas encore réservé",
+        clash: "Votre enfant a déjà une autre conférence à cet horaire. Merci d'en choisir un autre.",
+        subj: { French: "Français" } }
 };
 
 function downloadIcs(m, childName) {
@@ -234,7 +245,7 @@ function downloadIcs(m, childName) {
     "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//BrightSteps International School//Hub//EN", "BEGIN:VEVENT",
     `UID:pt-${m.id}@hub.bischoolci.org`,
     `DTSTART;TZID=Africa/Abidjan:${d}T${s}00`, `DTEND;TZID=Africa/Abidjan:${d}T${e}00`,
-    `SUMMARY:Parent–teacher conference · ${childName}`,
+    `SUMMARY:Parent–teacher conference · ${childName}${m.teacher_name ? ` · ${m.teacher_name}` : ""}`,
     `LOCATION:${(m.place || "BrightSteps International School").replace(/[,;]/g, " ")}`,
     "END:VEVENT", "END:VCALENDAR"
   ].join("\r\n");
@@ -249,9 +260,8 @@ export function MeetingFamily({ student, language = "en" }) {
   const lang = language === "fr" ? "fr" : "en";
   const L = F[lang];
   const [open, setOpen] = useState(false);
-  const [meeting, setMeeting] = useState(null);
+  const [meetings, setMeetings] = useState([]);
   const [free, setFree] = useState([]);
-  const [picking, setPicking] = useState(false);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -260,41 +270,78 @@ export function MeetingFamily({ student, language = "en" }) {
     const [r, m, f] = await Promise.all([
       supabase.from("pt_rounds").select("is_open").eq("round", ROUND).maybeSingle(),
       supabase.from("pt_meetings").select("*").eq("hub_student_id", student.id).eq("round", ROUND)
-        .eq("status", "published").gte("meet_date", today()).maybeSingle(),
+        .eq("status", "published").gte("meet_date", today()).order("meet_date").order("start_time"),
       supabase.rpc("pt_free_slots", { p_hub_student_id: student.id })
     ]);
     setOpen(!!r.data?.is_open);
-    setMeeting(m.data || null);
+    setMeetings(m.data || []);
     setFree(f.data || []);
   }, [student?.id]);
   useEffect(() => { load(); }, [load]);
 
   const book = async (s) => {
-    if (!window.confirm(L.confirm(dateLong(s.slot_date, lang), hm(s.start_time), s.teacher_name))) return;
+    if (!window.confirm(L.confirm(dateLong(s.slot_date, lang), hm(s.start_time), s.teacher_name))) return false;
     setBusy(true); setMsg("");
     const { error } = await supabase.rpc("pt_book", { p_slot: s.id, p_hub_student_id: student.id });
     setBusy(false);
-    if (error) setMsg(/SLOT_TAKEN/.test(error.message) ? L.taken : L.error);
-    else setPicking(false);
+    if (error) setMsg(/SLOT_TAKEN/.test(error.message) ? L.taken : /TIME_CLASH/.test(error.message) ? L.clash : L.error);
     load();
+    return !error;
   };
 
-  const cancel = async () => {
+  const cancel = async (teacher) => {
     if (!window.confirm(L.cancelQ)) return;
     setBusy(true);
-    const { error } = await supabase.rpc("pt_cancel", { p_hub_student_id: student.id, p_round: ROUND });
+    const { error } = await supabase.rpc("pt_cancel", { p_hub_student_id: student.id, p_round: ROUND, p_teacher: teacher });
     setBusy(false);
     if (error) setMsg(L.error);
     load();
   };
 
-  if (!meeting && !open) return null;
+  // One entry per teacher: the booked conference (if any) and that teacher's free times.
+  const teachers = useMemo(() => {
+    const m = new Map();
+    meetings.forEach((x) => m.set(x.teacher_name, { teacher: x.teacher_name, meeting: x, free: [] }));
+    free.forEach((s) => {
+      if (!m.has(s.teacher_name)) m.set(s.teacher_name, { teacher: s.teacher_name, meeting: null, free: [] });
+      const t = m.get(s.teacher_name);
+      t.free.push(s); t.subject = t.subject || s.subject; t.len = s.length_min;
+    });
+    return [...m.values()];
+  }, [meetings, free]);
+
+  if (!meetings.length && !open) return null;
   const childName = student.firstName || (student.name || "").split(" ")[0];
-  const showPicker = open && (!meeting || picking);
+  const anyTodo = open && teachers.some((t) => !t.meeting);
 
   return (
     <section className="bsf-card">
-      <h2 style={{ marginTop: 0 }}>{showPicker && !meeting ? L.book : L.title}</h2>
+      <h2 style={{ marginTop: 0 }}>{anyTodo && !meetings.length ? L.book : L.title}</h2>
+      {anyTodo && <p style={{ ...small, margin: "0 0 12px" }}>{L.intro}</p>}
+      {msg && <p style={{ ...pill("bad"), display: "block", whiteSpace: "normal", padding: "8px 12px", fontSize: 13, margin: "0 0 12px" }}>{msg}</p>}
+      {open && !teachers.length && <p style={{ ...small }}>{L.none}</p>}
+      {teachers.map((t, i) => (
+        <TeacherBooking key={t.teacher} t={t} L={L} lang={lang} open={open} busy={busy} childName={childName}
+          first={i === 0} onBook={book} onCancel={() => cancel(t.teacher)} clearMsg={() => setMsg("")} />
+      ))}
+    </section>
+  );
+}
+
+function TeacherBooking({ t, L, lang, open, busy, childName, first, onBook, onCancel, clearMsg }) {
+  const [picking, setPicking] = useState(false);
+  const meeting = t.meeting;
+  const showPicker = open && (!meeting || picking);
+  const subject = t.subject ? (L.subj[t.subject] || t.subject) : "";
+  const len = meeting?.length_min || t.len;
+
+  return (
+    <div style={{ borderTop: first ? "none" : `1px solid ${COLORS.line}`, paddingTop: first ? 0 : 14, marginTop: first ? 0 : 14 }}>
+      <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>
+        {L.with} {t.teacher}{subject ? ` · ${subject}` : ""}
+        {len ? <span style={{ ...small, fontWeight: 400 }}> · {L.minutes(len)}</span> : null}
+        {!meeting && open && <span style={{ ...pill("neutral"), marginLeft: 8 }}>{L.todo}</span>}
+      </h3>
 
       {meeting && (
         <div style={{ display: "flex", gap: 14, alignItems: "center", background: COLORS.tint, borderRadius: 14, padding: 14 }}>
@@ -307,9 +354,7 @@ export function MeetingFamily({ student, language = "en" }) {
           <div>
             <div style={{ fontSize: 13, color: COLORS.muted, textTransform: "capitalize" }}>{dateLong(meeting.meet_date, lang)}</div>
             <div style={{ fontSize: 21, fontWeight: 700 }}>{hm(meeting.start_time)} – {addMin(hm(meeting.start_time), meeting.length_min)}</div>
-            <div style={{ fontSize: 13, color: COLORS.muted }}>
-              {meeting.teacher_name ? `${L.with} ${meeting.teacher_name} · ` : ""}{meeting.place || L.atSchool}
-            </div>
+            <div style={{ fontSize: 13, color: COLORS.muted }}>{meeting.place || L.atSchool}</div>
           </div>
         </div>
       )}
@@ -319,32 +364,28 @@ export function MeetingFamily({ student, language = "en" }) {
           <p style={{ ...pill("ok"), display: "block", whiteSpace: "normal", padding: "8px 12px", fontSize: 13, marginTop: 12 }}>{L.booked}</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
             <button style={ghostBtn} onClick={() => downloadIcs(meeting, childName)}><CalendarPlus size={15} style={{ verticalAlign: "-3px", marginRight: 6 }} />{L.cal}</button>
-            {open && <button style={ghostBtn} disabled={busy} onClick={() => { setMsg(""); setPicking(true); }}>{L.change}</button>}
-            {open && <button style={ghostBtn} disabled={busy} onClick={cancel}>{L.cancel}</button>}
+            {open && <button style={ghostBtn} disabled={busy} onClick={() => { clearMsg(); setPicking(true); }}>{L.change}</button>}
+            {open && <button style={ghostBtn} disabled={busy} onClick={onCancel}>{L.cancel}</button>}
           </div>
         </>
       )}
 
       {showPicker && (
         <div style={{ marginTop: meeting ? 14 : 0 }}>
-          <p style={{ ...small, margin: "0 0 12px" }}>{L.intro}</p>
-          {msg && <p style={{ ...pill("bad"), display: "block", whiteSpace: "normal", padding: "8px 12px", fontSize: 13, margin: "0 0 12px" }}>{msg}</p>}
-          {!free.length && <p style={{ ...small }}>{L.none}</p>}
-          {byDay(free).map(([day, list]) => (
-            <div key={day} style={{ marginBottom: 14 }}>
-              <h3 style={{ margin: "0 0 8px", fontSize: 15, textTransform: "capitalize" }}>
-                {dateLong(day, lang)} <span style={{ ...small, fontWeight: 400, textTransform: "none" }}>· {L.with} {list[0].teacher_name}</span>
-              </h3>
+          {!t.free.length && <p style={{ ...small }}>{L.none}</p>}
+          {byDay(t.free).map(([day, list]) => (
+            <div key={day} style={{ marginBottom: 12 }}>
+              <div style={{ ...small, margin: "0 0 6px", textTransform: "capitalize", fontWeight: 600 }}>{dateLong(day, lang)}</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(92px, 1fr))", gap: 8 }}>
                 {list.map((s) => (
-                  <button key={s.id} disabled={busy} onClick={() => book(s)} style={{ ...ghostBtn, minHeight: 44, fontWeight: 600 }}>{hm(s.start_time)}</button>
+                  <button key={s.id} disabled={busy} onClick={async () => { if (await onBook(s)) setPicking(false); }} style={{ ...ghostBtn, minHeight: 44, fontWeight: 600 }}>{hm(s.start_time)}</button>
                 ))}
               </div>
             </div>
           ))}
-          {meeting && <button style={{ ...ghostBtn, marginTop: 4 }} onClick={() => { setMsg(""); setPicking(false); }}>{L.back}</button>}
+          {meeting && <button style={{ ...ghostBtn, marginTop: 4 }} onClick={() => { clearMsg(); setPicking(false); }}>{L.back}</button>}
         </div>
       )}
-    </section>
+    </div>
   );
 }
