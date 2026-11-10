@@ -150,7 +150,7 @@ export function useBusAccess(profile) {
 }
 
 export default function BusTab({ office, helper }) {
-  if (helper) return <div style={{ padding: "16px 16px 90px" }}><BusRun /></div>;
+  if (helper) return <div style={{ padding: "16px 16px 90px" }}><BusRun helper /></div>;
   return office ? <BusOfficeTabs /> : <BusFamily />;
 }
 

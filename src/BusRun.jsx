@@ -19,7 +19,8 @@ const T = {
     geoOff: "The phone did not share its location. Allow location for this site in the phone settings.",
     onM: "Picked up", offM: "At school", onA: "On the bus", offA: "Dropped home",
     allSchool: "Everyone on board is at school", onBoard: "On board", toPick: "To pick up", dropped: "Off the bus",
-    skipping: "Not taking the bus today", undo: "Undo", map: "Map", call: "Call",
+    skipping: "Not taking the bus today", undo: "Undo",
+    markSkip: "Not taking the bus today", confirmSkip: (n) => `Mark ${n} as not taking the bus for this trip? The parents will be told.`, map: "Map", call: "Call",
     endWarn: (n) => `${n} child${n === 1 ? " is" : "ren are"} still marked on the bus. End the trip anyway?`,
     signOut: "Sign out", notStarted: "Trip not started", liveAt: "Last position", none: "No children on the bus list.",
     confirmUndo: "Undo this tap? The family already got a notice.",
@@ -36,7 +37,8 @@ const T = {
     geoOff: "Le téléphone n'a pas partagé sa position. Autorisez la localisation pour ce site dans les réglages.",
     onM: "Ramassé(e)", offM: "Arrivé(e) à l'école", onA: "Dans le car", offA: "Déposé(e)",
     allSchool: "Tous les élèves à bord sont à l'école", onBoard: "À bord", toPick: "À ramasser", dropped: "Descendus",
-    skipping: "Ne prend pas le car aujourd'hui", undo: "Annuler", map: "Carte", call: "Appeler",
+    skipping: "Ne prend pas le car aujourd'hui", undo: "Annuler",
+    markSkip: "Ne prend pas le car aujourd'hui", confirmSkip: (n) => `Marquer que ${n} ne prend pas le car pour ce trajet ? Les parents seront prévenus.`, map: "Carte", call: "Appeler",
     endWarn: (n) => `${n} enfant${n === 1 ? " est encore marqué" : "s sont encore marqués"} dans le car. Terminer quand même ?`,
     signOut: "Se déconnecter", notStarted: "Trajet pas encore démarré", liveAt: "Dernière position", none: "Aucun enfant sur la liste du car.",
     confirmUndo: "Annuler ce pointage ? La famille a déjà reçu une notification.",
@@ -60,7 +62,7 @@ const metres = (a, b) => {
 const NEAR_M = 200;   // big "tap now" card when the bus is this close to a home
 const card = { background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 14, marginBottom: 10 };
 
-export default function BusRun({ standalone = false, onSignOut }) {
+export default function BusRun({ standalone = false, helper = false, onSignOut }) {
   // Bus phone: French by default, with an FR/EN switch. Admin screen: always English (staff screens are English only).
   const [lang, setLang] = useState(() => { if (!standalone) return "en"; try { return localStorage.getItem("bs-bus-lang") || "fr"; } catch { return "fr"; } });
   const L = T[lang];
@@ -177,6 +179,23 @@ export default function BusRun({ standalone = false, onSignOut }) {
     load();
   };
 
+  // Admin only: mark a child as not taking the bus when the parent did not (Myri, 10 Nov 2026)
+  const skipChild = async (r) => {
+    if (!window.confirm(L.confirmSkip(r.name))) return;
+    setBusy(r.student_id + "skip");
+    const { error } = await supabase.rpc("bus_skip_set", { p_student: r.student_id, p_date: run.date, p_trip: trip, p_note: null });
+    setBusy("");
+    if (error) setMsg(error.message);
+    load();
+  };
+  const unskipChild = async (r) => {
+    setBusy(r.student_id + "unskip");
+    const { error } = await supabase.rpc("bus_skip_remove", { p_student: r.student_id, p_date: run.date, p_trip: trip });
+    setBusy("");
+    if (error) setMsg(error.message);
+    load();
+  };
+
   const allAtSchool = async () => {
     const list = (run?.riders || []).filter((r) => r.on_at && !r.off_at);
     if (!list.length || !window.confirm(`${L.allSchool} (${list.length})?`)) return;
@@ -200,6 +219,8 @@ export default function BusRun({ standalone = false, onSignOut }) {
   const usualMin = (r) => { const u = usual[r.student_id]; return isMorningTrip ? (u?.morning_trips ? u.morning_on : null) : (u?.afternoon_trips ? u.afternoon_off : null); };
   const going = riders.filter((r) => !r.skip).map((r) => ({ ...r, dist: distTo(r) })).sort((a, b) => {
     if (stage(a) !== stage(b)) return stage(a) - stage(b);
+    // Morning: follow the pickup order set by Myri (10 Nov 2026)
+    if (isMorningTrip && a.route_order != null && b.route_order != null) return a.route_order - b.route_order;
     if (a.dist != null && b.dist != null) return a.dist - b.dist;
     if (a.dist != null) return -1;
     if (b.dist != null) return 1;
@@ -366,6 +387,9 @@ export default function BusRun({ standalone = false, onSignOut }) {
                 {(r.on_at || r.off_at) && <button style={{ ...ghostBtn, minHeight: 48 }} onClick={() => unmark(r, r.off_at ? "off" : "on")}>{L.undo}</button>}
               </div>
             )}
+            {!standalone && !helper && !r.on_at && (
+              <button style={{ ...ghostBtn, marginTop: 8, fontSize: 13, color: COLORS.bad }} disabled={busy === r.student_id + "skip"} onClick={() => skipChild(r)}>{L.markSkip}</button>
+            )}
           </div>
         );
       })}
@@ -376,7 +400,10 @@ export default function BusRun({ standalone = false, onSignOut }) {
         <div style={{ ...card, background: COLORS.surface2 }}>
           <p style={{ margin: "0 0 6px", fontWeight: 600 }}>{L.skipping} · {skipping.length}</p>
           {skipping.map((r) => (
-            <p key={r.student_id} style={{ margin: "4px 0", fontSize: 14 }}>{r.name} <span style={{ color: COLORS.muted }}>· {r.zone}{r.skip_note ? ` · ${r.skip_note}` : ""}</span></p>
+            <p key={r.student_id} style={{ margin: "4px 0", fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ flex: 1 }}>{r.name} <span style={{ color: COLORS.muted }}>· {r.zone}{r.skip_note ? ` · ${r.skip_note}` : ""}</span></span>
+              {!standalone && !helper && <button style={{ ...ghostBtn, fontSize: 13 }} disabled={busy === r.student_id + "unskip"} onClick={() => unskipChild(r)}>{L.undo}</button>}
+            </p>
           ))}
         </div>
       )}
