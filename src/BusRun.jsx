@@ -389,7 +389,7 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
               </div>
             )}
             {!standalone && !helper && !r.on_at && (
-              <button style={{ ...ghostBtn, marginTop: 10, width: "100%", minHeight: 40, fontSize: 14, fontWeight: 600, color: COLORS.bad, borderColor: COLORS.bad }} disabled={busy === r.student_id + "skip"} onClick={() => skipChild(r)}>✕ {L.markSkip}</button>
+              <button style={{ ...ghostBtn, marginTop: 10, width: "100%", minHeight: 40, fontSize: 14, fontWeight: 600, color: COLORS.bad, borderColor: COLORS.bad }} disabled={busy === r.student_id + "skip"} onClick={() => skipChild(r)}>{L.markSkip}</button>
             )}
           </div>
         );
