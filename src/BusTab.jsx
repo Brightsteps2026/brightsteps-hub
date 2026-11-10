@@ -159,6 +159,7 @@ function BusOfficeTabs() {
   const [skips, setSkips] = useState([]);
   const [usual, setUsual] = useState([]);
   const [names, setNames] = useState({});
+  const [order, setOrder] = useState({});
   useEffect(() => {
     if (view !== "today") return;
     supabase.rpc("bus_skips_upcoming").then(({ data }) => setSkips(data || []));
@@ -168,11 +169,14 @@ function BusOfficeTabs() {
       if (rows.length) {
         const { data: st } = await supabase.from("students").select("id, full_name").in("id", rows.map((r) => r.student_id));
         setNames(Object.fromEntries((st || []).map((x) => [x.id, x.full_name])));
+        const { data: ro } = await supabase.from("bus_riders").select("student_id, route_order");
+        setOrder(Object.fromEntries((ro || []).map((x) => [x.student_id, x.route_order ?? 999])));
       }
     });
   }, [view]);
   const timed = usual.filter((u) => u.morning_trips || u.afternoon_trips)
-    .sort((a, b) => (a.morning_on ?? 9999) - (b.morning_on ?? 9999));
+    // Same order as the morning route (Myri, 10 Nov 2026)
+    .sort((a, b) => (order[a.student_id] ?? 999) - (order[b.student_id] ?? 999));
   return (
     <div>
       <div style={{ display: "flex", gap: 7, padding: "16px 16px 0" }}>
@@ -317,7 +321,8 @@ function BusOffice() {
   const collected = payments.filter((p) => p.paid).reduce((n, p) => n + p.amount, 0);
   const noHome = active.filter((r) => !hasHome(r)).length;
 
-  const sorted = [...riders].sort((a, b) => nameOf(a.student_id).full_name.localeCompare(nameOf(b.student_id).full_name));
+  // Riders in the morning route order (Myri, 10 Nov 2026); children not on the route yet come last, by name
+  const sorted = [...riders].sort((a, b) => ((a.route_order ?? 999) - (b.route_order ?? 999)) || nameOf(a.student_id).full_name.localeCompare(nameOf(b.student_id).full_name));
   const shown = sorted.filter((r) =>
     filter === "unpaid" ? r.active && !paidIds.has(r.student_id)
     : filter === "paid" ? paidIds.has(r.student_id)
