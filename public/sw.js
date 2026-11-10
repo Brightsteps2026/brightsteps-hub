@@ -15,8 +15,9 @@ self.addEventListener("push", (event) => {
         body: data.body || "",
         icon: "/icon-192.png",
         badge: "/icon-192.png",
-        tag: busAlert ? "bus-" + Date.now() : data.tag,
-        renotify: busAlert,
+        // Family bus notices (?t=...): the updated "Mila and Madim..." notice replaces the first one
+        tag: busAlert ? "bus-" + Date.now() : (String(data.url || "").match(/[?&]t=([a-f0-9]+)/) || [])[1] || data.tag,
+        renotify: busAlert || /[?&]t=/.test(String(data.url || "")),
         silent: false,
         requireInteraction: busAlert,
         vibrate: busAlert ? [400, 150, 400, 150, 400] : [200],
