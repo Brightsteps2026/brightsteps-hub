@@ -20,7 +20,8 @@ const T = {
     onM: "Picked up", offM: "At school", onA: "On the bus", offA: "Dropped home",
     allSchool: "Everyone on board is at school", onBoard: "On board", toPick: "To pick up", dropped: "Off the bus",
     skipping: "Not taking the bus today", undo: "Undo",
-    markSkip: "Not taking the bus today", confirmSkip: (n) => `Mark ${n} as not taking the bus for this trip? The parents will be told.`, map: "Map", call: "Call",
+    markSkip: "Not taking the bus today", skipDay: "Not coming on the bus today (whole day)", skipMorning: "Morning only", skipAfternoon: "Not taking the bus this afternoon",
+    confirmSkip: (n, what) => `${n}: ${what}? The parents will be told.`, map: "Map", call: "Call",
     endWarn: (n) => `${n} child${n === 1 ? " is" : "ren are"} still marked on the bus. End the trip anyway?`,
     signOut: "Sign out", notStarted: "Trip not started", liveAt: "Last position", none: "No children on the bus list.",
     confirmUndo: "Undo this tap? The family already got a notice.",
@@ -38,7 +39,8 @@ const T = {
     onM: "Ramassé(e)", offM: "Arrivé(e) à l'école", onA: "Dans le car", offA: "Déposé(e)",
     allSchool: "Tous les élèves à bord sont à l'école", onBoard: "À bord", toPick: "À ramasser", dropped: "Descendus",
     skipping: "Ne prend pas le car aujourd'hui", undo: "Annuler",
-    markSkip: "Ne prend pas le car aujourd'hui", confirmSkip: (n) => `Marquer que ${n} ne prend pas le car pour ce trajet ? Les parents seront prévenus.`, map: "Carte", call: "Appeler",
+    markSkip: "Ne prend pas le car aujourd'hui", skipDay: "Ne prend pas le car aujourd'hui (toute la journée)", skipMorning: "Matin seulement", skipAfternoon: "Ne prend pas le car cet après-midi",
+    confirmSkip: (n, what) => `${n} : ${what} ? Les parents seront prévenus.`, map: "Carte", call: "Appeler",
     endWarn: (n) => `${n} enfant${n === 1 ? " est encore marqué" : "s sont encore marqués"} dans le car. Terminer quand même ?`,
     signOut: "Se déconnecter", notStarted: "Trajet pas encore démarré", liveAt: "Dernière position", none: "Aucun enfant sur la liste du car.",
     confirmUndo: "Annuler ce pointage ? La famille a déjà reçu une notification.",
@@ -180,10 +182,11 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
   };
 
   // Admin only: mark a child as not taking the bus when the parent did not (Myri, 10 Nov 2026)
-  const skipChild = async (r) => {
-    if (!window.confirm(L.confirmSkip(r.name))) return;
+  // Whole day = both trips in one tap (Myri, 12 Nov 2026)
+  const skipChild = async (r, which, label) => {
+    if (!window.confirm(L.confirmSkip(r.name, label))) return;
     setBusy(r.student_id + "skip");
-    const { error } = await supabase.rpc("bus_skip_set", { p_student: r.student_id, p_date: run.date, p_trip: trip, p_note: null });
+    const { error } = await supabase.rpc("bus_skip_set", { p_student: r.student_id, p_date: run.date, p_trip: which, p_note: null });
     setBusy("");
     if (error) setMsg(error.message);
     load();
@@ -389,7 +392,14 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
               </div>
             )}
             {!standalone && !helper && !r.on_at && (
-              <button style={{ ...ghostBtn, marginTop: 10, width: "100%", minHeight: 40, fontSize: 14, fontWeight: 600, color: COLORS.bad, borderColor: COLORS.bad }} disabled={busy === r.student_id + "skip"} onClick={() => skipChild(r)}>{L.markSkip}</button>
+              isMorning ? (
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button style={{ ...ghostBtn, flex: 2, minHeight: 40, fontSize: 14, fontWeight: 600, color: COLORS.bad, borderColor: COLORS.bad }} disabled={busy === r.student_id + "skip"} onClick={() => skipChild(r, "day", L.skipDay)}>{L.skipDay}</button>
+                  <button style={{ ...ghostBtn, flex: 1, minHeight: 40, fontSize: 14 }} disabled={busy === r.student_id + "skip"} onClick={() => skipChild(r, "morning", L.skipMorning)}>{L.skipMorning}</button>
+                </div>
+              ) : (
+                <button style={{ ...ghostBtn, marginTop: 10, width: "100%", minHeight: 40, fontSize: 14, fontWeight: 600, color: COLORS.bad, borderColor: COLORS.bad }} disabled={busy === r.student_id + "skip"} onClick={() => skipChild(r, "afternoon", L.skipAfternoon)}>{L.skipAfternoon}</button>
+              )
             )}
           </div>
         );

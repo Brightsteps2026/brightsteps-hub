@@ -70,7 +70,9 @@ const T = {
   skipHelp: { en: "Tell the bus not to come. Morning trip: before 6:30 the same day. Afternoon trip: before 12:00. After that, please call the school.", fr: "Prévenez le car de ne pas venir. Trajet du matin : avant 6h30 le jour même. Trajet de l'après-midi : avant 12h00. Après, merci d'appeler l'école." },
   date: { en: "Date", fr: "Date" },
   which: { en: "Which trip", fr: "Quel trajet" },
-  both: { en: "Both", fr: "Les deux" },
+  day: { en: "Whole day", fr: "Toute la journée" },
+  morningOnly: { en: "Morning only", fr: "Matin seulement" },
+  afternoonOnly: { en: "Afternoon only", fr: "Après-midi seulement" },
   reason: { en: "Reason (optional)", fr: "Motif (facultatif)" },
   send: { en: "Tell the school", fr: "Prévenir l'école" },
   sent: { en: "Thank you. The bus knows not to pick up your child.", fr: "Merci. Le car sait qu'il ne doit pas venir chercher votre enfant." },
@@ -213,9 +215,9 @@ function BusOfficeTabs() {
           {skips.length > 0 && (
             <div style={card}>
               <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Not taking the bus · coming up</p>
-              {skips.map((k) => (
-                <p key={`${k.student_id}${k.skip_date}${k.trip}`} style={{ margin: "4px 0", fontSize: 14 }}>
-                  {new Date(`${k.skip_date}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · {k.trip} · <strong>{k.name}</strong>
+              {groupSkips(skips).map((k) => (
+                <p key={`${k.student_id}${k.skip_date}`} style={{ margin: "4px 0", fontSize: 14 }}>
+                  {new Date(`${k.skip_date}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · <span style={pill(k.what === "day" ? "warn" : "neutral")}>{T[k.what].en}</span> · <strong>{k.full_name || k.name}</strong>
                   {k.note ? <span style={{ color: COLORS.muted }}> · {k.note}</span> : null}
                 </p>
               ))}
@@ -606,12 +608,17 @@ function BusFamily() {
             <TodayTrips info={today.find((x) => x.student_id === r.student_id)} tr={tr} locale={locale} />
 
             <div style={{ padding: "10px 0", borderTop: `1px solid ${COLORS.line}` }}>
-              {skips.filter((k) => k.student_id === r.student_id).map((k) => (
-                <div key={`${k.skip_date}${k.trip}`} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, padding: "4px 0" }}>
+              {groupSkips(skips.filter((k) => k.student_id === r.student_id)).map((k) => (
+                <div key={k.skip_date} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, padding: "4px 0" }}>
                   <span style={pill("warn")}>{tr("notTaking")}</span>
-                  <span>{new Date(`${k.skip_date}T12:00:00`).toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" })} · {tr(k.trip)}</span>
+                  <span>{new Date(`${k.skip_date}T12:00:00`).toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" })} · <strong>{tr(k.what)}</strong></span>
                   <button style={{ ...chip, marginLeft: "auto", padding: "4px 10px" }} onClick={async () => {
-                    const { error } = await supabase.rpc("bus_skip_remove", { p_student: r.student_id, p_date: k.skip_date, p_trip: k.trip });
+                    let error = null;
+                    for (const t of k.trips) {
+                      // eslint-disable-next-line no-await-in-loop
+                      const res = await supabase.rpc("bus_skip_remove", { p_student: r.student_id, p_date: k.skip_date, p_trip: t });
+                      if (res.error) { error = res.error; break; }
+                    }
                     setStatus(error ? (/TOO_LATE/.test(error.message) ? tr("tooLate") : error.message) : "");
                     loadToday();
                   }}>{tr("undoSkip")}</button>
@@ -836,16 +843,27 @@ function TodayTrips({ info, tr, locale }) {
   );
 }
 
+// One line per child and day: both trips together show as "Whole day" (Myri, 12 Nov 2026)
+function groupSkips(list) {
+  const out = [];
+  for (const k of list || []) {
+    const g = out.find((x) => x.student_id === k.student_id && x.skip_date === k.skip_date);
+    if (g) { g.trips.push(k.trip); g.note = g.note || k.note; } else out.push({ ...k, trips: [k.trip] });
+  }
+  for (const g of out) g.what = g.trips.length > 1 ? "day" : g.trips[0] === "morning" ? "morningOnly" : "afternoonOnly";
+  return out;
+}
+
 function SkipForm({ tr, onSend, onCancel }) {
   const now = new Date();
   const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const mins = now.getHours() * 60 + now.getMinutes();
   const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   const [date, setDate] = useState(mins < 12 * 60 ? iso(now) : iso(tomorrow));
-  const [which, setWhich] = useState(mins < 6 * 60 + 30 ? "both" : mins < 12 * 60 ? "afternoon" : "both");
+  const [which, setWhich] = useState(mins >= 6 * 60 + 30 && mins < 12 * 60 ? "afternoon" : "day");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  const trips = which === "both" ? ["morning", "afternoon"] : [which];
+  const trips = [which];
   return (
     <div style={{ background: COLORS.surface2, borderRadius: 12, padding: 12, marginTop: 6 }}>
       <p style={{ margin: "0 0 4px", fontWeight: 600, fontSize: 14 }}>{tr("skipTitle")}</p>
@@ -855,7 +873,7 @@ function SkipForm({ tr, onSend, onCancel }) {
       </label>
       <p style={{ fontSize: 13, color: COLORS.muted, margin: "10px 0 4px" }}>{tr("which")}</p>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {["morning", "afternoon", "both"].map((k) => <button key={k} style={which === k ? chipOn : chip} onClick={() => setWhich(k)}>{tr(k)}</button>)}
+        {[["day", "day"], ["morning", "morningOnly"], ["afternoon", "afternoonOnly"]].map(([k, lab]) => <button key={k} style={which === k ? chipOn : chip} onClick={() => setWhich(k)}>{tr(lab)}</button>)}
       </div>
       <label style={{ display: "block", fontSize: 13, color: COLORS.muted, marginTop: 10 }}>{tr("reason")}
         <input value={note} onChange={(e) => setNote(e.target.value)} style={{ ...input, marginTop: 4 }} />
