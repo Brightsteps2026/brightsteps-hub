@@ -7,7 +7,10 @@ import { StudentThumb } from "../ui/common";
 import { AbsenceNotices } from "./Messages";
 import { AttendanceRange } from "./AttendanceRange";
 
-const STATUS_CYCLE = ["present", "absent", "late"];
+// Myri, 12 Nov 2026: no more tap-to-cycle (too easy to change by accident) — one clear button per status.
+// Excused can be set by the admin too (e.g. the school knows the child is sick), with a short reason.
+const STATUS_CHOICES = ["present", "absent", "late"];
+const EXCUSE_REASONS = ["Sick", "Medical appointment", "Family reason", "Other"];
 
 const STATUS_LABEL = { present: "Present", absent: "Absent", late: "Late", excused: "Excused" };
 
@@ -27,6 +30,7 @@ function AttendanceTab({ data, persist, profile }) {
   const isStudent = profile?.role === "student";
   const isSelfOnly = isParent || isStudent;
   const isStaffScoped = profile?.role === "teacher" || profile?.role === "learning_assistant";
+  const isAdmin = profile?.role === "admin";
   const linkedIds = profile?.student_ids || [];
   const myAssignedGrades = profile?.grades_assigned || [];
   const myGrades = isSelfOnly
@@ -39,7 +43,10 @@ function AttendanceTab({ data, persist, profile }) {
   const dayRecord = data.attendance[date] || {};
   // Arrival time for late children, kept beside the register: lateArrivals[date][studentId] = { time, bus }.
   const dayLate = (data.lateArrivals || {})[date] || {};
-  const reportedReasons = useReportedAbsences(date);
+  const parentReasons = useReportedAbsences(date);
+  // Reasons the school entered itself: excusedReasons[date][studentId] = "Sick" etc.
+  const dayExcuse = (data.excusedReasons || {})[date] || {};
+  const reportedReasons = { ...dayExcuse, ...parentReasons };
   const gradeStudents = isSelfOnly
     ? data.students.filter((s) => linkedIds.includes(s.id) && s.grade === activeGrade)
     : data.students.filter((s) => s.grade === activeGrade);
@@ -57,7 +64,16 @@ function AttendanceTab({ data, persist, profile }) {
     } else {
       delete nextLate[studentId];
     }
-    persist({ ...data, attendance: { ...data.attendance, [date]: nextDay }, lateArrivals: { ...allLate, [date]: nextLate } });
+    const allEx = data.excusedReasons || {};
+    const nextEx = { ...dayExcuse };
+    if (status === "excused") { if (!nextEx[studentId] && !parentReasons[studentId]) nextEx[studentId] = "Sick"; }
+    else delete nextEx[studentId];
+    persist({ ...data, attendance: { ...data.attendance, [date]: nextDay }, lateArrivals: { ...allLate, [date]: nextLate }, excusedReasons: { ...allEx, [date]: nextEx } });
+  };
+
+  const setExcuseReason = (studentId, reason) => {
+    const allEx = data.excusedReasons || {};
+    persist({ ...data, excusedReasons: { ...allEx, [date]: { ...dayExcuse, [studentId]: reason } } });
   };
 
   const setLateInfo = (studentId, patch) => {
@@ -75,11 +91,8 @@ function AttendanceTab({ data, persist, profile }) {
     return parts.length ? " · " + parts.join(" · ") : "";
   };
 
-  const cycleStatus = (studentId) => {
-    if (isSelfOnly) return;
-    const current = dayRecord[studentId];
-    const idx = current ? STATUS_CYCLE.indexOf(current) : -1;
-    const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+  const pickStatus = (studentId, next) => {
+    if (isSelfOnly || dayRecord[studentId] === next) return;
     setStatus(studentId, next);
   };
 
@@ -228,21 +241,49 @@ function AttendanceTab({ data, persist, profile }) {
             </div>
           ) : (
             <div key={s.id}>
-            <button className="bsf-card bsf-attend-row bsf-clickable" style={{ width: "100%" }} onClick={() => cycleStatus(s.id)}>
-              <StudentThumb photo={s.photo} />
-              <span>
-                <strong>{s.name}</strong>
-              </span>
-              <span
-                className="bsf-status-pill"
-                style={{
-                  background: status ? `${STATUS_COLOR[status]}1A` : "#EEE6D2",
-                  color: status ? STATUS_COLOR[status] : "#6B7578"
-                }}
-              >
-                {status ? STATUS_LABEL[status] + (status === "excused" && reportedReasons[s.id] ? " · " + reportedReasons[s.id] : "") + (status === "late" ? lateText(s.id, "en") : "") : "Tap to mark"}
-              </span>
-            </button>
+            <div className="bsf-card" style={{ width: "100%", padding: 12 }}>
+              <div className="bsf-attend-row" style={{ border: 0, padding: 0, margin: 0, boxShadow: "none" }}>
+                <StudentThumb photo={s.photo} />
+                <span>
+                  <strong>{s.name}</strong>
+                </span>
+                <span
+                  className="bsf-status-pill"
+                  style={{
+                    background: status ? `${STATUS_COLOR[status]}1A` : "#EEE6D2",
+                    color: status ? STATUS_COLOR[status] : "#6B7578"
+                  }}
+                >
+                  {status ? STATUS_LABEL[status] + (status === "excused" && reportedReasons[s.id] ? " · " + reportedReasons[s.id] : "") + (status === "late" ? lateText(s.id, "en") : "") : "Not marked"}
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+                {[...STATUS_CHOICES, ...(isAdmin || status === "excused" ? ["excused"] : [])].map((k) => {
+                  const on = status === k;
+                  const locked = k === "excused" && !isAdmin; // teachers see a parent's excuse but cannot set one
+                  return (
+                    <button key={k} type="button" disabled={weekend || locked}
+                      onClick={() => pickStatus(s.id, k)}
+                      style={{
+                        flex: "1 1 70px", minHeight: 40, borderRadius: 10, fontSize: 14, fontWeight: on ? 700 : 500, cursor: locked ? "default" : "pointer",
+                        border: `1.5px solid ${on ? STATUS_COLOR[k] : "#D9CFBF"}`,
+                        background: on ? STATUS_COLOR[k] : "transparent",
+                        color: on ? "#fff" : STATUS_COLOR[k]
+                      }}>
+                      {k === "excused" ? "Excused absence" : STATUS_LABEL[k]}
+                    </button>
+                  );
+                })}
+              </div>
+              {isAdmin && status === "excused" && !parentReasons[s.id] && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 8, fontSize: 13 }}>
+                  <span className="bsf-muted">Reason:</span>
+                  {EXCUSE_REASONS.map((r) => (
+                    <button key={r} type="button" className={`bsf-chip ${dayExcuse[s.id] === r ? "active" : ""}`} onClick={() => setExcuseReason(s.id, r)}>{r}</button>
+                  ))}
+                </div>
+              )}
+            </div>
             {status === "late" && (
               <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", margin: "-4px 4px 10px", padding: "8px 12px", borderRadius: 10, background: "#8A64201A", fontSize: 14 }}>
                 <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
