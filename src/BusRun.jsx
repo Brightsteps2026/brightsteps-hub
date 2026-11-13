@@ -100,44 +100,93 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
 
   useEffect(() => { setRun(null); load(); const t = setInterval(load, 20000); return () => clearInterval(t); }, [load]);
 
+  // Location sharing (rebuilt 13 Nov 2026, Myri: "the bus sometimes doesn't move on the map").
+  // What was going wrong: when the bus page reloaded (screen off, tab restarted, a tap on the
+  // Morning/Afternoon switch), sharing stopped and only came back if the driver tapped
+  // "Share location again". Now:
+  //  - the bus phone starts sharing by itself whenever a trip is open (no button to tap);
+  //  - switching Morning/Afternoon no longer stops sharing for the open trip;
+  //  - a watchdog restarts the GPS when the phone has given no position for 30 seconds,
+  //    and again each time the screen comes back on;
+  //  - very rough positions (phone-mast guesses, more than 150 m off) are ignored while good ones arrive.
+  const shareTrip = useRef(null);   // trip id the phone is sending positions for
+  const lastFix = useRef(0);        // time of the last good GPS position
+  const onFix = useCallback((p) => {
+    const { latitude: lat, longitude: lng, accuracy } = p.coords;
+    const now = Date.now();
+    if (accuracy > 150 && now - lastFix.current < 60000) return;   // rough guess while good positions are coming in
+    lastFix.current = now;
+    lastPos.current = { lat, lng };
+    setPos({ lat, lng });
+    setGeoError("");
+    const tripId = shareTrip.current;
+    if (!tripId || now - lastSent.current < 15000) return;   // every 15 seconds at most
+    lastSent.current = now;
+    // supabase.rpc() only sends the request once it is awaited or .then() is called
+    supabase.rpc("bus_post_position", { p_trip_id: tripId, p_lat: lat, p_lng: lng })
+      .then(({ error }) => { if (error) setMsg(error.message); });
+    setPath((x) => [...x, [lat, lng]]);
+  }, []);
+  const onGeoError = useCallback((e) => { if (e?.code === 1) setGeoError(L.geoOff); }, [L]);   // 1 = permission refused
+  const openWatch = useCallback(() => {
+    if (!navigator.geolocation) return;
+    if (watch.current != null) navigator.geolocation.clearWatch(watch.current);
+    watch.current = navigator.geolocation.watchPosition(onFix, onGeoError, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+    // Ask once straight away too, so the bus shows up without waiting for the watch
+    navigator.geolocation.getCurrentPosition(onFix, () => {}, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+  }, [onFix, onGeoError]);
+
   const stopSharing = useCallback(() => {
     if (watch.current != null) navigator.geolocation?.clearWatch(watch.current);
     watch.current = null;
+    shareTrip.current = null;
     try { wake.current?.release(); } catch { /* ignore */ }
     wake.current = null;
     setSharing(false);
   }, []);
   useEffect(() => stopSharing, [stopSharing]);
-  useEffect(() => { stopSharing(); }, [trip, stopSharing]);
 
   const startSharing = async (tripId) => {
     setGeoError("");
     if (!navigator.geolocation) { setGeoError(L.geoOff); return; }
     try { wake.current = await navigator.wakeLock?.request("screen"); } catch { /* screen lock not supported */ }
-    watch.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords;
-        lastPos.current = { lat, lng };
-        setPos({ lat, lng });
-        const now = Date.now();
-        if (now - lastSent.current < 15000) return;   // every 15 seconds at most
-        lastSent.current = now;
-        // supabase.rpc() only sends the request once it is awaited or .then() is called
-        supabase.rpc("bus_post_position", { p_trip_id: tripId, p_lat: lat, p_lng: lng })
-          .then(({ error }) => { if (error) setMsg(error.message); });
-        setPath((p) => [...p, [lat, lng]]);
-      },
-      () => { setGeoError(L.geoOff); },
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 }
-    );
+    shareTrip.current = tripId;
+    lastSent.current = 0;
+    openWatch();
     setSharing(true);
   };
-  // The screen lock is released when the phone screen turns off; take it again when it comes back.
+
+  // Bus phone: share automatically as soon as an open trip is on screen (after a reload too).
+  const openTripId = run?.trip && !run.trip.ended_at ? run.trip.id : null;
   useEffect(() => {
-    const again = async () => { if (sharing && document.visibilityState === "visible") { try { wake.current = await navigator.wakeLock?.request("screen"); } catch { /* ignore */ } } };
+    if (standalone && openTripId && shareTrip.current !== openTripId) startSharing(openTripId);
+  }, [standalone, openTripId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Watchdog: no position for 30 seconds -> restart the GPS.
+  useEffect(() => {
+    if (!sharing) return undefined;
+    const id = setInterval(() => { if (Date.now() - lastFix.current > 30000) openWatch(); }, 10000);
+    return () => clearInterval(id);
+  }, [sharing, openWatch]);
+
+  // Screen back on: take the screen lock again and restart the GPS (phones pause it when the screen is off).
+  useEffect(() => {
+    const again = async () => {
+      if (!sharing || document.visibilityState !== "visible") return;
+      try { wake.current = await navigator.wakeLock?.request("screen"); } catch { /* ignore */ }
+      openWatch();
+    };
     document.addEventListener("visibilitychange", again);
     return () => document.removeEventListener("visibilitychange", again);
-  }, [sharing]);
+  }, [sharing, openWatch]);
+
+  // Position to attach to an On/Off tap: the phone's own fix if recent, else the bus's last saved position if recent.
+  const tapPos = () => {
+    if (lastPos.current && Date.now() - lastFix.current < 60000) return lastPos.current;
+    const t0 = run?.trip;
+    if (t0?.last_lat != null && t0.last_at && Date.now() - new Date(t0.last_at).getTime() < 60000) return { lat: t0.last_lat, lng: t0.last_lng };
+    return null;
+  };
 
   const start = async () => {
     setBusy("start"); setMsg("");
@@ -157,7 +206,7 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
   };
 
   const mark = async (r, kind) => {
-    const p = lastPos.current;
+    const p = tapPos();
     // Afternoon drop-off: make the driver confirm when the bus is not at the child's home (Myri, 9 Nov 2026).
     if (trip === "afternoon" && kind === "off") {
       const name = (r.name || "").split(" ")[0];
@@ -201,11 +250,12 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
 
   const allAtSchool = async () => {
     const list = (run?.riders || []).filter((r) => r.on_at && !r.off_at);
+    const p = tapPos();
     if (!list.length || !window.confirm(`${L.allSchool} (${list.length})?`)) return;
     setBusy("all");
     for (const r of list) {
       // eslint-disable-next-line no-await-in-loop
-      await supabase.rpc("bus_mark", { p_trip_id: run.trip.id, p_student: r.student_id, p_kind: "off", p_lat: lastPos.current?.lat ?? null, p_lng: lastPos.current?.lng ?? null });
+      await supabase.rpc("bus_mark", { p_trip_id: run.trip.id, p_student: r.student_id, p_kind: "off", p_lat: p?.lat ?? null, p_lng: p?.lng ?? null });
     }
     setBusy("");
     load();
