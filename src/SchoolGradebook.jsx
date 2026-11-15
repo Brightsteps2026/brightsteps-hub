@@ -273,6 +273,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection, onlySubjects 
   const [students, setStudents] = useState([]);
   const [assessments, setAssessments] = useState([]);
   const [marks, setMarks] = useState({});
+  const [termStatus, setTermStatus] = useState({}); // student id -> "nya" | "ie"
   const [drafts, setDrafts] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -333,6 +334,14 @@ function ClassGradebook({ grades, editGrades, early: earlySection, onlySubjects 
       if (mk.error) { setError(mk.error.message); setLoading(false); return; }
       (mk.data || []).forEach((r) => { m[`${r.assessment_id}:${r.student_id}`] = r; });
     }
+    const ts = {};
+    const sids = (st.data || []).map((x) => x.id);
+    if (sids.length) {
+      const sc = await supabase.from("gb_subject_comments").select("student_id, term_status")
+        .in("student_id", sids).eq("subject", subject).eq("term", term).eq("school_year", SCHOOL_YEAR).not("term_status", "is", null);
+      if (!sc.error) (sc.data || []).forEach((x) => { ts[x.student_id] = x.term_status; });
+    }
+    setTermStatus(ts);
     setStudents(st.data || []);
     setAssessments(as.data || []);
     setMarks(m);
@@ -370,6 +379,36 @@ function ClassGradebook({ grades, editGrades, early: earlySection, onlySubjects 
   const nS = assessments.length - nF - nH;
   const nEmerging = early ? students.filter((s) => results[s.id]?.level === "emerging").length : 0;
   const nMeetingUp = early ? students.filter((s) => ["meeting", "exceeding"].includes(results[s.id]?.level)).length : 0;
+
+  // NYA (Not yet assessed) / IE (Insufficient evidence): replaces the term result on the report card.
+  async function saveTermStatus(studentId, value) {
+    const v = value || null;
+    const { error: err } = await supabase.from("gb_subject_comments").upsert(
+      { student_id: studentId, school_year: SCHOOL_YEAR, term, subject, term_status: v },
+      { onConflict: "student_id,school_year,term,subject" }
+    );
+    if (err) { setStatus(`Not saved: ${err.message}`); return; }
+    setTermStatus((m) => { const n = { ...m }; if (v) n[studentId] = v; else delete n[studentId]; return n; });
+  }
+
+  function termCell(s, result) {
+    const st = termStatus[s.id];
+    return (
+      <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+        {st ? (
+          <span title={st === "nya" ? "Not yet assessed" : "Insufficient evidence"} style={{ ...pill(TONES.neutral || TONES.info), fontSize: 13, fontWeight: 700, padding: "3px 8px" }}>{st === "nya" ? "NYA" : "IE"}</span>
+        ) : result}
+        {canEdit && (
+          <select aria-label={`${s.full_name} term result`} value={st || ""} onChange={(e) => saveTermStatus(s.id, e.target.value)}
+            style={{ ...input, width: "auto", padding: "2px 6px", fontSize: 12 }}>
+            <option value="">From the {early ? "levels" : "marks"}</option>
+            <option value="nya">NYA – Not yet assessed</option>
+            <option value="ie">IE – Insufficient evidence</option>
+          </select>
+        )}
+      </span>
+    );
+  }
 
   function dropDraft(key) {
     setDrafts((d) => { const n = { ...d }; delete n[key]; return n; });
@@ -853,17 +892,19 @@ function ClassGradebook({ grades, editGrades, early: earlySection, onlySubjects 
                         ))}
                         {canEdit && <td style={{ ...td, background: "#FCFAFA" }} />}
                         {early ? (
-                          <td style={td}><LevelChip level={r.level} /></td>
+                          <td style={td}>{termCell(s, <LevelChip level={r.level} />)}</td>
                         ) : (
                           <>
                             <td style={{ ...td, color: COLORS.muted }}>{r.f == null ? "—" : `${r.f}%`}</td>
                             <td style={{ ...td, color: COLORS.muted }}>{r.s == null ? "—" : `${r.s}%`}</td>
                             <td style={{ ...td, color: COLORS.muted }}>{r.h == null ? "—" : `${r.h}%`}</td>
                             <td style={td}>
+                              {termCell(s, (
                               <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                                 <strong>{r.term == null ? "" : `${r.term}%`}</strong>
                                 <LetterChip letter={r.letter} />
                               </span>
+                              ))}
                             </td>
                           </>
                         )}
