@@ -619,7 +619,7 @@ export default function UnitPlanner({ plan, data, onSave, onClose, initialStage 
               ? "Gradebook: choose grades in Stage 1."
               : observation
                 ? "Gradebook: assessed by observation (Emerging / Developing / Meeting / Exceeding). Record it in the gradebook when the task is done."
-                : "Gradebook: enter this task as a Summative assessment (70%) with a score once students have done it."}
+                : "Gradebook: enter this task as a Summative assessment (65%) with a score once students have done it."}
           </div>
           <Group label="Standards addressed">
             <StandardsPicker grades={u.grades || []} selected={u.standardIds || []} oldList={standards}

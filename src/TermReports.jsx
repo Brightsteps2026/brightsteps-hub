@@ -42,7 +42,7 @@ const W = {
     attLine: (a) => `${a.present} present · ${a.absent} absent${a.excused ? ` (${a.excused} excused)` : ""} · ${a.late} late`,
     core: "Achievement",
     specials: "Specialist subjects",
-    formSumm: (f, s) => [f != null ? `Formative ${f}%` : null, s != null ? `Summative ${s}%` : null].filter(Boolean).join(" · "),
+    formSumm: (f, s, h) => [s != null ? `Summative ${s}%` : null, f != null ? `Formative ${f}%` : null, h != null ? `Homework ${h}%` : null].filter(Boolean).join(" · "),
     skills: "Approaches to learning · SEL · Life skills",
     areas: { atl: "Approaches to learning", sel: "Social and emotional learning", life: "Life skills" },
     ratings: { rarely: "Rarely", sometimes: "Sometimes", usually: "Usually", consistently: "Consistently" },
@@ -52,7 +52,7 @@ const W = {
     principalComment: "Principal's comment",
     homeroomSig: "Homeroom teacher",
     principalSig: "Principal",
-    keyLetters: "Grades: A+ to A− 90–100 · B+ to B− 80–89 · C+ to C− 70–79 · D+ to D− 60–69 · F below 60. Term grades count summative work 70% and formative work 30%.",
+    keyLetters: "Grades: A+ to A− 90–100 · B+ to B− 80–89 · C+ to C− 70–79 · D+ to D− 60–69 · F below 60. Term grades count summative work (tests, projects, presentations) 65%, formative work (quizzes, informal assessments) 30% and homework 5%.",
     keyLevels: "Levels: Emerging (beginning to show the skill with support) · Developing (shows the skill with some support) · Meeting (shows the skill independently) · Exceeding (applies the skill confidently in new situations).",
     keyRatings: "Approaches to learning, SEL and Life skills are rated Rarely, Sometimes, Usually or Consistently.",
     status: { nya: "NYA", ie: "IE" },
@@ -73,7 +73,7 @@ const W = {
     attLine: (a) => `${a.present} présent(e) · ${a.absent} absent(e)${a.excused ? ` (dont ${a.excused} excusé(es))` : ""} · ${a.late} retard(s)`,
     core: "Résultats",
     specials: "Matières de spécialité",
-    formSumm: (f, s) => [f != null ? `Formatif ${f} %` : null, s != null ? `Sommatif ${s} %` : null].filter(Boolean).join(" · "),
+    formSumm: (f, s, h) => [s != null ? `Sommatif ${s} %` : null, f != null ? `Formatif ${f} %` : null, h != null ? `Devoirs ${h} %` : null].filter(Boolean).join(" · "),
     skills: "Méthodes d'apprentissage · Compétences socio-émotionnelles · Savoir-être",
     areas: { atl: "Méthodes d'apprentissage", sel: "Compétences socio-émotionnelles", life: "Savoir-être et autonomie" },
     ratings: { rarely: "Rarement", sometimes: "Parfois", usually: "Souvent", consistently: "Toujours" },
@@ -83,7 +83,7 @@ const W = {
     principalComment: "Appréciation de la direction",
     homeroomSig: "Enseignant(e) principal(e)",
     principalSig: "Directrice",
-    keyLetters: "Notes : A+ à A− 90–100 · B+ à B− 80–89 · C+ à C− 70–79 · D+ à D− 60–69 · F moins de 60. La note du trimestre compte les évaluations sommatives à 70 % et formatives à 30 %.",
+    keyLetters: "Notes : A+ à A− 90–100 · B+ à B− 80–89 · C+ à C− 70–79 · D+ à D− 60–69 · F moins de 60. La note du trimestre compte les évaluations sommatives (contrôles, projets, présentations) à 65 %, formatives (quiz, évaluations informelles) à 30 % et les devoirs à la maison à 5 %.",
     keyLevels: "Niveaux : Émergent (commence à montrer la compétence avec de l'aide) · En développement (montre la compétence avec un peu d'aide) · Atteint (montre la compétence seul(e)) · Dépassé (applique la compétence avec assurance dans de nouvelles situations).",
     keyRatings: "Les méthodes d'apprentissage, compétences socio-émotionnelles et savoir-être sont évalués : Rarement, Parfois, Souvent ou Toujours.",
     status: { nya: "NYA", ie: "IE" },
@@ -136,7 +136,7 @@ async function loadClassSources(grade, term) {
   if (!ids.length) return empty;
 
   const [as, cm, sk, rt, nt, hr] = await Promise.all([
-    supabase.from("gb_assessments").select("id, subject, kind, grading, max_points, assessed_on, created_at")
+    supabase.from("gb_assessments").select("id, subject, kind, assess_type, grading, max_points, assessed_on, created_at")
       .eq("grade", grade).eq("term", term).eq("school_year", SCHOOL_YEAR)
       .order("assessed_on", { ascending: true, nullsFirst: true }).order("created_at", { ascending: true }),
     supabase.from("gb_subject_comments").select("student_id, subject, comment, term_status").in("student_id", ids).eq("term", term).eq("school_year", SCHOOL_YEAR),
@@ -217,7 +217,7 @@ function buildContent(stu, grade, term, srcAll, data, keep, leavingOpt) {
       row.level = list.length ? termLevelFor(stu.id, list, src.marks) : null;
     } else {
       const r = termFor(stu.id, list, src.marks);
-      Object.assign(row, { formative: r.f, summative: r.s, percent: r.term, letter: r.letter });
+      Object.assign(row, { formative: r.f, summative: r.s, homework: r.h, percent: r.term, letter: r.letter });
     }
     const hasResult = row.status || row.level || row.letter || row.comment;
     if (!hasResult) return;
@@ -400,8 +400,8 @@ function StandardReportDocument({ report, lang, logoUrl }) {
                 <div>
                   <div style={{ fontFamily: serif, fontSize: 16, fontWeight: 500 }}>{subjectName(r.subject, lang)}</div>
                   {r.comment && <p style={{ margin: "3px 0 0", fontSize: 13, color: COLORS.text2, lineHeight: 1.5 }}>{r.comment}</p>}
-                  {r.letter && (r.formative != null || r.summative != null) && (
-                    <p style={{ margin: "3px 0 0", fontSize: 11, color: COLORS.faint }}>{w.formSumm(r.formative, r.summative)}</p>
+                  {r.letter && (r.formative != null || r.summative != null || r.homework != null) && (
+                    <p style={{ margin: "3px 0 0", fontSize: 11, color: COLORS.faint }}>{w.formSumm(r.formative, r.summative, r.homework)}</p>
                   )}
                 </div>
                 <ResultCell row={r} w={w} />

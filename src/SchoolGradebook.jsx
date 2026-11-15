@@ -10,7 +10,8 @@ import { EY_GRADES, eyEnrichment } from "./data/earlyYears";
 // Gradebook backed by the gb_* tables (see gradebook-setup.sql and
 // gradebook-types-letters-levels.sql).
 //   Grade 3 to Grade 7: each assessment is graded with marks (e.g. 14/20) or a
-//   letter (A+ ... F). Term % = 70% summative + 30% formative, then a letter.
+//   letter (A+ ... F). Term % = 65% summative + 30% formative (quizzes, informal)
+//   + 5% homework (any assessment of type Homework), then a letter (15 Nov 2026).
 //   A letter counts at the middle of its band (B+ = 88%).
 //   Pre-N to Grade 2: the same grid with levels (Emerging, Developing,
 //   Meeting, Exceeding); the term level is the one the child got most often.
@@ -135,19 +136,27 @@ function LetterChip({ letter }) {
   );
 }
 
-// Works out formative %, summative % and the term grade for one student.
+// Grade 3–7 weighting (Myri, 15 Nov 2026). Homework is its own category,
+// whatever "counts as" says. If a category has no marks yet, the others share its weight.
+const WEIGHTS = { s: 65, f: 30, h: 5 };
+const categoryOf = (a) => (a.assess_type === "homework" ? "h" : a.kind === "formative" ? "f" : "s");
+
+// Works out formative %, summative %, homework % and the term grade for one student.
 function termFor(studentId, assessments, marks) {
-  let fp = 0, fm = 0, sp = 0, sm = 0;
+  const pts = { s: 0, f: 0, h: 0 }, max = { s: 0, f: 0, h: 0 };
   assessments.forEach((a) => {
     const m = marks[`${a.id}:${studentId}`];
     if (!m || m.points == null || m.excused) return;
-    if (a.kind === "formative") { fp += Number(m.points); fm += Number(a.max_points); }
-    else { sp += Number(m.points); sm += Number(a.max_points); }
+    const c = categoryOf(a);
+    pts[c] += Number(m.points); max[c] += Number(a.max_points);
   });
-  const f = fm > 0 ? (100 * fp) / fm : null;
-  const s = sm > 0 ? (100 * sp) / sm : null;
-  const term = f != null && s != null ? Math.round(0.7 * s + 0.3 * f) : s != null ? Math.round(s) : f != null ? Math.round(f) : null;
-  return { f: f == null ? null : Math.round(f), s: s == null ? null : Math.round(s), term, letter: letterFor(term) };
+  const pct = (c) => (max[c] > 0 ? (100 * pts[c]) / max[c] : null);
+  const f = pct("f"), s = pct("s"), h = pct("h");
+  let sum = 0, w = 0;
+  [["s", s], ["f", f], ["h", h]].forEach(([c, v]) => { if (v != null) { sum += WEIGHTS[c] * v; w += WEIGHTS[c]; } });
+  const term = w ? Math.round(sum / w) : null;
+  const r = (v) => (v == null ? null : Math.round(v));
+  return { f: r(f), s: r(s), h: r(h), term, letter: letterFor(term) };
 }
 
 // The staff "Assessment" tab: gradebook, early-years levels, ATL · SEL · Life
@@ -356,8 +365,9 @@ function ClassGradebook({ grades, editGrades, early: earlySection, onlySubjects 
   const withTerm = students.filter((s) => results[s.id]?.term != null);
   const classAvg = withTerm.length ? Math.round(withTerm.reduce((n, s) => n + results[s.id].term, 0) / withTerm.length) : null;
   const below70 = withTerm.filter((s) => results[s.id].term < 70).length;
-  const nF = assessments.filter((a) => a.kind === "formative").length;
-  const nS = assessments.length - nF;
+  const nH = assessments.filter((a) => categoryOf(a) === "h").length;
+  const nF = assessments.filter((a) => categoryOf(a) === "f").length;
+  const nS = assessments.length - nF - nH;
   const nEmerging = early ? students.filter((s) => results[s.id]?.level === "emerging").length : 0;
   const nMeetingUp = early ? students.filter((s) => ["meeting", "exceeding"].includes(results[s.id]?.level)).length : 0;
 
@@ -513,14 +523,14 @@ function ClassGradebook({ grades, editGrades, early: earlySection, onlySubjects 
   function downloadCsv() {
     const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const head = ["Student", ...assessments.map((a) => `${a.title} (${columnSub(a)})`),
-      ...(early ? ["Term level"] : ["Formative %", "Summative %", "Term %", "Letter"])];
+      ...(early ? ["Term level"] : ["Summative %", "Formative %", "Homework %", "Term %", "Letter"])];
     const lines = [head.map(q).join(",")];
     students.forEach((s) => {
       const r = results[s.id];
       lines.push([
         s.full_name,
         ...assessments.map((a) => cellText(a, s.id)),
-        ...(early ? [levelOf(r.level)?.label || ""] : [r.f ?? "", r.s ?? "", r.term ?? "", r.letter ?? ""])
+        ...(early ? [levelOf(r.level)?.label || ""] : [r.s ?? "", r.f ?? "", r.h ?? "", r.term ?? "", r.letter ?? ""])
       ].map(q).join(","));
     });
     const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
@@ -654,7 +664,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection, onlySubjects 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 14 }}>
           <div style={{ ...card, marginBottom: 0 }}>
             <div style={statLabel}>Weighting</div>
-            <div style={{ ...statValue, fontSize: 15 }}>Summative 70% · Formative 30%</div>
+            <div style={{ ...statValue, fontSize: 15 }}>Summative 65% · Formative 30% · Homework 5%</div>
           </div>
           <div style={{ ...card, marginBottom: 0 }}>
             <div style={statLabel}>Class average</div>
@@ -666,7 +676,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection, onlySubjects 
           </div>
           <div style={{ ...card, marginBottom: 0 }}>
             <div style={statLabel}>Assessments</div>
-            <div style={statValue}>{nF} formative · {nS} summative</div>
+            <div style={{ ...statValue, fontSize: 15 }}>{nS} summative · {nF} formative · {nH} homework</div>
           </div>
         </div>
       )}
@@ -689,10 +699,14 @@ function ClassGradebook({ grades, editGrades, early: earlySection, onlySubjects 
           {!early && (
             <>
               <label style={label}>Counts as</label>
+              {form.assess_type === "homework" ? (
+                <p style={{ margin: 0, fontSize: 13, color: COLORS.muted }}>Homework (5% of the term grade).</p>
+              ) : (
               <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
                 <button onClick={() => setForm({ ...form, kind: "formative" })} style={form.kind === "formative" ? chipOn : chip}>Formative (30%)</button>
-                <button onClick={() => setForm({ ...form, kind: "summative" })} style={form.kind === "summative" ? chipOn : chip}>Summative (70%)</button>
+                <button onClick={() => setForm({ ...form, kind: "summative" })} style={form.kind === "summative" ? chipOn : chip}>Summative (65%)</button>
               </div>
+              )}
 
               <label style={label}>How will you grade it?</label>
               <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
@@ -809,6 +823,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection, onlySubjects 
                       <>
                         <th style={th}>Formative</th>
                         <th style={th}>Summative</th>
+                        <th style={th}>Homework</th>
                         <th style={th}>Term</th>
                       </>
                     )}
@@ -843,6 +858,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection, onlySubjects 
                           <>
                             <td style={{ ...td, color: COLORS.muted }}>{r.f == null ? "—" : `${r.f}%`}</td>
                             <td style={{ ...td, color: COLORS.muted }}>{r.s == null ? "—" : `${r.s}%`}</td>
+                            <td style={{ ...td, color: COLORS.muted }}>{r.h == null ? "—" : `${r.h}%`}</td>
                             <td style={td}>
                               <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                                 <strong>{r.term == null ? "" : `${r.term}%`}</strong>
