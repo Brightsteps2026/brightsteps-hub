@@ -6,7 +6,7 @@ import { useLanguage } from "./lib/i18n";
 import { gradeLabel } from "./lib/format";
 import { Modal } from "./ui/common";
 import { COLORS, FONT, TONES, card as cardToken, chip, chipOn, primaryBtn, ghostBtn, input, pill } from "./ui/tokens";
-import { SCHOOL_YEAR, EARLY, SUBJECTS, SPECIALS, COMMENT_GRADES, termFor, termLevelFor } from "./SchoolGradebook";
+import { SCHOOL_YEAR, EARLY, SUBJECTS, SPECIALS, COMMENT_GRADES, termFor, termLevelFor, termNoLevelFor } from "./SchoolGradebook";
 import { isEarlyYears } from "./data/earlyYears";
 import { EarlyYearsDocument, EarlyYearsEditor, earlyYearsDefaults, periodText } from "./EarlyYearsReport";
 import { LeavingLetter, LeavingLetterEditor, letterDefaults } from "./LeavingLetter";
@@ -215,6 +215,10 @@ function buildContent(stu, grade, term, srcAll, data, keep, leavingOpt) {
       row.status = status;
     } else if (leveled) {
       row.level = list.length ? termLevelFor(stu.id, list, src.marks) : null;
+      if (!row.level && list.length) {
+        const none = termNoLevelFor(stu.id, list, src.marks);
+        if (none) { delete row.level; row.status = none; }
+      }
     } else {
       const r = termFor(stu.id, list, src.marks);
       Object.assign(row, { formative: r.f, summative: r.s, homework: r.h, percent: r.term, letter: r.letter });

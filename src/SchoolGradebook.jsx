@@ -76,7 +76,13 @@ const LEVELS = [
   { id: "meeting", short: "M", label: "Meeting", tone: TONES.ok },
   { id: "exceeding", short: "Ex", label: "Exceeding", tone: TONES.info }
 ];
-const levelOf = (id) => LEVELS.find((l) => l.id === id);
+// Instead of a level on one assessment: not counted in the term level.
+const NO_LEVELS = [
+  { id: "nya", short: "NYA", label: "Not yet assessed", tone: TONES.neutral },
+  { id: "ie", short: "IE", label: "Insufficient evidence", tone: TONES.neutral }
+];
+const levelOf = (id) => LEVELS.find((l) => l.id === id) || NO_LEVELS.find((l) => l.id === id);
+const isNoLevel = (id) => id === "nya" || id === "ie";
 
 function shortDate(d) {
   if (!d) return "";
@@ -106,7 +112,7 @@ function termLevelFor(studentId, assessments, marks) {
   const count = {}, last = {};
   assessments.forEach((a, i) => {
     const lv = marks[`${a.id}:${studentId}`]?.level;
-    if (!lv) return;
+    if (!lv || isNoLevel(lv)) return;
     count[lv] = (count[lv] || 0) + 1;
     last[lv] = i;
   });
@@ -115,6 +121,13 @@ function termLevelFor(studentId, assessments, marks) {
     if (!best || count[lv] > count[best] || (count[lv] === count[best] && last[lv] > last[best])) best = lv;
   });
   return best;
+}
+
+// When a child has no real level this term but was marked NYA or IE, the term shows that.
+function termNoLevelFor(studentId, assessments, marks) {
+  const got = assessments.map((a) => marks[`${a.id}:${studentId}`]?.level).filter(Boolean);
+  if (!got.length || got.some((l) => !isNoLevel(l))) return null;
+  return got.includes("nya") ? "nya" : "ie";
 }
 
 function listOf(v) {
@@ -365,7 +378,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection, onlySubjects 
   const results = useMemo(() => {
     const r = {};
     students.forEach((s) => {
-      r[s.id] = early ? { level: termLevelFor(s.id, assessments, marks) } : termFor(s.id, assessments, marks);
+      r[s.id] = early ? { level: termLevelFor(s.id, assessments, marks) || termNoLevelFor(s.id, assessments, marks) } : termFor(s.id, assessments, marks);
     });
     return r;
   }, [students, assessments, marks, early]);
@@ -585,6 +598,7 @@ function ClassGradebook({ grades, editGrades, early: earlySection, onlySubjects 
   const td = { padding: "6px 8px", fontSize: 14, textAlign: "center", borderBottom: "1px solid #F1E4E6", whiteSpace: "nowrap" };
   const nameCell = { ...td, textAlign: "left", fontWeight: 600, position: "sticky", left: 0, background: "#fff", zIndex: 1, minWidth: 150 };
   const pickStyle = { ...input, width: 74, minHeight: 36, padding: "6px 4px", textAlign: "center" };
+  const levelPickStyle = { ...input, width: 150, minHeight: 36, padding: "6px 8px", textAlign: "left" };
   const editing = editingId ? assessments.find((x) => x.id === editingId) : null;
   const gradingLocked = !!editing && hasMarks(editing.id);
 
@@ -611,10 +625,10 @@ function ClassGradebook({ grades, editGrades, early: earlySection, onlySubjects 
           aria-label={`${s.full_name}, ${a.title}`}
           value={m?.level || ""}
           onChange={(e) => savePick(a, s.id, e.target.value)}
-          style={{ ...pickStyle, fontWeight: 700, ...(lv ? { background: lv.tone.bg, color: lv.tone.fg, borderColor: lv.tone.bg } : {}) }}
+          style={{ ...levelPickStyle, fontWeight: 700, ...(lv ? { background: lv.tone.bg, color: lv.tone.fg, borderColor: lv.tone.bg } : {}) }}
         >
           <option value="">—</option>
-          {LEVELS.map((l) => <option key={l.id} value={l.id}>{l.short} · {l.label}</option>)}
+          {LEVELS.concat(NO_LEVELS).map((l) => <option key={l.id} value={l.id}>{l.short} · {l.label}</option>)}
         </select>
       );
     }
@@ -1384,4 +1398,4 @@ function SkillsGradebook({ grades, editGrades }) {
 }
 
 // Shared with the term report cards (TermReports.jsx).
-export { SCHOOL_YEAR, EARLY, SUBJECTS, SPECIALS, COMMENT_GRADES, termFor, termLevelFor };
+export { SCHOOL_YEAR, EARLY, SUBJECTS, SPECIALS, COMMENT_GRADES, termFor, termLevelFor, termNoLevelFor };

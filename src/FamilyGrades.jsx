@@ -30,7 +30,7 @@ const WORDS = {
     loading: "Loading…", failed: "Results could not be loaded right now. Please try again later.",
     excused: "Excused", term: (n) => `Term ${n}`, specials: "Specialist subjects",
     types: { quiz: "Quiz", test: "Test", informal: "Informal assessment", project: "Project", presentation: "Presentation", homework: "Homework" },
-    levels: { emerging: ["Emerging", "just starting"], developing: ["Developing", "on the way"], meeting: ["Meeting", "secure"], exceeding: ["Exceeding", "beyond"] },
+    levels: { emerging: ["Emerging", "just starting"], developing: ["Developing", "on the way"], meeting: ["Meeting", "secure"], exceeding: ["Exceeding", "beyond"], nya: ["NYA", "not yet assessed"], ie: ["IE", "insufficient evidence"] },
     letters: [["A", "excellent"], ["B", "good"], ["C", "satisfactory"], ["D–F", "needs support"]],
     subjects: {},
   },
@@ -51,7 +51,7 @@ const WORDS = {
     loading: "Chargement…", failed: "Les résultats n'ont pas pu être chargés pour le moment. Veuillez réessayer plus tard.",
     excused: "Dispensé(e)", term: (n) => `Trimestre ${n}`, specials: "Matières de spécialité",
     types: { quiz: "Quiz", test: "Contrôle", informal: "Évaluation informelle", project: "Projet", presentation: "Présentation", homework: "Devoir" },
-    levels: { emerging: ["Émergent", "débute"], developing: ["En cours", "en progrès"], meeting: ["Atteint", "acquis"], exceeding: ["Dépassé", "au-delà"] },
+    levels: { emerging: ["Émergent", "débute"], developing: ["En cours", "en progrès"], meeting: ["Atteint", "acquis"], exceeding: ["Dépassé", "au-delà"], nya: ["NYA", "pas encore évalué(e)"], ie: ["IE", "preuves insuffisantes"] },
     letters: [["A", "excellent"], ["B", "bien"], ["C", "satisfaisant"], ["D–F", "à soutenir"]],
     subjects: {
       "English Language Arts": "Anglais (Language Arts)", "Math": "Mathématiques", "French": "Français",

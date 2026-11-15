@@ -203,6 +203,7 @@ async function recentResults(studentId, grade, monday) {
     const m = byId[a.id];
     if (!m || m.excused) return "";
     const pct = m.points != null && a.max_points ? Math.round((100 * m.points) / a.max_points) : null;
+    if (m.level === "nya" || m.level === "ie") return "";
     const r = m.level ? GB_LEVELS[m.level] || m.level
       : m.letter ? "band " + m.letter.charAt(0)
       : pct != null ? (pct >= 80 ? "strong" : pct >= 65 ? "secure" : "still developing") : "";
