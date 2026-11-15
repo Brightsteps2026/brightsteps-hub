@@ -13,7 +13,7 @@ const OFFICIAL_CALENDAR_2026_27 = [
   { title: "Welcome Coffee", type: "Event", date: "2026-09-04" },
   { title: "October Break", type: "Holiday", date: "2026-10-19", endDate: "2026-10-23" },
   { title: "All Saint Day", type: "Holiday", date: "2026-11-01" },
-  { title: "Student Led Conferences", type: "Academic", date: "2026-11-09", endDate: "2026-11-13" },
+  { title: "Parent-Teacher Conferences", type: "Meeting", date: "2026-11-25", endDate: "" },
   { title: "Peace Day", type: "Holiday", date: "2026-11-15" },
   { title: "School Holiday", type: "Holiday", date: "2026-11-16" },
   { title: "Thanksgiving Break", type: "Holiday", date: "2026-11-26", endDate: "2026-11-27" },
