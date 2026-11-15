@@ -55,6 +55,10 @@ const W = {
     keyLetters: "Grades: A+ to A− 90–100 · B+ to B− 80–89 · C+ to C− 70–79 · D+ to D− 60–69 · F below 60. Term grades count summative work 70% and formative work 30%.",
     keyLevels: "Levels: Emerging (beginning to show the skill with support) · Developing (shows the skill with some support) · Meeting (shows the skill independently) · Exceeding (applies the skill confidently in new situations).",
     keyRatings: "Approaches to learning, SEL and Life skills are rated Rarely, Sometimes, Usually or Consistently.",
+    status: { nya: "NYA", ie: "IE" },
+    statusLong: { nya: "Not yet assessed", ie: "Insufficient evidence" },
+    keyNya: "NYA – Not yet assessed: the student joined the school recently, and there is not yet enough evidence to report a grade or level.",
+    keyIe: "IE – Insufficient evidence: there is not enough evidence this term (for example, after a long absence) to report a grade or level.",
     print: "Print",
     none: "No report cards yet.",
     published: (d) => `Published ${d}`
@@ -82,6 +86,10 @@ const W = {
     keyLetters: "Notes : A+ à A− 90–100 · B+ à B− 80–89 · C+ à C− 70–79 · D+ à D− 60–69 · F moins de 60. La note du trimestre compte les évaluations sommatives à 70 % et formatives à 30 %.",
     keyLevels: "Niveaux : Émergent (commence à montrer la compétence avec de l'aide) · En développement (montre la compétence avec un peu d'aide) · Atteint (montre la compétence seul(e)) · Dépassé (applique la compétence avec assurance dans de nouvelles situations).",
     keyRatings: "Les méthodes d'apprentissage, compétences socio-émotionnelles et savoir-être sont évalués : Rarement, Parfois, Souvent ou Toujours.",
+    status: { nya: "NYA", ie: "IE" },
+    statusLong: { nya: "Pas encore évalué(e)", ie: "Preuves insuffisantes" },
+    keyNya: "NYA – Pas encore évalué(e) : l'élève a rejoint l'école récemment, et il n'y a pas encore assez d'éléments pour attribuer une note ou un niveau.",
+    keyIe: "IE – Preuves insuffisantes : il n'y a pas assez d'éléments ce trimestre (par exemple après une longue absence) pour attribuer une note ou un niveau.",
     print: "Imprimer",
     none: "Aucun bulletin pour le moment.",
     published: (d) => `Publié le ${d}`
@@ -131,7 +139,7 @@ async function loadClassSources(grade, term) {
     supabase.from("gb_assessments").select("id, subject, kind, grading, max_points, assessed_on, created_at")
       .eq("grade", grade).eq("term", term).eq("school_year", SCHOOL_YEAR)
       .order("assessed_on", { ascending: true, nullsFirst: true }).order("created_at", { ascending: true }),
-    supabase.from("gb_subject_comments").select("student_id, subject, comment").in("student_id", ids).eq("term", term).eq("school_year", SCHOOL_YEAR),
+    supabase.from("gb_subject_comments").select("student_id, subject, comment, term_status").in("student_id", ids).eq("term", term).eq("school_year", SCHOOL_YEAR),
     supabase.from("gb_skills").select("id, area, name_en, name_fr, sort").eq("active", true).order("sort"),
     supabase.from("gb_skill_ratings").select("student_id, skill_id, rating").in("student_id", ids).eq("term", term).eq("school_year", SCHOOL_YEAR),
     supabase.from("gb_term_notes").select("student_id, note").in("student_id", ids).eq("term", term).eq("school_year", SCHOOL_YEAR),
@@ -191,22 +199,27 @@ function buildContent(stu, grade, term, srcAll, data, keep, leavingOpt) {
   const early = EARLY.includes(grade);
   const subjects = Array.from(new Set([
     ...src.assessments.map((a) => a.subject),
-    ...src.comments.filter((c) => c.student_id === stu.id && c.comment).map((c) => c.subject)
+    ...src.comments.filter((c) => c.student_id === stu.id && (c.comment || c.term_status)).map((c) => c.subject)
   ])).sort(subjectOrder);
 
   const core = [], specials = [];
   subjects.forEach((subject) => {
     const list = src.assessments.filter((a) => a.subject === subject);
-    const comment = (src.comments.find((c) => c.student_id === stu.id && c.subject === subject)?.comment || "").trim();
+    const cmRow = src.comments.find((c) => c.student_id === stu.id && c.subject === subject);
+    const comment = (cmRow?.comment || "").trim();
+    // NYA (Not yet assessed) or IE (Insufficient evidence) replaces the grade or level.
+    const status = cmRow?.term_status || null;
     const leveled = early || SPECIALS.includes(subject) || list.some((a) => a.grading === "level");
     const row = { subject, comment: comment || null };
-    if (leveled) {
+    if (status) {
+      row.status = status;
+    } else if (leveled) {
       row.level = list.length ? termLevelFor(stu.id, list, src.marks) : null;
     } else {
       const r = termFor(stu.id, list, src.marks);
       Object.assign(row, { formative: r.f, summative: r.s, percent: r.term, letter: r.letter });
     }
-    const hasResult = row.level || row.letter || row.comment;
+    const hasResult = row.status || row.level || row.letter || row.comment;
     if (!hasResult) return;
     (SPECIALS.includes(subject) ? specials : core).push(row);
   });
@@ -299,6 +312,14 @@ function SkillDots({ rating }) {
 }
 
 function ResultCell({ row, w }) {
+  if (row.status) {
+    return (
+      <div style={{ textAlign: "right" }} title={w.statusLong[row.status]}>
+        <div style={{ fontFamily: serif, fontSize: 18, fontWeight: 600, color: COLORS.muted, lineHeight: 1.1 }}>{w.status[row.status]}</div>
+        <div style={{ fontSize: 11, color: COLORS.muted }}>{w.statusLong[row.status]}</div>
+      </div>
+    );
+  }
   if (row.letter) {
     return (
       <div style={{ textAlign: "right" }}>
@@ -326,6 +347,7 @@ function StandardReportDocument({ report, lang, logoUrl }) {
   const hasLetters = (c.core || []).some((r) => r.letter);
   const hasLevels = (c.core || []).concat(c.specials || []).some((r) => r.level);
   const showPrincipal = report.term === 3 && c.principalComment;
+  const usedStatus = (c.core || []).concat(c.specials || []).map((r) => r.status);
 
   return (
     <div className="bs-trc">
@@ -468,6 +490,8 @@ function StandardReportDocument({ report, lang, logoUrl }) {
         <div className="bs-trc-section" style={{ borderTop: `1px solid ${COLORS.line}`, paddingTop: 10, fontSize: 11, color: COLORS.muted, lineHeight: 1.5 }}>
           {hasLetters && <p style={{ margin: "0 0 4px" }}>{w.keyLetters}</p>}
           {hasLevels && <p style={{ margin: "0 0 4px" }}>{w.keyLevels}</p>}
+          {usedStatus.includes("nya") && <p style={{ margin: "0 0 4px" }}>{w.keyNya}</p>}
+          {usedStatus.includes("ie") && <p style={{ margin: "0 0 4px" }}>{w.keyIe}</p>}
           {areas.length > 0 && <p style={{ margin: 0 }}>{w.keyRatings}</p>}
         </div>
       </div>

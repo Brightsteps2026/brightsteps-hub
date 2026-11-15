@@ -970,6 +970,7 @@ function SuggestDraft({ kind, grade, term, subject, student, current, onDraft })
 function SubjectComments({ grade, subject, term, canEdit, oneLine = false }) {
   const [students, setStudents] = useState([]);
   const [comments, setComments] = useState({});
+  const [statuses, setStatuses] = useState({});
   const [drafts, setDrafts] = useState({});
   const [aiDrafts, setAiDrafts] = useState({});
   const [loading, setLoading] = useState(true);
@@ -983,9 +984,9 @@ function SubjectComments({ grade, subject, term, canEdit, oneLine = false }) {
       const st = await supabase.from("students").select("id, full_name").is("withdrawn_on", null).eq("grade", grade).order("full_name");
       if (st.error) { if (alive) { setError(st.error.message); setLoading(false); } return; }
       const ids = (st.data || []).map((x) => x.id);
-      let c = {};
+      let c = {}, stt = {};
       if (ids.length) {
-        const cm = await supabase.from("gb_subject_comments").select("student_id, comment")
+        const cm = await supabase.from("gb_subject_comments").select("student_id, comment, term_status")
           .in("student_id", ids).eq("subject", subject).eq("term", term).eq("school_year", SCHOOL_YEAR);
         if (cm.error) {
           if (alive) {
@@ -996,9 +997,9 @@ function SubjectComments({ grade, subject, term, canEdit, oneLine = false }) {
           }
           return;
         }
-        (cm.data || []).forEach((r) => { c[r.student_id] = r.comment || ""; });
+        (cm.data || []).forEach((r) => { c[r.student_id] = r.comment || ""; if (r.term_status) stt[r.student_id] = r.term_status; });
       }
-      if (alive) { setStudents(st.data || []); setComments(c); setLoading(false); }
+      if (alive) { setStudents(st.data || []); setComments(c); setStatuses(stt); setLoading(false); }
     })();
     return () => { alive = false; };
   }, [grade, subject, term]);
@@ -1020,6 +1021,18 @@ function SubjectComments({ grade, subject, term, canEdit, oneLine = false }) {
     setStatus("");
   }
 
+  // NYA / IE: shown on the report card instead of the grade or level.
+  async function saveStatus(studentId, value) {
+    const v = value || null;
+    const { error: err } = await supabase.from("gb_subject_comments").upsert(
+      { student_id: studentId, school_year: SCHOOL_YEAR, term, subject, term_status: v },
+      { onConflict: "student_id,school_year,term,subject" }
+    );
+    if (err) { setStatus(`Not saved: ${err.message}`); return; }
+    setStatuses((m) => { const n = { ...m }; if (v) n[studentId] = v; else delete n[studentId]; return n; });
+    setStatus("");
+  }
+
   const done = students.filter((s) => (comments[s.id] || "").trim()).length;
 
   return (
@@ -1030,7 +1043,7 @@ function SubjectComments({ grade, subject, term, canEdit, oneLine = false }) {
       </div>
       <p style={{ margin: "0 0 12px", fontSize: 13, color: COLORS.muted }}>
         {oneLine
-          ? "One sentence per child for the report card: what they do well in this subject, or what comes next. It saves when you leave the box."
+          ? "One sentence per child for the report card: what they do well in this subject, or what comes next. It saves when you leave the box. For a child who joined too recently, choose NYA (Not yet assessed); for one who missed too much this term, choose IE (Insufficient evidence). The report card then shows NYA or IE instead of a grade."
           : "2–3 sentences per child: what they enjoy, a skill they have shown, and one thing to work on next. It saves when you leave the box."}
       </p>
       {status && <p style={{ margin: "0 0 10px", fontSize: 13, color: COLORS.bad }}>{status}</p>}
@@ -1045,7 +1058,19 @@ function SubjectComments({ grade, subject, term, canEdit, oneLine = false }) {
           const value = s.id in drafts ? drafts[s.id] : comments[s.id] || "";
           return (
             <div key={s.id} style={{ borderTop: `1px solid ${COLORS.line}`, padding: "10px 0" }}>
-              <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 6 }} htmlFor={`cm-${s.id}`}>{s.full_name}</label>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+                <label style={{ fontSize: 14, fontWeight: 600 }} htmlFor={`cm-${s.id}`}>{s.full_name}</label>
+                {oneLine && (canEdit ? (
+                  <select aria-label={`${s.full_name} report result`} value={statuses[s.id] || ""} onChange={(e) => saveStatus(s.id, e.target.value)}
+                    style={{ ...input, width: "auto", padding: "4px 8px", fontSize: 13 }}>
+                    <option value="">Report result: from the marks</option>
+                    <option value="nya">NYA – Not yet assessed</option>
+                    <option value="ie">IE – Insufficient evidence</option>
+                  </select>
+                ) : statuses[s.id] ? (
+                  <span style={{ fontSize: 13, color: COLORS.muted }}>{statuses[s.id] === "nya" ? "NYA – Not yet assessed" : "IE – Insufficient evidence"}</span>
+                ) : null)}
+              </div>
               {canEdit ? (
                 <textarea
                   id={`cm-${s.id}`}

@@ -113,7 +113,17 @@ function TriLine({ h = 4 }) {
   );
 }
 
+// Instead of a level: NYA (joined recently) or IE (not enough evidence this term).
+const EY_STATUS = [
+  { id: "nya", en: "Not yet assessed", fr: "Pas encore évalué(e)" },
+  { id: "ie", en: "Insufficient evidence", fr: "Preuves insuffisantes" }
+];
+
 function LevelMark({ level, lang }) {
+  const st = EY_STATUS.find((x) => x.id === level);
+  if (st) {
+    return <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".08em", textTransform: "uppercase", color: COLORS.muted, whiteSpace: "nowrap" }}>{lang === "fr" ? st.fr : st.en}</span>;
+  }
   const l = EY_LEVELS.find((x) => x.id === level);
   if (!l) return null;
   const i = EY_LEVELS.indexOf(l);
@@ -485,7 +495,7 @@ export function EarlyYearsEditor({ report, data, onSave }) {
         )}
         {withLevel && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-            {EY_LEVELS.map((l) => (
+            {EY_LEVELS.concat(EY_STATUS).map((l) => (
               <button key={l.id} type="button" onClick={() => save(withPart(group, a.id, { level: x.level === l.id ? null : l.id }))} style={x.level === l.id ? chipOn : chip}>{l.en}</button>
             ))}
           </div>
