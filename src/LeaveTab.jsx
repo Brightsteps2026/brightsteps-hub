@@ -448,16 +448,26 @@ function AdminView() {
   if (error) return <div style={wrap}><p style={{ ...card, color: TONES.bad.fg }}>Couldn't load leave requests: {error}</p></div>;
 
   const todo = rows.filter((r) => r.status === "pending" || r.status === "info_needed");
-  const shown = filter === "todo" ? todo : rows;
+  const approved = rows.filter((r) => r.status === "approved");
+  const denied = rows.filter((r) => r.status === "denied");
+  const shown = { todo, approved, denied, all: rows }[filter];
+  const empty = {
+    todo: "No requests waiting for you.",
+    approved: "No approved requests yet.",
+    denied: "No denied requests yet.",
+    all: "No leave requests yet."
+  }[filter];
 
   return (
     <div style={wrap}>
       <h2 style={heading}>Leave requests</h2>
-      <div style={{ display: "flex", gap: 7, marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 7, marginBottom: 12, flexWrap: "wrap" }}>
         <button style={filter === "todo" ? chipOn : chip} onClick={() => setFilter("todo")}>To decide ({todo.length})</button>
-        <button style={filter === "all" ? chipOn : chip} onClick={() => setFilter("all")}>All</button>
+        <button style={filter === "approved" ? chipOn : chip} onClick={() => setFilter("approved")}>Approved ({approved.length})</button>
+        <button style={filter === "denied" ? chipOn : chip} onClick={() => setFilter("denied")}>Denied ({denied.length})</button>
+        <button style={filter === "all" ? chipOn : chip} onClick={() => setFilter("all")}>All ({rows.length})</button>
       </div>
-      {shown.length === 0 && <p style={{ ...card, fontSize: 14, color: COLORS.muted }}>{filter === "todo" ? "No requests waiting for you." : "No leave requests yet."}</p>}
+      {shown.length === 0 && <p style={{ ...card, fontSize: 14, color: COLORS.muted }}>{empty}</p>}
       {shown.map((r) => <DecisionCard key={r.id} r={r} names={names} reload={load} />)}
     </div>
   );
@@ -508,6 +518,9 @@ function DecisionCard({ r, names, reload }) {
         {r.sub_plans_path && <button style={secondaryBtn} onClick={() => openPlans(r.sub_plans_path)}>Open sub plans</button>}
       </div>
 
+      {!open && r.decided_at && (
+        <p style={{ margin: "10px 0 0", fontSize: 13, color: COLORS.muted }}>{st.label} on {fmtDate(r.decided_at.slice(0, 10))}</p>
+      )}
       {r.director_comment && (
         <p style={{ margin: "10px 0 0", fontSize: 13, color: COLORS.muted }}>You wrote: {r.director_comment}</p>
       )}
@@ -539,6 +552,7 @@ function DecisionCard({ r, names, reload }) {
 function PayrollView() {
   const [rows, setRows] = useState([]);
   const [month, setMonth] = useState(todayStr().slice(0, 7));
+  const [filter, setFilter] = useState("approved");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -551,21 +565,33 @@ function PayrollView() {
   }, []);
 
   if (loading) return <div style={wrap}><p style={{ color: COLORS.muted }}>Loading…</p></div>;
-  if (error) return <div style={wrap}><p style={{ ...card, color: TONES.bad.fg }}>Couldn't load approved leave: {error}</p></div>;
+  if (error) return <div style={wrap}><p style={{ ...card, color: TONES.bad.fg }}>Couldn't load leave requests: {error}</p></div>;
 
-  const shown = rows.filter((r) => r.start_date.slice(0, 7) === month || r.end_date.slice(0, 7) === month);
+  const inMonth = rows.filter((r) => r.start_date.slice(0, 7) === month || r.end_date.slice(0, 7) === month);
+  // Older database version only returns approved rows, without a status column.
+  const statusOf = (r) => r.status || "approved";
+  const approved = inMonth.filter((r) => statusOf(r) === "approved");
+  const denied = inMonth.filter((r) => statusOf(r) === "denied");
+  const shown = { approved, denied, all: inMonth }[filter];
+  // Days per person counts approved leave only.
   const totals = {};
-  shown.forEach((r) => { totals[r.teacher_name] = (totals[r.teacher_name] || 0) + dayCount(r); });
+  approved.forEach((r) => { totals[r.teacher_name] = (totals[r.teacher_name] || 0) + dayCount(r); });
+  const empty = { approved: "No approved leave this month.", denied: "No denied requests this month.", all: "No decided requests this month." }[filter];
 
   return (
     <div style={wrap}>
-      <h2 style={heading}>Approved leave</h2>
+      <h2 style={heading}>Leave requests</h2>
       <label style={{ ...label, marginTop: 0 }}>Month</label>
       <input type="month" style={{ ...input, marginBottom: 14 }} value={month} onChange={(e) => setMonth(e.target.value)} />
+      <div style={{ display: "flex", gap: 7, marginBottom: 12, flexWrap: "wrap" }}>
+        <button style={filter === "approved" ? chipOn : chip} onClick={() => setFilter("approved")}>Approved ({approved.length})</button>
+        <button style={filter === "denied" ? chipOn : chip} onClick={() => setFilter("denied")}>Denied ({denied.length})</button>
+        <button style={filter === "all" ? chipOn : chip} onClick={() => setFilter("all")}>All ({inMonth.length})</button>
+      </div>
 
       {Object.keys(totals).length > 0 && (
         <div style={card}>
-          <p style={{ margin: "0 0 8px", fontSize: 15, fontWeight: 600 }}>Days per person</p>
+          <p style={{ margin: "0 0 8px", fontSize: 15, fontWeight: 600 }}>Approved days per person</p>
           {Object.entries(totals).map(([n, d]) => (
             <div key={n} style={{ display: "flex", justifyContent: "space-between", fontSize: 14, padding: "3px 0" }}>
               <span>{n}</span><strong>{d}</strong>
@@ -575,10 +601,13 @@ function PayrollView() {
       )}
 
       <div style={card}>
-        {shown.length === 0 && <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>No approved leave this month.</p>}
+        {shown.length === 0 && <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>{empty}</p>}
         {shown.map((r, i) => (
           <div key={r.id} style={{ borderTop: i === 0 ? "none" : `1px solid ${COLORS.line}`, padding: "8px 0" }}>
-            <p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{r.teacher_name}</p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{r.teacher_name}</p>
+              <Pill tone={STATUS[statusOf(r)].tone}>{STATUS[statusOf(r)].label}</Pill>
+            </div>
             <p style={{ margin: "2px 0 0", fontSize: 13, color: COLORS.muted }}>{TYPE_LABEL[r.leave_type]} · {dateRange(r)}</p>
           </div>
         ))}
