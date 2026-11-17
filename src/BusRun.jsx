@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
+import { getAttachmentUrl } from "./lib/attachments";
 import { COLORS, chip, chipOn, primaryBtn, ghostBtn, pill } from "./ui/tokens";
 import BusMap from "./BusMap";
 import { minsToTime } from "./BusTab";
@@ -33,7 +34,8 @@ const T = {
     doorWait: "Waiting at the door", doorStart: "Start 2 minutes", doorRemind: "I'm here, tell the parents",
     doorReminded: (t) => `Parents told at ${t}`, doorUp: "2 minutes are up. You can leave.",
     doorLeave: (n) => `Leaving without ${n}`, doorLeaveConfirm: (n) => `Leave without ${n}? The parents will be told the bus waited 2 minutes and has left.`,
-    doorLeft: (t) => `Bus left at ${t} after waiting 2 minutes`, doorTooSoon: "Not yet: wait until the timer allows it."
+    doorLeft: (t) => `Bus left at ${t} after waiting 2 minutes`, doorTooSoon: "Not yet: wait until the timer allows it.",
+    sim: (t) => `Practice run: parents get no bus notices until ${t}.`
   },
   fr: {
     title: "Transport scolaire", morning: "Matin · vers l'école", afternoon: "Après-midi · retour",
@@ -56,7 +58,8 @@ const T = {
     doorWait: "Attente devant la porte", doorStart: "Lancer les 2 minutes", doorRemind: "Je suis là, prévenir les parents",
     doorReminded: (t) => `Parents prévenus à ${t}`, doorUp: "Les 2 minutes sont écoulées. Vous pouvez partir.",
     doorLeave: (n) => `Partir sans ${n}`, doorLeaveConfirm: (n) => `Partir sans ${n} ? Les parents seront prévenus que le car a attendu 2 minutes et qu'il est parti.`,
-    doorLeft: (t) => `Car parti à ${t} après 2 minutes d'attente`, doorTooSoon: "Pas encore : attendez que le minuteur le permette."
+    doorLeft: (t) => `Car parti à ${t} après 2 minutes d'attente`, doorTooSoon: "Pas encore : attendez que le minuteur le permette.",
+    sim: (t) => `Trajet d'essai : les parents ne reçoivent aucune notification du car avant ${t}.`
   }
 };
 
@@ -71,6 +74,21 @@ const metres = (a, b) => {
 };
 const NEAR_M = 200;   // big "tap now" card when the bus is this close to a home
 const card = { background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 14, marginBottom: 10 };
+
+// The child's profile photo, so the driver can recognise each child. Initials when there is no photo.
+function RiderPhoto({ path, name, size = 52 }) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    setUrl(null);
+    if (path) getAttachmentUrl(path).then((u) => { if (alive) setUrl(u); }).catch(() => {});
+    return () => { alive = false; };
+  }, [path]);
+  const initials = (name || "").split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  const box = { width: size, height: size, borderRadius: "50%", flex: "0 0 auto", objectFit: "cover", background: COLORS.surface2,
+    display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: size * 0.36, color: COLORS.muted };
+  return url ? <img src={url} alt="" style={box} /> : <div style={box}>{initials}</div>;
+}
 
 export default function BusRun({ standalone = false, helper = false, onSignOut }) {
   // Bus phone: French by default, with an FR/EN switch. Admin screen: always English (staff screens are English only).
@@ -399,6 +417,12 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
         </div>
       )}
 
+      {run?.parents_quiet_until && (
+        <p style={{ ...card, background: "#FBF3E4", borderColor: "#E8D2A6", fontSize: 15, fontWeight: 600, margin: "0 0 10px" }}>
+          {L.sim(hm(run.parents_quiet_until))}
+        </p>
+      )}
+
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         <button style={{ ...(isMorning ? chipOn : chip), flex: 1 }} onClick={() => setTrip("morning")}>{L.morning}</button>
         <button style={{ ...(!isMorning ? chipOn : chip), flex: 1 }} onClick={() => setTrip("afternoon")}>{L.afternoon}</button>
@@ -445,6 +469,7 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
       {nearest && !doorGroup.some((g) => g.student_id === nearest.r.student_id) && (
         <div style={{ ...card, border: `3px solid ${COLORS.brand}`, padding: 18, textAlign: "center" }}>
           <p style={{ margin: 0, fontSize: 13, color: COLORS.muted }}>{L.near} · {Math.round(nearest.d)} {L.away}</p>
+          <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}><RiderPhoto path={nearest.r.photo_path} name={nearest.r.name} size={96} /></div>
           <p style={{ margin: "6px 0 2px", fontSize: 30, fontWeight: 700, lineHeight: 1.15 }}>{nearest.r.name}</p>
           <p style={{ margin: "0 0 14px", fontSize: 14, color: COLORS.muted }}>{nearest.r.grade}</p>
           <button
@@ -508,7 +533,8 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
                 {L.next}{r.dist != null ? ` · ${distLabel(r.dist)}` : ""}
               </p>
             )}
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <RiderPhoto path={r.photo_path} name={r.name} size={isNext ? 76 : 52} />
               <div style={{ flex: 1 }}>
                 <strong style={{ fontSize: isNext ? 28 : 16, lineHeight: 1.15 }}>{r.name}</strong>
                 {!isNext && live && pendingHere && r.dist != null && <span style={{ fontSize: 13, color: COLORS.muted }}> · {distLabel(r.dist)}</span>}

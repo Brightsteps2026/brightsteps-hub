@@ -156,6 +156,64 @@ export default function BusTab({ office, helper }) {
   return office ? <BusOfficeTabs /> : <BusFamily />;
 }
 
+// Practice run (Myri, 17 Nov 2026): parents get no bus notices until the chosen time,
+// then everything recorded during the practice is cleared so the real trip starts clean.
+function SimulationCard() {
+  const [st, setSt] = useState(null);
+  const [until, setUntil] = useState("15:00");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const load = () => supabase.rpc("bus_simulation_status").then(({ data, error }) => setSt(error ? null : data || {}));
+  useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, []);
+  const hm = (iso) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+
+  async function start() {
+    const [h, m] = until.split(":").map(Number);
+    const d = new Date(); d.setHours(h, m, 0, 0);
+    if (d <= new Date()) { setErr("Choose a time later today."); return; }
+    setBusy(true); setErr("");
+    const { error } = await supabase.rpc("bus_simulation_start", { p_until: d.toISOString() });
+    setBusy(false);
+    if (error) setErr(error.message); else load();
+  }
+  async function end() {
+    if (!window.confirm("End the practice run now? Everything recorded during the practice is cleared, and parents get bus notices again.")) return;
+    setBusy(true); setErr("");
+    const { error } = await supabase.rpc("bus_simulation_end");
+    setBusy(false);
+    if (error) setErr(error.message); else load();
+  }
+
+  if (!st) return null;
+  const on = !!st.quiet_until;
+  return (
+    <div style={{ ...card, ...(on ? { background: "#FBF3E4", borderColor: "#E8D2A6" } : {}) }}>
+      <p style={{ margin: "0 0 4px", fontWeight: 600 }}>Practice run</p>
+      {on ? (
+        <>
+          <p style={{ margin: "0 0 8px", fontSize: 14 }}>
+            On until <strong>{hm(st.quiet_until)}</strong>. Parents get no bus notices and see no trip on their screen.
+            At {hm(st.quiet_until)} the practice taps and trip are cleared automatically.
+          </p>
+          <button style={ghostBtn} disabled={busy} onClick={end}>End practice now</button>
+        </>
+      ) : (
+        <>
+          <p style={{ margin: "0 0 8px", fontSize: 13, color: COLORS.muted }}>
+            Test the bus without parents being told. Use the afternoon trip for practice, and finish before the real trip starts.
+          </p>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ fontSize: 14 }}>No parent notices until</span>
+            <input type="time" value={until} onChange={(e) => setUntil(e.target.value)} style={{ ...input, width: 120 }} />
+            <button style={primaryBtn} disabled={busy} onClick={start}>Start practice</button>
+          </div>
+        </>
+      )}
+      {err && <p style={{ margin: "6px 0 0", fontSize: 13, color: COLORS.bad }}>{err}</p>}
+    </div>
+  );
+}
+
 function BusOfficeTabs() {
   const [view, setView] = useState("today");
   const [skips, setSkips] = useState([]);
@@ -187,6 +245,7 @@ function BusOfficeTabs() {
       </div>
       {view === "today" ? (
         <div style={{ padding: "12px 16px 90px" }}>
+          <SimulationCard />
           <BusRun />
           <div style={card}>
             <p style={{ margin: "0 0 4px", fontWeight: 600 }}>Usual times</p>
