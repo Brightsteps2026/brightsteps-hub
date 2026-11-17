@@ -29,7 +29,11 @@ const T = {
     near: "Near this home", notNow: "Not now", away: "m away", usual: "usually",
     farHome: (n, d) => `Careful: you are ${d} from ${n}'s home. Drop ${n} off here anyway?`,
     noHome: (n) => `${n}'s home is not saved on the Hub. Is ${n} really at home? Tap OK only if ${n} is at home.`,
-    noGps: (n) => `The phone does not know where the bus is. Is ${n} really at home? Tap OK only if ${n} is at home.`
+    noGps: (n) => `The phone does not know where the bus is. Is ${n} really at home? Tap OK only if ${n} is at home.`,
+    doorWait: "Waiting at the door", doorStart: "Start 2 minutes", doorRemind: "I'm here, tell the parents",
+    doorReminded: (t) => `Parents told at ${t}`, doorUp: "2 minutes are up. You can leave.",
+    doorLeave: (n) => `Leaving without ${n}`, doorLeaveConfirm: (n) => `Leave without ${n}? The parents will be told the bus waited 2 minutes and has left.`,
+    doorLeft: (t) => `Bus left at ${t} after waiting 2 minutes`, doorTooSoon: "Not yet: wait until the timer allows it."
   },
   fr: {
     title: "Transport scolaire", morning: "Matin · vers l'école", afternoon: "Après-midi · retour",
@@ -48,7 +52,11 @@ const T = {
     near: "Près de cette maison", notNow: "Pas maintenant", away: "m", usual: "d'habitude",
     farHome: (n, d) => `Attention : vous êtes à ${d} de la maison de ${n}. Déposer ${n} ici quand même ?`,
     noHome: (n) => `La maison de ${n} n'est pas enregistrée sur le Hub. ${n} est-il/elle bien chez lui/elle ? Appuyez sur OK seulement si ${n} est à la maison.`,
-    noGps: (n) => `Le téléphone ne sait pas où est le car. ${n} est-il/elle bien chez lui/elle ? Appuyez sur OK seulement si ${n} est à la maison.`
+    noGps: (n) => `Le téléphone ne sait pas où est le car. ${n} est-il/elle bien chez lui/elle ? Appuyez sur OK seulement si ${n} est à la maison.`,
+    doorWait: "Attente devant la porte", doorStart: "Lancer les 2 minutes", doorRemind: "Je suis là, prévenir les parents",
+    doorReminded: (t) => `Parents prévenus à ${t}`, doorUp: "Les 2 minutes sont écoulées. Vous pouvez partir.",
+    doorLeave: (n) => `Partir sans ${n}`, doorLeaveConfirm: (n) => `Partir sans ${n} ? Les parents seront prévenus que le car a attendu 2 minutes et qu'il est parti.`,
+    doorLeft: (t) => `Car parti à ${t} après 2 minutes d'attente`, doorTooSoon: "Pas encore : attendez que le minuteur le permette."
   }
 };
 
@@ -82,6 +90,9 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
   const [pos, setPos] = useState(null);          // for driver mode on the bus phone
   const [dismissed, setDismissed] = useState({}); // child id -> time "Not now" was pressed
   const [usual, setUsual] = useState({});
+  const clockOffset = useRef(0);
+  const [tick, setTick] = useState(0);
+  const beeped = useRef(new Set());
   useEffect(() => {
     supabase.rpc("bus_usual_times").then(({ data }) => setUsual(Object.fromEntries((data || []).map((u) => [u.student_id, u]))));
   }, []);
@@ -92,6 +103,9 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
     const { data, error } = await supabase.rpc("bus_run_list", { p_trip: trip });
     if (error) { setMsg(error.message); return; }
     setRun(data);
+    // Server clock, so the 2-minute countdown is the same on every phone (Myri, 17 Nov 2026)
+    const sn = data?.riders?.[0]?.server_now;
+    if (sn) clockOffset.current = Date.parse(sn) - Date.now();
     if (data?.trip?.id) {
       const p = await supabase.rpc("bus_trip_path", { p_trip_id: data.trip.id });
       setPath((p.data || []).map((x) => [x.lat, x.lng]));
@@ -99,6 +113,13 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
   }, [trip]);
 
   useEffect(() => { setRun(null); load(); const t = setInterval(load, 20000); return () => clearInterval(t); }, [load]);
+  // Morning trip under way: refresh more often so the door countdown appears quickly
+  const morningLive = trip === "morning" && run?.trip && !run.trip.ended_at;
+  useEffect(() => {
+    if (!morningLive) return undefined;
+    const t = setInterval(load, 6000);
+    return () => clearInterval(t);
+  }, [morningLive, load]);
 
   // Location sharing (rebuilt 13 Nov 2026, Myri: "the bus sometimes doesn't move on the map").
   // What was going wrong: when the bus page reloaded (screen off, tab restarted, a tap on the
@@ -306,7 +327,44 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
     });
     return best;
   })();
+  // 2-minute rule at the door (Myri, 17 Nov 2026). Siblings share one countdown.
+  const doorActive = isMorning && live ? going.filter((r) => r.door_started_at && !r.door_left_at && !r.on_at) : [];
+  const doorGroup = doorActive.length
+    ? (() => { const first = [...doorActive].sort((a, b) => Date.parse(a.door_started_at) - Date.parse(b.door_started_at))[0];
+        return doorActive.filter((r) => Math.abs(Date.parse(r.door_started_at) - Date.parse(first.door_started_at)) < 5000); })()
+    : [];
+  const doorElapsed = doorGroup.length ? Math.max(0, (Date.now() + clockOffset.current - Date.parse(doorGroup[0].door_started_at)) / 1000) : 0;
+  const doorNames = doorGroup.map((r) => (r.name || "").split(" ")[0]).join(lang === "fr" ? " et " : " and ");
+  const doorKey = doorGroup.length ? doorGroup[0].student_id + doorGroup[0].door_started_at : "";
+  void tick;
+  const doorAction = async (fn, r) => {
+    setBusy(r.student_id + fn);
+    const { error } = await supabase.rpc(fn, { p_trip_id: run.trip.id, p_student: r.student_id });
+    setBusy("");
+    if (error) setMsg(/TOO_SOON/.test(error.message) ? L.doorTooSoon : error.message);
+    load();
+  };
   const busPos = sharing && lastPos.current ? lastPos.current : t?.last_lat != null ? { lat: t.last_lat, lng: t.last_lng } : null;
+
+  useEffect(() => {
+    if (!doorKey) return undefined;
+    const t = setInterval(() => setTick((x) => x + 1), 1000);
+    return () => clearInterval(t);
+  }, [doorKey]);
+  useEffect(() => {
+    if (!doorKey || doorElapsed < 120 || beeped.current.has(doorKey)) return;
+    beeped.current.add(doorKey);
+    try { navigator.vibrate?.([400, 150, 400, 150, 400]); } catch { /* not supported */ }
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [0, 0.35, 0.7].forEach((at) => {
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+        g.gain.setValueAtTime(0.25, ctx.currentTime + at); g.gain.setValueAtTime(0, ctx.currentTime + at + 0.25);
+        o.start(ctx.currentTime + at); o.stop(ctx.currentTime + at + 0.3);
+      });
+    } catch { /* no sound */ }
+  }, [doorKey, doorElapsed]);
 
   const tile = (label, value) => (
     <div style={{ flex: "1 1 80px", background: COLORS.surface2, borderRadius: 10, padding: "8px 10px" }}>
@@ -346,7 +404,45 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
         <button style={{ ...(!isMorning ? chipOn : chip), flex: 1 }} onClick={() => setTrip("afternoon")}>{L.afternoon}</button>
       </div>
 
-      {nearest && (
+      {doorGroup.length > 0 && (() => {
+        const left = Math.max(0, 120 - Math.floor(doorElapsed));
+        const up = left === 0;
+        const reminded = doorGroup.find((r) => r.door_reminded_at);
+        const r0 = doorGroup[0];
+        return (
+          <div style={{ ...card, border: `3px solid ${up ? COLORS.bad : COLORS.warn}`, padding: 18, textAlign: "center" }}>
+            <p style={{ margin: 0, fontSize: 13, color: COLORS.muted }}>{L.doorWait}</p>
+            <p style={{ margin: "4px 0 0", fontSize: 26, fontWeight: 700, lineHeight: 1.15 }}>{doorNames}</p>
+            <p style={{ margin: "6px 0 10px", fontSize: 56, fontWeight: 800, fontVariantNumeric: "tabular-nums", color: up ? COLORS.bad : COLORS.ink }}>
+              {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}
+            </p>
+            {up && <p style={{ margin: "0 0 10px", fontSize: 18, fontWeight: 700, color: COLORS.bad }}>{L.doorUp}</p>}
+            {doorGroup.map((r) => (
+              <button key={r.student_id} style={{ ...primaryBtn, width: "100%", minHeight: 64, fontSize: 21, marginBottom: 8 }}
+                disabled={busy === r.student_id + "on"} onClick={() => mark(r, "on")}>
+                {L.onM} · {(r.name || "").split(" ")[0]}
+              </button>
+            ))}
+            {reminded ? (
+              <p style={{ margin: "4px 0 8px", fontSize: 14, color: COLORS.muted }}>{L.doorReminded(hm(reminded.door_reminded_at))}</p>
+            ) : doorElapsed >= 60 ? (
+              <button style={{ ...ghostBtn, width: "100%", minHeight: 56, fontSize: 18, fontWeight: 700, color: COLORS.warn, borderColor: COLORS.warn, marginBottom: 8 }}
+                disabled={busy === r0.student_id + "bus_door_remind"} onClick={() => doorAction("bus_door_remind", r0)}>
+                {L.doorRemind}
+              </button>
+            ) : null}
+            {up && (
+              <button style={{ ...primaryBtn, width: "100%", minHeight: 60, fontSize: 19, background: COLORS.bad }}
+                disabled={busy === r0.student_id + "bus_door_leave"}
+                onClick={() => { if (window.confirm(L.doorLeaveConfirm(doorNames))) doorAction("bus_door_leave", r0); }}>
+                {L.doorLeave(doorNames)}
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
+      {nearest && !doorGroup.some((g) => g.student_id === nearest.r.student_id) && (
         <div style={{ ...card, border: `3px solid ${COLORS.brand}`, padding: 18, textAlign: "center" }}>
           <p style={{ margin: 0, fontSize: 13, color: COLORS.muted }}>{L.near} · {Math.round(nearest.d)} {L.away}</p>
           <p style={{ margin: "6px 0 2px", fontSize: 30, fontWeight: 700, lineHeight: 1.15 }}>{nearest.r.name}</p>
@@ -439,8 +535,12 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
                 {!r.on_at && <button style={{ ...primaryBtn, flex: 1, minHeight: isNext ? 72 : 48, fontSize: isNext ? 22 : undefined }} disabled={busy === r.student_id + "on"} onClick={() => mark(r, "on")}>{onLabel}</button>}
                 {r.on_at && !r.off_at && <button style={{ ...primaryBtn, flex: 1, minHeight: isNext ? 72 : 48, fontSize: isNext ? 22 : undefined, background: COLORS.ok }} disabled={busy === r.student_id + "off"} onClick={() => mark(r, "off")}>{offLabel}</button>}
                 {(r.on_at || r.off_at) && <button style={{ ...ghostBtn, minHeight: 48 }} onClick={() => unmark(r, r.off_at ? "off" : "on")}>{L.undo}</button>}
+                {isMorning && !r.on_at && !r.door_started_at && (
+                  <button style={{ ...ghostBtn, minHeight: 48 }} disabled={busy === r.student_id + "bus_door_start"} onClick={() => doorAction("bus_door_start", r)}>{L.doorStart}</button>
+                )}
               </div>
             )}
+            {isMorning && r.door_left_at && <p style={{ margin: "8px 0 0", fontSize: 13, color: COLORS.bad }}>{L.doorLeft(hm(r.door_left_at))}</p>}
             {!standalone && !helper && !r.on_at && (
               isMorning ? (
                 <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
