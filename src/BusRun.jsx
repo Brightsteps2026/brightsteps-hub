@@ -106,7 +106,9 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
   const lastPos = useRef(null);
   const wake = useRef(null);
   const [pos, setPos] = useState(null);          // for driver mode on the bus phone
-  const [dismissed, setDismissed] = useState({}); // child id -> time "Not now" was pressed
+  // child id -> time "Not now" was pressed; kept on the phone so a refresh does not bring the card back
+  const [dismissed, setDismissedState] = useState(() => { try { return JSON.parse(sessionStorage.getItem("bs-bus-dismissed") || "{}"); } catch { return {}; } });
+  const setDismissed = (v) => { setDismissedState(v); try { sessionStorage.setItem("bs-bus-dismissed", JSON.stringify(v)); } catch { /* not needed */ } };
   const [usual, setUsual] = useState({});
   const clockOffset = useRef(0);
   const [tick, setTick] = useState(0);
@@ -341,6 +343,11 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
       const pending = isMorning ? !r.on_at : r.on_at && !r.off_at;
       if (!pending || (dismissed[r.student_id] && Date.now() - dismissed[r.student_id] < 5 * 60 * 1000)) return;
       const d = metres(pos, { lat: r.home_lat, lng: r.home_lng });
+      // Morning: follow the pickup order (Myri, 18 Nov 2026). A child is not offered while an earlier
+      // child on the route, still to pick up, lives near the bus (e.g. Mamitchi before Kai).
+      if (isMorning && r.route_order != null && going.some((o) => o.student_id !== r.student_id && !o.on_at
+          && o.route_order != null && o.route_order < r.route_order && o.home_lat != null && o.home_lng != null
+          && metres(pos, { lat: o.home_lat, lng: o.home_lng }) <= 300)) return;
       if (d <= NEAR_M && (!best || d < best.d)) best = { r, d };
     });
     return best;
