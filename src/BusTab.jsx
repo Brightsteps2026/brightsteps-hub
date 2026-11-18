@@ -245,7 +245,6 @@ function BusOfficeTabs() {
       </div>
       {view === "today" ? (
         <div style={{ padding: "12px 16px 90px" }}>
-          <SimulationCard />
           <BusRun />
           <div style={card}>
             <p style={{ margin: "0 0 4px", fontWeight: 600 }}>Usual times</p>
