@@ -165,7 +165,7 @@ function StopTimesCard() {
   useEffect(() => {
     let alive = true;
     setRows(null); setErr("");
-    const get = () => supabase.rpc("bus_stop_times", { p_date: day, p_trip: trip }).then(({ data, error }) => {
+    const get = () => supabase.rpc("bus_stop_report", { p_date: day, p_trip: trip }).then(({ data, error }) => {
       if (!alive) return;
       if (error) setErr(error.message); else setRows(data || []);
     });
@@ -182,7 +182,7 @@ function StopTimesCard() {
     <div style={card}>
       <p style={{ margin: "0 0 4px", fontWeight: 600 }}>Time at each stop</p>
       <p style={{ margin: "0 0 10px", fontSize: 13, color: COLORS.muted }}>
-        How long the bus stayed at each home: when it arrived, when the last child got {morning ? "on" : "off"}, and when it left.
+        How long the bus stayed at each home: when it arrived, when the last child got {morning ? "on" : "off"}, and when it left.{morning && " When the bus comes before the family's pickup time, the wait is counted from the pickup time."}
       </p>
       <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
         <button style={trip === "morning" ? chipOn : chip} onClick={() => setTrip("morning")}>Morning</button>
@@ -200,7 +200,7 @@ function StopTimesCard() {
           <>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
               <thead><tr style={{ textAlign: "left", color: COLORS.muted, fontSize: 12 }}>
-                <th style={{ padding: "4px 0" }}>Stop</th><th>Arrived</th><th>{morning ? "Last on" : "Last off"}</th><th>Left</th><th style={{ textAlign: "right" }}>Waited</th>
+                <th style={{ padding: "4px 0" }}>Stop</th>{morning && <th>Pickup time</th>}<th>Arrived</th><th>{morning ? "Last on" : "Last off"}</th><th>Left</th><th style={{ textAlign: "right" }}>Waited</th>
               </tr></thead>
               <tbody>
                 {rows.map((r) => {
@@ -208,7 +208,9 @@ function StopTimesCard() {
                   return (
                     <tr key={r.stop_no} style={{ borderTop: `1px solid ${COLORS.line}` }}>
                       <td style={{ padding: "8px 6px 8px 0" }}>{r.names}</td>
-                      <td>{clock(r.arrived_at)}</td><td>{clock(r.done_at)}</td><td>{clock(r.left_at)}</td>
+                      {morning && <td>{r.pickup_time ? r.pickup_time.slice(0, 5) : "–"}</td>}
+                      <td>{clock(r.arrived_at)}{r.early_seconds > 60 && <div style={{ fontSize: 12, color: COLORS.muted }}>{Math.round(r.early_seconds / 60)} min early</div>}</td>
+                      <td>{clock(r.done_at)}</td><td>{clock(r.left_at)}</td>
                       <td style={{ textAlign: "right", fontWeight: 700, color: long ? COLORS.brand : COLORS.ink, whiteSpace: "nowrap" }}>{waitLabel(r.wait_seconds)}</td>
                     </tr>
                   );
@@ -294,6 +296,13 @@ function BusOfficeTabs() {
   const [usual, setUsual] = useState([]);
   const [names, setNames] = useState({});
   const [order, setOrder] = useState({});
+  // Set pickup time per child (Myri, 19 Nov 2026): no "at your door" or countdown before it; the stop report counts from it.
+  const [pickup, setPickup] = useState({});
+  const savePickup = async (id, v) => {
+    setPickup((p) => ({ ...p, [id]: v }));
+    const { error } = await supabase.rpc("bus_set_pickup_time", { p_student: id, p_time: v || null });
+    if (error) window.alert(error.message);
+  };
   useEffect(() => {
     if (view !== "today") return;
     supabase.rpc("bus_skips_upcoming").then(({ data }) => setSkips(data || []));
@@ -305,6 +314,8 @@ function BusOfficeTabs() {
         setNames(Object.fromEntries((st || []).map((x) => [x.id, x.full_name])));
         const { data: ro } = await supabase.from("bus_riders").select("student_id, route_order");
         setOrder(Object.fromEntries((ro || []).map((x) => [x.student_id, x.route_order ?? 999])));
+        const { data: pt } = await supabase.from("bus_riders").select("student_id, pickup_time");
+        setPickup(Object.fromEntries((pt || []).map((x) => [x.student_id, x.pickup_time ? x.pickup_time.slice(0, 5) : ""])));
       }
     });
   }, [view]);
@@ -331,12 +342,14 @@ function BusOfficeTabs() {
             ) : (
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                 <thead><tr style={{ textAlign: "left", color: COLORS.muted, fontSize: 12 }}>
-                  <th style={{ padding: "4px 0" }}>Child</th><th>Morning pickup</th><th>Afternoon drop-off</th>
+                  <th style={{ padding: "4px 0" }}>Child</th><th>Set pickup time</th><th>Morning pickup</th><th>Afternoon drop-off</th>
                 </tr></thead>
                 <tbody>
                   {timed.map((u) => (
                     <tr key={u.student_id} style={{ borderTop: `1px solid ${COLORS.line}` }}>
                       <td style={{ padding: "6px 0" }}>{names[u.student_id] || "…"}</td>
+                      <td><input type="time" value={pickup[u.student_id] || ""} onChange={(e) => savePickup(u.student_id, e.target.value)}
+                        style={{ ...input, padding: "4px 6px", minHeight: 0, width: 96 }} aria-label="Set pickup time" /></td>
                       <td>{u.morning_trips ? <>{minsToTime(u.morning_on)} <span style={{ color: COLORS.muted, fontSize: 12 }}>({u.morning_trips} trip{u.morning_trips === 1 ? "" : "s"})</span></> : "—"}</td>
                       <td>{u.afternoon_trips ? <>{minsToTime(u.afternoon_off)} <span style={{ color: COLORS.muted, fontSize: 12 }}>({u.afternoon_trips} trip{u.afternoon_trips === 1 ? "" : "s"})</span></> : "—"}</td>
                     </tr>

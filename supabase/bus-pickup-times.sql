@@ -1,0 +1,6 @@
+-- BrightSteps Hub: set pickup times (19 Nov 2026). Already applied.
+--   bus_riders.pickup_time (morning): Bloom 06:20, Gouly x3 06:30, Aria and Sarah 07:05 (Myri).
+--   bus_post_position: no "at your door" alert / countdown before the pickup time.
+--   bus_door_start: driver cannot start the countdown before the pickup time.
+--   bus_stop_report(date, trip): time at each stop; wait counted from the pickup time when the bus is early.
+--   bus_set_pickup_time(student, time): admin only, from the Bus page ("Usual times" card).
