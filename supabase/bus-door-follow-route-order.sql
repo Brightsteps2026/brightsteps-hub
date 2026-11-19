@@ -1,5 +1,5 @@
 -- BrightSteps Hub: morning bus follows the pickup order (18 Nov 2026)
--- Run once in Supabase > SQL Editor (paste the whole file, then Run). Safe to run again. Deletes nothing.
+-- Part 2 (pickup order) APPLIED 19 Nov 2026. Part 1 (Mamitchi pin) NOT applied: her mother will pin the home.
 --   1. Mamitchi's home is pinned where the driver taps her every day.
 --   2. Morning "at your door" alert and 2-minute countdown wait until earlier children nearby
 --      on the route are picked up (e.g. Mamitchi before Kai). Brothers and sisters stay together.
