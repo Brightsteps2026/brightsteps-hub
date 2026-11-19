@@ -314,8 +314,14 @@ export default function BusRun({ standalone = false, helper = false, onSignOut }
   const going = riders.filter((r) => !r.skip).map((r) => ({ ...r, dist: distTo(r) })).sort((a, b) => {
     if (stage(a) !== stage(b)) return stage(a) - stage(b);
     // Morning: follow the pickup order set by Myri (10 Nov 2026)
-    // Afternoon: the same route in reverse (Madim and Mila first, Bloom last)
-    if (a.route_order != null && b.route_order != null) return isMorningTrip ? a.route_order - b.route_order : b.route_order - a.route_order;
+    // Afternoon: its own drop-off order (Myri, 19 Nov 2026: at Italia 2, Jeavis, Francesco, then Jayden and Enola);
+    // falls back to the morning route in reverse when no afternoon order is set.
+    if (isMorningTrip) { if (a.route_order != null && b.route_order != null) return a.route_order - b.route_order; }
+    else {
+      const pa = a.afternoon_order ?? (a.route_order != null ? 1000 - a.route_order : null);
+      const pb = b.afternoon_order ?? (b.route_order != null ? 1000 - b.route_order : null);
+      if (pa != null && pb != null) return pa - pb;
+    }
     if (a.dist != null && b.dist != null) return a.dist - b.dist;
     if (a.dist != null) return -1;
     if (b.dist != null) return 1;
