@@ -4,3 +4,5 @@
 --   bus_door_start: driver cannot start the countdown before the pickup time.
 --   bus_stop_report(date, trip): time at each stop; wait counted from the pickup time when the bus is early.
 --   bus_set_pickup_time(student, time): admin only, from the Bus page ("Usual times" card).
+-- 19 Nov 2026 (later): "at your door" + countdown only when the bus has STOPPED within 80 m of the home
+--   (two positions in a row within 80 m, about 15 s). Was: one position within 150 m, which fired ~2 min early at Rosier.
