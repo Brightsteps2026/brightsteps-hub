@@ -1,0 +1,2 @@
+-- BrightSteps Hub: time the bus spends at each stop (19 Nov 2026). Already applied (function public.bus_stop_times(date, text)).
+-- Admin and viewer only. Arrived = bus within 60 m of the home (or door countdown start); Left = more than 60 m away again.

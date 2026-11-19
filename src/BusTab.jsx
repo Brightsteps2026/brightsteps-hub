@@ -151,6 +151,80 @@ export function useBusAccess(profile) {
   return access;
 }
 
+// Time the bus spends at each stop (Myri, 19 Nov 2026): arrived, children on (or off), left.
+// Shown once the trip has ended. Database: public.bus_stop_times(date, trip), admin and viewer only.
+const localDay = (d) => { const x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 10); };
+const clock = (iso) => (iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "–");
+const waitLabel = (s) => (s == null ? "–" : s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, "0")} s`);
+
+function StopTimesCard() {
+  const [day, setDay] = useState(() => localDay(new Date()));
+  const [trip, setTrip] = useState(() => (new Date().getHours() < 12 ? "morning" : "afternoon"));
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    let alive = true;
+    setRows(null); setErr("");
+    const get = () => supabase.rpc("bus_stop_times", { p_date: day, p_trip: trip }).then(({ data, error }) => {
+      if (!alive) return;
+      if (error) setErr(error.message); else setRows(data || []);
+    });
+    get();
+    const id = setInterval(get, 60000);
+    return () => { alive = false; clearInterval(id); };
+  }, [day, trip]);
+  const shift = (n) => { const d = new Date(day + "T12:00:00"); d.setDate(d.getDate() + n); setDay(localDay(d)); };
+  const today = localDay(new Date());
+  const ended = rows && rows.length > 0 && rows[0].trip_ended;
+  const total = ended ? rows.reduce((a, r) => a + (r.wait_seconds || 0), 0) : 0;
+  const morning = trip === "morning";
+  return (
+    <div style={card}>
+      <p style={{ margin: "0 0 4px", fontWeight: 600 }}>Time at each stop</p>
+      <p style={{ margin: "0 0 10px", fontSize: 13, color: COLORS.muted }}>
+        How long the bus stayed at each home: when it arrived, when the last child got {morning ? "on" : "off"}, and when it left.
+      </p>
+      <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+        <button style={trip === "morning" ? chipOn : chip} onClick={() => setTrip("morning")}>Morning</button>
+        <button style={trip === "afternoon" ? chipOn : chip} onClick={() => setTrip("afternoon")}>Afternoon</button>
+        <span style={{ flex: 1 }} />
+        <button style={ghostBtn} onClick={() => shift(-1)}>‹</button>
+        <strong style={{ fontSize: 14 }}>{day === today ? "Today" : new Date(day + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</strong>
+        <button style={{ ...ghostBtn, opacity: day >= today ? 0.4 : 1 }} disabled={day >= today} onClick={() => shift(1)}>›</button>
+      </div>
+      {err ? <p style={{ margin: 0, fontSize: 14, color: COLORS.danger || "#9b1c1c" }}>{err}</p>
+        : rows === null ? <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>Loading…</p>
+        : rows.length === 0 ? <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>No trip recorded.</p>
+        : !ended ? <p style={{ margin: 0, fontSize: 14, color: COLORS.muted }}>The times appear here when the trip ends.</p>
+        : (
+          <>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <thead><tr style={{ textAlign: "left", color: COLORS.muted, fontSize: 12 }}>
+                <th style={{ padding: "4px 0" }}>Stop</th><th>Arrived</th><th>{morning ? "Last on" : "Last off"}</th><th>Left</th><th style={{ textAlign: "right" }}>Waited</th>
+              </tr></thead>
+              <tbody>
+                {rows.map((r) => {
+                  const long = r.wait_seconds != null && r.wait_seconds > 180;
+                  return (
+                    <tr key={r.stop_no} style={{ borderTop: `1px solid ${COLORS.line}` }}>
+                      <td style={{ padding: "8px 6px 8px 0" }}>{r.names}</td>
+                      <td>{clock(r.arrived_at)}</td><td>{clock(r.done_at)}</td><td>{clock(r.left_at)}</td>
+                      <td style={{ textAlign: "right", fontWeight: 700, color: long ? COLORS.brand : COLORS.ink, whiteSpace: "nowrap" }}>{waitLabel(r.wait_seconds)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <p style={{ margin: "10px 0 0", fontSize: 13, color: COLORS.muted }}>
+              Total time stopped at homes: <strong style={{ color: COLORS.ink }}>{waitLabel(total)}</strong>. Waits over 3 minutes are shown in the school colour.
+              "–" means the bus phone had no location at that moment.
+            </p>
+          </>
+        )}
+    </div>
+  );
+}
+
 export default function BusTab({ office, helper }) {
   if (helper) return <div style={{ padding: "16px 16px 90px" }}><BusRun helper /></div>;
   return office ? <BusOfficeTabs /> : <BusFamily />;
@@ -246,6 +320,7 @@ function BusOfficeTabs() {
       {view === "today" ? (
         <div style={{ padding: "12px 16px 90px" }}>
           <BusRun />
+          <StopTimesCard />
           <div style={card}>
             <p style={{ margin: "0 0 4px", fontWeight: 600 }}>Usual times</p>
             <p style={{ margin: "0 0 8px", fontSize: 13, color: COLORS.muted }}>
