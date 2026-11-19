@@ -20,8 +20,14 @@ const TYPES = [
   { id: "half_am", label: "Half day (morning)" },
   { id: "half_pm", label: "Half day (afternoon)" },
   { id: "full_day", label: "Full day" },
-  { id: "multi_day", label: "Several days" }
+  { id: "multi_day", label: "Several days" },
+  // Arriving late (Myri, 19 Nov 2026): the teacher gives the time she expects to arrive;
+  // her real arrival comes from her check-in on the Hub.
+  { id: "late", label: "Arriving late" }
 ];
+const hm = (t) => (t ? String(t).slice(0, 5) : "");
+// "Arriving late · expected 09:30" or the plain type label
+const typeText = (r) => (r.leave_type === "late" && r.expected_arrival ? `Arriving late · expected ${hm(r.expected_arrival)}` : TYPE_LABEL[r.leave_type]);
 const TYPE_LABEL = Object.fromEntries(TYPES.map((t) => [t.id, t.label]));
 
 const STATUS = {
@@ -48,6 +54,7 @@ function dateRange(r) {
 
 // Counts school days (Mon to Fri), with half days as 0.5.
 function dayCount(r) {
+  if (r.leave_type === "late") return 0;
   if (r.leave_type === "half_am" || r.leave_type === "half_pm") return 0.5;
   let n = 0;
   const d = new Date(r.start_date + "T12:00:00");
@@ -162,7 +169,7 @@ function TeacherView({ profile }) {
           <p style={{ margin: "0 0 8px", fontSize: 15, fontWeight: 600 }}>You're covering</p>
           {covers.map((c) => (
             <div key={c.id} style={{ padding: "6px 0", fontSize: 14 }}>
-              <strong>{c.teacher_name}</strong> · {TYPE_LABEL[c.leave_type]} · {dateRange(c)}
+              <strong>{c.teacher_name}</strong> · {typeText(c)} · {dateRange(c)}
               {c.status !== "approved" && <span style={{ color: COLORS.muted }}> (not approved yet)</span>}
               <div style={{ marginTop: 4 }}>
                 {c.sub_plans_path
@@ -223,7 +230,7 @@ function MyRequestCard({ r, names, profile, reload }) {
   return (
     <div style={card}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 15, fontWeight: 600 }}>{TYPE_LABEL[r.leave_type]}</span>
+        <span style={{ fontSize: 15, fontWeight: 600 }}>{typeText(r)}</span>
         <Pill tone={st.tone}>{st.label}</Pill>
       </div>
       <p style={{ margin: "4px 0 0", fontSize: 13, color: COLORS.muted }}>{dateRange(r)} · {r.reason}</p>
@@ -279,7 +286,8 @@ function RequestForm({ profile, staff, onCancel, onSaved }) {
     note: "",
     cover: "",
     cover_other: "",
-    sub_plans_ready: null
+    sub_plans_ready: null,
+    expected_arrival: ""
   });
   const [file, setFile] = useState(null);
   const [proof, setProof] = useState(null);
@@ -287,11 +295,13 @@ function RequestForm({ profile, staff, onCancel, onSaved }) {
   const [err, setErr] = useState("");
   const set = (k, v) => { setF((x) => ({ ...x, [k]: v })); setErr(""); };
   const multi = f.leave_type === "multi_day";
+  const lateType = f.leave_type === "late";
   const past = !!f.start_date && f.start_date < todayStr();
 
   async function submit() {
     if (!f.start_date) return setErr("Choose a date.");
     if (multi && (!f.end_date || f.end_date < f.start_date)) return setErr("The end date must be on or after the start date.");
+    if (lateType && !f.expected_arrival) return setErr("Write the time you expect to arrive.");
     if (!f.reason.trim()) return setErr("Write a reason.");
     if (!f.cover) return setErr("Choose who will cover your class.");
     if (f.cover === "other" && !f.cover_other.trim()) return setErr("Write the name of the person covering.");
@@ -329,6 +339,7 @@ function RequestForm({ profile, staff, onCancel, onSaved }) {
       sub_plans_ready: f.sub_plans_ready || !!sub_plans_path,
       sub_plans_path,
       after_the_fact: past,
+      ...(lateType ? { expected_arrival: f.expected_arrival } : {}),
       ...(proof_path ? { proof_path, proof_name: proof.name, proof_added_at: new Date().toISOString() } : {})
     };
     let { data: saved, error } = await supabase.from("leave_requests").insert(row).select("id").single();
@@ -369,6 +380,14 @@ function RequestForm({ profile, staff, onCancel, onSaved }) {
           </div>
         )}
       </div>
+
+      {lateType && (
+        <>
+          <label style={label}>I expect to arrive at</label>
+          <input type="time" style={input} value={f.expected_arrival} onChange={(e) => set("expected_arrival", e.target.value)} />
+          <p style={{ margin: "4px 0 0", fontSize: 12, color: COLORS.muted }}>When you arrive, check in on the Hub as usual: your arrival time is recorded from your check-in.</p>
+        </>
+      )}
 
       {past && (
         <p style={{ margin: "10px 0 0", fontSize: 13, color: TONES.info.fg, background: TONES.info.bg, borderRadius: 10, padding: "8px 12px" }}>
@@ -421,6 +440,7 @@ function RequestForm({ profile, staff, onCancel, onSaved }) {
 
 function AdminView() {
   const [rows, setRows] = useState([]);
+  const [arrivals, setArrivals] = useState({});
   const [staff, setStaff] = useState([]);
   const [filter, setFilter] = useState("todo");
   const [loading, setLoading] = useState(true);
@@ -437,6 +457,14 @@ function AdminView() {
     if (err) { setError(err.message); setLoading(false); return; }
     setRows(r.data || []);
     setStaff(s.data || []);
+    // Real arrival time for "Arriving late" requests, from the staff check-in
+    const late = (r.data || []).filter((x) => x.leave_type === "late");
+    if (late.length) {
+      const { data: att } = await supabase.from("staff_attendance").select("staff_id, work_date, check_in_at")
+        .in("staff_id", [...new Set(late.map((x) => x.teacher_id))])
+        .in("work_date", [...new Set(late.map((x) => x.start_date))]);
+      setArrivals(Object.fromEntries((att || []).filter((a) => a.check_in_at).map((a) => [`${a.staff_id}|${a.work_date}`, a.check_in_at])));
+    }
     setLoading(false);
   }
 
@@ -468,12 +496,12 @@ function AdminView() {
         <button style={filter === "all" ? chipOn : chip} onClick={() => setFilter("all")}>All ({rows.length})</button>
       </div>
       {shown.length === 0 && <p style={{ ...card, fontSize: 14, color: COLORS.muted }}>{empty}</p>}
-      {shown.map((r) => <DecisionCard key={r.id} r={r} names={names} reload={load} />)}
+      {shown.map((r) => <DecisionCard key={r.id} r={r} names={names} reload={load} arrivedAt={arrivals[`${r.teacher_id}|${r.start_date}`]} />)}
     </div>
   );
 }
 
-function DecisionCard({ r, names, reload }) {
+function DecisionCard({ r, names, reload, arrivedAt }) {
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -497,7 +525,14 @@ function DecisionCard({ r, names, reload }) {
         <span style={{ fontSize: 15, fontWeight: 600 }}>{names[r.teacher_id] || "Staff member"}</span>
         <Pill tone={st.tone}>{st.label}</Pill>
       </div>
-      <p style={{ margin: "4px 0 0", fontSize: 13, color: COLORS.muted }}>{TYPE_LABEL[r.leave_type]} · {dateRange(r)} · {dayCount(r)} day{dayCount(r) === 1 ? "" : "s"}</p>
+      <p style={{ margin: "4px 0 0", fontSize: 13, color: COLORS.muted }}>{typeText(r)} · {dateRange(r)}{r.leave_type === "late" ? "" : ` · ${dayCount(r)} day${dayCount(r) === 1 ? "" : "s"}`}</p>
+      {r.leave_type === "late" && (
+        <p style={{ margin: "4px 0 0", fontSize: 13, fontWeight: 600, color: arrivedAt ? COLORS.ink : COLORS.muted }}>
+          {arrivedAt
+            ? `Arrived (check-in): ${new Date(arrivedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
+            : "Not checked in yet"}
+        </p>
+      )}
       {(r.after_the_fact || r.proof_path) && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
           {r.after_the_fact && <Pill tone={TONES.info}>Entered after the absence</Pill>}
@@ -608,7 +643,7 @@ function PayrollView() {
               <p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{r.teacher_name}</p>
               <Pill tone={STATUS[statusOf(r)].tone}>{STATUS[statusOf(r)].label}</Pill>
             </div>
-            <p style={{ margin: "2px 0 0", fontSize: 13, color: COLORS.muted }}>{TYPE_LABEL[r.leave_type]} · {dateRange(r)}</p>
+            <p style={{ margin: "2px 0 0", fontSize: 13, color: COLORS.muted }}>{typeText(r)} · {dateRange(r)}</p>
           </div>
         ))}
       </div>

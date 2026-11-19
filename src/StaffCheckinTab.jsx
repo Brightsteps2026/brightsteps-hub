@@ -220,7 +220,7 @@ function MyCheckin({ profile }) {
         {!s.required && <p style={{ fontSize: 14, color: COLORS.muted }}>You don't need to check in. You can still record your arrival if you want.</p>}
         {s.holiday && <p style={{ fontSize: 14, color: COLORS.muted }}>No school today.</p>}
         {!s.holiday && !s.expected_start && <p style={{ fontSize: 14, color: COLORS.muted }}>Today isn't a working day.</p>}
-        {s.leave && <p style={{ fontSize: 14, color: TONES.info.fg }}>You have approved {s.leave === "half" ? "half-day " : ""}leave today.</p>}
+        {s.leave && <p style={{ fontSize: 14, color: TONES.info.fg }}>{s.leave === "late" ? "Your late arrival today is approved. Check in when you arrive." : `You have approved ${s.leave === "half" ? "half-day " : ""}leave today.`}</p>}
         {!s.site_ready && <p style={{ fontSize: 14, color: TONES.warn.fg }}>The school's location hasn't been set up yet, so check-in isn't possible. Please tell the office.</p>}
 
         {!checkedIn && (

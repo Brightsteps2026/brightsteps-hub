@@ -19,6 +19,7 @@ const TYPE_LABEL: Record<string, string> = {
   half_pm: "Half day (afternoon)",
   full_day: "Full day",
   multi_day: "Several days",
+  late: "Arriving late",
 };
 
 const esc = (s: string) =>
@@ -61,7 +62,7 @@ Deno.serve(async (req) => {
       <div style="font-family:Arial,sans-serif;font-size:15px;color:#241012;line-height:1.5">
         <p><strong>${esc(name)}</strong> sent a leave request.</p>
         <p>
-          ${esc(TYPE_LABEL[r.leave_type] || r.leave_type)} · ${esc(dates)}${esc(past)}<br>
+          ${esc(TYPE_LABEL[r.leave_type] || r.leave_type)}${r.leave_type === "late" && r.expected_arrival ? ` · expected at ${esc(String(r.expected_arrival).slice(0, 5))}` : ""} · ${esc(dates)}${esc(past)}<br>
           Reason: ${esc(r.reason)}
           ${r.note ? `<br>Note: ${esc(r.note)}` : ""}
           ${r.proof_path ? "<br>A proof file is attached." : ""}
