@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { FolderLock } from "lucide-react";
 import { supabase } from "./lib/supabaseClient";
 import { uploadAttachment, getAttachmentUrl } from "./lib/attachments";
+import { PayrollSummary, SignaturesOverview, ContractCard, DocumentsCard, LeaveBalanceCard, OnboardingCard, SectionChips } from "./HrExtras";
 import { COLORS, TONES, card as cardToken, chip, chipOn, primaryBtn, ghostBtn, input, label, pill } from "./ui/tokens";
 
 export { FolderLock as StaffFilesIcon };
@@ -20,6 +21,8 @@ export const CATEGORIES = [
   { id: "lateness", label: "Lateness", tone: "warn" },
   { id: "conduct", label: "Conduct", tone: "bad" },
   { id: "performance", label: "Performance", tone: "info" },
+  { id: "observation", label: "Classroom observation", tone: "info" },
+  { id: "appraisal", label: "Appraisal", tone: "info" },
   { id: "warning", label: "Written warning", tone: "bad" },
   { id: "meeting", label: "Meeting", tone: "neutral" },
   { id: "return_to_work", label: "Return to work", tone: "neutral" },
@@ -76,6 +79,7 @@ export default function StaffFilesTab({ profile }) {
 function OfficeView({ canEdit }) {
   const [people, setPeople] = useState([]);
   const [openId, setOpenId] = useState(null);
+  const [section, setSection] = useState("files");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -95,9 +99,12 @@ function OfficeView({ canEdit }) {
 
   return (
     <div style={wrap}>
-      <h2 style={heading}>Staff files</h2>
-      <p style={{ ...small, marginBottom: 12 }}>Private to the Director and HR. Staff only see entries marked formal, in My file.</p>
-      {people.map((p) => (
+      <h2 style={heading}>HR</h2>
+      <SectionChips value={section} onChange={setSection} options={[["files", "Staff files"], ["payroll", "Monthly summary"], ["signatures", "Policy signatures"]]} />
+      {section === "payroll" && <PayrollSummary />}
+      {section === "signatures" && <SignaturesOverview />}
+      {section === "files" && <p style={{ ...small, marginBottom: 12 }}>Private to the Director and HR. Staff only see entries marked formal, in My file.</p>}
+      {section === "files" && people.map((p) => (
         <button key={p.id} onClick={() => setOpenId(p.id)}
           style={{ ...card, width: "100%", textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, fontFamily: "inherit" }}>
           <span style={{ width: 38, height: 38, borderRadius: "50%", background: COLORS.tint, color: COLORS.brand, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 13, flexShrink: 0 }}>
@@ -184,6 +191,12 @@ function PersonFile({ person, canEdit, onBack }) {
         </div>
       )}
 
+      <ContractCard staffId={person.id} canEdit={canEdit} />
+      {person.role !== "accountant" && <LeaveBalanceCard staffId={person.id} canEdit={canEdit} />}
+      <DocumentsCard staffId={person.id} canEdit={canEdit} />
+      <OnboardingCard staffId={person.id} canEdit={canEdit} />
+
+      <h3 style={{ margin: "18px 0 10px", fontSize: 16, fontWeight: 600 }}>File entries</h3>
       {adding && <EntryForm staffId={person.id} onDone={() => { setAdding(false); load(); }} />}
 
       <div style={{ ...row, marginBottom: 12 }}>
@@ -404,6 +417,7 @@ function MyFile({ profile }) {
           </label>
         </span>
       </div>
+      <LeaveBalanceCard staffId={profile.id} canEdit={false} />
       {todo.length > 0 && <p style={{ ...card, background: COLORS.warnBg, color: COLORS.warn, fontSize: 14, fontWeight: 600 }}>You have {todo.length} item{todo.length === 1 ? "" : "s"} to read or answer.</p>}
       {entries.length === 0 && <p style={{ ...card, ...small }}>Nothing in your file.</p>}
       {entries.map((e) => <EntryCard key={e.id} e={e} staffView profile={profile} reload={load} />)}
