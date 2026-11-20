@@ -174,11 +174,11 @@ function BrightStepsHubInner() {
     { id: "dashboard", label: "Dashboard", navKey: "nav.dashboard", icon: LayoutDashboard, category: "core" },
     { id: "students", label: "Students", navKey: "nav.students", icon: Users, category: "classroom" },
     { id: "classes", label: "Classes", navKey: "nav.classes", icon: UserCheck, category: "classroom" },
-    { id: "staff", label: "Staff", navKey: "nav.staff", icon: Briefcase, category: "office" },
-    { id: "checkin", label: "Staff check-in", navKey: "nav.checkin", icon: CheckinIcon, category: "office" },
-    { id: "leave", label: "Leave requests", navKey: "nav.leave", icon: LeaveIcon, category: "office" },
+    { id: "staff", label: "Staff", navKey: "nav.staff", icon: Briefcase, category: "hr" },
+    { id: "checkin", label: "Staff check-in", navKey: "nav.checkin", icon: CheckinIcon, category: "hr" },
+    { id: "leave", label: "Leave requests", navKey: "nav.leave", icon: LeaveIcon, category: "hr" },
     // Staff files (Myri, 20 Nov 2026): admin and HR see everyone; staff see "My file" (formal entries only).
-    { id: "stafffiles", label: "Staff files", navKey: isAdmin || isAccountant ? "nav.staffFiles" : "nav.myFile", icon: StaffFilesIcon, category: "office", hidden: isStudent || isParent || isViewer },
+    { id: "stafffiles", label: "Staff files", navKey: isAdmin || isAccountant ? "nav.staffFiles" : "nav.myFile", icon: StaffFilesIcon, category: "hr", hidden: isStudent || isParent || isViewer },
     { id: "attendance", label: "Attendance", navKey: "nav.attendance", icon: CheckSquare, category: "core" },
     { id: "portfolio", label: "Portfolio", navKey: "nav.portfolio", icon: BookOpen, category: "core" },
     { id: "gradebook", label: "Gradebook", navKey: "nav.gradebook", icon: Percent, category: "classroom" },
@@ -350,7 +350,7 @@ function BrightStepsHubInner() {
 
       {showMenu && (
         <Modal title={t("nav.allSections")} onClose={() => setShowMenu(false)}>
-          {["classroom", "office", "compliance"]
+          {["classroom", "office", "hr", "compliance"]
             .map((cat) => ({
               cat,
               items: allSections.filter((s) => s.category === cat && (!primaryIds.includes(s.id) || (s.id === "assessment" && !isParent && !isStudent)))

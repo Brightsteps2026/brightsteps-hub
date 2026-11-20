@@ -378,6 +378,7 @@ const translations = {
   // "More" menu groups
   "menu.classroom": { en: "Classroom", fr: "Vie de classe" },
   "menu.office": { en: "School office", fr: "Vie scolaire" },
+  "menu.hr": { en: "HR", fr: "Ressources humaines" },
   "menu.compliance": { en: "Reports & compliance", fr: "Bulletins et documents" },
 
   // Settings, profile and password (parents see these)
