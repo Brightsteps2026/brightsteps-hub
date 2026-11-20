@@ -8,7 +8,7 @@ import { COLORS, TONES, card as cardToken, chip, chipOn, primaryBtn, ghostBtn, i
 export { FolderLock as StaffFilesIcon };
 
 // Staff files (Myri, 20 Nov 2026). Staff screen, English only.
-// Admin: adds and edits entries. Accountant: reads. Staff: see only formal entries in "My file".
+// Admin: adds and edits entries. Accountant: reads. Staff never see their file (Myri, 20 Nov 2026).
 const wrap = { padding: "16px 16px 90px", maxWidth: 820, margin: "0 auto" };
 const card = { ...cardToken, marginBottom: 12 };
 const heading = { margin: "0 0 12px", fontSize: 18, fontWeight: 600 };
@@ -70,8 +70,7 @@ const folder = (id) => `staff-file/${id}`;
 export default function StaffFilesTab({ profile }) {
   const role = profile?.role;
   if (role === "admin" || role === "accountant") return <OfficeView canEdit={role === "admin"} />;
-  if (role === "teacher" || role === "learning_assistant") return <MyFile profile={profile} />;
-  return <div style={wrap}><p style={{ ...card, ...small }}>Staff files are only available to staff.</p></div>;
+  return null;
 }
 
 // ---------- Admin / accountant ----------
@@ -103,7 +102,7 @@ function OfficeView({ canEdit }) {
       <SectionChips value={section} onChange={setSection} options={[["files", "Staff files"], ["payroll", "Monthly summary"], ["signatures", "Policy signatures"]]} />
       {section === "payroll" && <PayrollSummary />}
       {section === "signatures" && <SignaturesOverview />}
-      {section === "files" && <p style={{ ...small, marginBottom: 12 }}>Private to the Director and HR. Staff only see entries marked formal, in My file.</p>}
+      {section === "files" && <p style={{ ...small, marginBottom: 12 }}>Private to the Director and HR. Staff members never see their file. They only see absence explanation requests, in their Leave tab.</p>}
       {section === "files" && people.map((p) => (
         <button key={p.id} onClick={() => setOpenId(p.id)}
           style={{ ...card, width: "100%", textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, fontFamily: "inherit" }}>
@@ -147,7 +146,7 @@ function PersonFile({ person, canEdit, onBack }) {
   const shown = entries.filter((x) =>
     filter === "all" ? true :
     filter === "followup" ? x.category === "explanation_request" && ["awaiting", "answered"].includes(x.status) :
-    filter === "formal" ? x.visibility === "formal" : x.visibility === "private");
+    true);
 
   async function markPlansChecked() {
     const { error } = await supabase.from("staff_file_status")
@@ -200,7 +199,7 @@ function PersonFile({ person, canEdit, onBack }) {
       {adding && <EntryForm staffId={person.id} onDone={() => { setAdding(false); load(); }} />}
 
       <div style={{ ...row, marginBottom: 12 }}>
-        {[["all", "All"], ["followup", "To follow up"], ["formal", "Formal"], ["private", "Private"]].map(([id, l]) => (
+        {[["all", "All"], ["followup", "To follow up"]].map(([id, l]) => (
           <button key={id} style={filter === id ? chipOn : chip} onClick={() => setFilter(id)}>{l}</button>
         ))}
       </div>
@@ -234,10 +233,10 @@ function EntryForm({ staffId, entry, onDone }) {
 
   async function save() {
     if (!f.title.trim()) return setErr("Give the entry a title.");
-    if (f.visibility === "formal" && (!entry || entry.visibility !== "formal") &&
-        !window.confirm("A formal entry is shown to the staff member, who gets a notification and can reply. Continue?")) return;
+    if (f.category === "explanation_request" && !entry &&
+        !window.confirm("The staff member will be asked to explain in their Leave tab. Continue?")) return;
     setBusy(true);
-    const patch = { ...f, title: f.title.trim(), details: f.details.trim() || null, entry_date: f.entry_date || null };
+    const patch = { ...f, visibility: "private", title: f.title.trim(), details: f.details.trim() || null, entry_date: f.entry_date || null };
     if (f.category === "explanation_request" && !entry) Object.assign(patch, { status: "awaiting", reply_due_at: new Date(Date.now() + 72 * 3600e3).toISOString() });
     const { data: me } = await supabase.auth.getUser();
     const { error } = entry
@@ -268,11 +267,7 @@ function EntryForm({ staffId, entry, onDone }) {
       <span style={label}>What happened (facts only)</span>
       <textarea style={{ ...input, minHeight: 110 }} value={f.details} onChange={set("details")}
         placeholder="Contacted the Director at 7:45 am to say she would not come in. Policy requires notice the day before." />
-      <span style={label}>Who can see it</span>
-      <div style={row}>
-        <button style={f.visibility === "private" ? chipOn : chip} onClick={() => setF({ ...f, visibility: "private" })}>Private (Director and HR)</button>
-        <button style={f.visibility === "formal" ? chipOn : chip} onClick={() => setF({ ...f, visibility: "formal" })}>Formal (shown to staff member)</button>
-      </div>
+      <p style={{ ...small, marginTop: 10 }}>{f.category === "explanation_request" ? "The staff member gets a notification asking them to explain, in their Leave tab. They never see the rest of their file." : "Private to the Director and HR. Staff members never see their file."}</p>
       {err && <p style={{ color: COLORS.bad, fontSize: 13 }}>{err}</p>}
       <div style={{ ...row, marginTop: 12 }}>
         <button style={primaryBtn} disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</button>
@@ -282,7 +277,7 @@ function EntryForm({ staffId, entry, onDone }) {
   );
 }
 
-function EntryCard({ e, canEdit, reload, staffView, profile }) {
+function EntryCard({ e, canEdit, reload, staffView }) {
   const [editing, setEditing] = useState(false);
   const [note, setNote] = useState("");
   const [err, setErr] = useState("");
@@ -312,7 +307,6 @@ function EntryCard({ e, canEdit, reload, staffView, profile }) {
     <div style={card}>
       <div style={{ ...row, marginBottom: 6 }}>
         <Pill tone={cat.tone}>{cat.label}</Pill>
-        {!staffView && <Pill tone="neutral">{e.visibility === "formal" ? "Formal" : "Private"}</Pill>}
         {st && <Pill tone={st.tone}>{st.label}</Pill>}
         <span style={{ ...small, marginLeft: "auto" }}>{e.entry_date ? fmtDate(e.entry_date) : "Date to confirm"}</span>
       </div>
@@ -333,11 +327,7 @@ function EntryCard({ e, canEdit, reload, staffView, profile }) {
         </div>
       )}
       {e.decision_note && <p style={{ ...small, marginTop: 8 }}>Director's decision: {e.decision_note}</p>}
-      {!staffView && e.visibility === "formal" && !isReq && (
-        <p style={{ ...small, marginTop: 6 }}>{e.acknowledged_at ? `Read by staff member ${fmtDateTime(e.acknowledged_at)}` : "Not yet read by staff member"}</p>
-      )}
 
-      {staffView && <StaffActions e={e} profile={profile} reload={reload} />}
 
       {canEdit && isReq && e.status === "answered" && (
         <div style={{ marginTop: 10 }}>
@@ -351,11 +341,6 @@ function EntryCard({ e, canEdit, reload, staffView, profile }) {
       {canEdit && (
         <div style={{ ...row, marginTop: 10 }}>
           <button style={ghostBtn} onClick={() => setEditing(true)}>Edit</button>
-          {e.visibility === "private" && (
-            <button style={ghostBtn} onClick={() => window.confirm("Make this entry formal? The staff member will be notified, can read it and reply.") && update({ visibility: "formal" })}>
-              Make formal and send to staff
-            </button>
-          )}
           <button style={{ ...ghostBtn, color: COLORS.bad }} onClick={remove}>Delete</button>
         </div>
       )}
@@ -364,129 +349,3 @@ function EntryCard({ e, canEdit, reload, staffView, profile }) {
   );
 }
 
-// ---------- Staff: My file ----------
-
-function MyFile({ profile }) {
-  const [entries, setEntries] = useState([]);
-  const [status, setStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-
-  async function load() {
-    const [e, s] = await Promise.all([
-      supabase.from("staff_file_entries").select("*").eq("staff_id", profile.id).eq("visibility", "formal").order("created_at", { ascending: false }),
-      supabase.from("staff_file_status").select("*").eq("staff_id", profile.id).maybeSingle()
-    ]);
-    setEntries(e.data || []);
-    setStatus(s.data || null);
-    setLoading(false);
-  }
-  useEffect(() => { load(); }, []);
-
-  async function uploadPlans(file) {
-    if (!file) return;
-    setBusy(true);
-    try {
-      const up = await uploadAttachment(file, folder(profile.id));
-      const { error } = await supabase.rpc("staff_submit_emergency_plans", { p_path: up.path, p_name: file.name });
-      if (error) throw error;
-      load();
-    } catch (e) {
-      alert("Couldn't upload the emergency plans: " + e.message);
-    }
-    setBusy(false);
-  }
-
-  const todo = entries.filter((e) => (e.category === "explanation_request" && e.status === "awaiting") || (e.category !== "explanation_request" && !e.acknowledged_at));
-  if (loading) return <div style={wrap}><p style={small}>Loading…</p></div>;
-
-  return (
-    <div style={wrap}>
-      <h2 style={heading}>My file</h2>
-      <div style={{ ...card, ...row, justifyContent: "space-between" }}>
-        <div>
-          <p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>Emergency lesson plans</p>
-          <p style={small}>3 days of lessons any colleague can teach, with class list, routines and students' needs.</p>
-          <p style={{ ...small, marginTop: 4 }}>{status?.emergency_plans_submitted_at ? `Submitted ${fmtDate(status.emergency_plans_submitted_at)}` : "Not submitted yet: due Friday 4 December 2026"}</p>
-        </div>
-        <span style={row}>
-          {status?.emergency_plans_path && <button style={ghostBtn} onClick={() => openFile(status.emergency_plans_path)}>Open</button>}
-          <label style={{ ...primaryBtn, display: "inline-flex", alignItems: "center" }}>
-            {busy ? "Uploading…" : status?.emergency_plans_path ? "Replace file" : "Upload plans"}
-            <input type="file" hidden onChange={(ev) => uploadPlans(ev.target.files?.[0])} />
-          </label>
-        </span>
-      </div>
-      <LeaveBalanceCard staffId={profile.id} canEdit={false} />
-      {todo.length > 0 && <p style={{ ...card, background: COLORS.warnBg, color: COLORS.warn, fontSize: 14, fontWeight: 600 }}>You have {todo.length} item{todo.length === 1 ? "" : "s"} to read or answer.</p>}
-      {entries.length === 0 && <p style={{ ...card, ...small }}>Nothing in your file.</p>}
-      {entries.map((e) => <EntryCard key={e.id} e={e} staffView profile={profile} reload={load} />)}
-    </div>
-  );
-}
-
-function StaffActions({ e, profile, reload }) {
-  const isReq = e.category === "explanation_request";
-  const [reason, setReason] = useState("sudden_illness");
-  const [text, setText] = useState("");
-  const [file, setFile] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-
-  async function send() {
-    if (isReq && !text.trim()) return setErr("Write your explanation first.");
-    setBusy(true);
-    setErr("");
-    try {
-      let up = null;
-      if (file) up = await uploadAttachment(file, folder(profile.id));
-      const { error } = await supabase.rpc("staff_file_reply", {
-        p_id: e.id, p_reason: isReq ? reason : null, p_reply: text.trim() || null,
-        p_proof_path: up?.path || null, p_proof_name: up ? file.name : null
-      });
-      if (error) throw error;
-      reload();
-    } catch (ex) {
-      setErr(ex.message);
-    }
-    setBusy(false);
-  }
-  async function acknowledge() {
-    const { error } = await supabase.rpc("staff_file_acknowledge", { p_id: e.id });
-    if (error) return setErr(error.message);
-    reload();
-  }
-
-  if (isReq && e.status !== "awaiting") return null;
-  if (!isReq && e.replied_at) return null;
-
-  return (
-    <div style={{ marginTop: 10 }}>
-      {isReq && (
-        <>
-          <span style={label}>Reason</span>
-          <select style={input} value={reason} onChange={(ev) => setReason(ev.target.value)}>
-            {REASONS.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
-          </select>
-        </>
-      )}
-      <span style={label}>{isReq ? "Your explanation" : "Your comment (optional)"}</span>
-      <textarea style={{ ...input, minHeight: 70 }} value={text} onChange={(ev) => setText(ev.target.value)} />
-      {isReq && (
-        <label style={{ ...ghostBtn, display: "inline-flex", alignItems: "center", marginTop: 8 }}>
-          {file ? file.name : "Attach proof (doctor's note…)"}
-          <input type="file" hidden onChange={(ev) => setFile(ev.target.files?.[0] || null)} />
-        </label>
-      )}
-      {err && <p style={{ color: COLORS.bad, fontSize: 13 }}>{err}</p>}
-      <div style={{ ...row, marginTop: 8 }}>
-        {isReq
-          ? <button style={primaryBtn} disabled={busy} onClick={send}>{busy ? "Sending…" : "Send explanation"}</button>
-          : <>
-              {!e.acknowledged_at && <button style={primaryBtn} onClick={acknowledge}>I have read this</button>}
-              <button style={ghostBtn} disabled={busy || !text.trim()} onClick={send}>Send comment</button>
-            </>}
-      </div>
-    </div>
-  );
-}

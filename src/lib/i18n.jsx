@@ -42,7 +42,6 @@ const translations = {
   "nav.incidents": { en: "Incidents", fr: "Incidents" },
   "nav.leave": { en: "Leave requests", fr: "Demandes de congé" },
   "nav.staffFiles": { en: "Staff files", fr: "Dossiers du personnel" },
-  "nav.myFile": { en: "My file", fr: "Mon dossier" },
   "nav.admissions": { en: "Admissions", fr: "Admissions" },
   "nav.assignments": { en: "Assignments", fr: "Devoirs" },
   "nav.timetable": { en: "Timetable", fr: "Emploi du temps" },

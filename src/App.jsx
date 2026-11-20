@@ -91,11 +91,11 @@ function BrightStepsHubInner() {
       };
   const myLinkedStudent = isStudent ? data.students.find((s) => (profile.student_ids || [])[0] === s.id) : null;
   const isUpperStudent = !!myLinkedStudent && GRADES.indexOf(myLinkedStudent.grade) >= GRADES.indexOf("Grade 3");
-  const PARENT_HIDDEN_TABS = ["daily", "conferences", "standards", "weekly", "checkin", "leave", "stafffiles", "classes", "staff", "admissions", "behavior", "accreditation", "planning", "gradebook"]; // timetable shown to families from 24 Oct 2026 (Myri approved)
+  const PARENT_HIDDEN_TABS = ["daily", "conferences", "standards", "weekly", "checkin", "leave", "classes", "staff", "admissions", "behavior", "accreditation", "planning", "gradebook"]; // timetable shown to families from 24 Oct 2026 (Myri approved)
   const ADMIN_ONLY_TABS = ["accreditation","staff","admissions"];
   // A learning assistant supports specific grades day to day; they don't need
   // enrollment, staffing, or school-wide admin tools, just the classroom-facing ones.
-  const LEARNING_ASSISTANT_ALLOWED_TABS = ["bus", "daily", "conferences", "weekly", "checkin", "leave", "stafffiles", "gradebook", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "classes", "calendar", "timetable", "standards", "assignments", "updates", "resources"];
+  const LEARNING_ASSISTANT_ALLOWED_TABS = ["bus", "daily", "conferences", "weekly", "checkin", "leave", "gradebook", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "classes", "calendar", "timetable", "standards", "assignments", "updates", "resources"];
   // An accountant only ever needs billing, nothing about students' academic
   // records, behavior, or staff information.
   const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "checkin", "leave", "stafffiles", "bus"]; // Billing tab removed 4 Nov 2026 (Myri)
@@ -139,6 +139,7 @@ function BrightStepsHubInner() {
     if (tab === "daily" && staffDailyGrades(profile).length === 0) setTab("dashboard");
     if (tab === "conferences" && meetingGrades(profile).length === 0) setTab("dashboard");
     if (tab === "standards") setTab("assessment");
+    if (tab === "stafffiles" && !isAdmin && !isAccountant) setTab("dashboard");
     if (tab === "fees" && !canSeeFees) setTab("dashboard");
     if (tab === "bus" && !canSeeBus) setTab("dashboard");
   }, [isParent, isAdmin, isLearningAssistant, isAccountant, isStudent, tab, profile, canSeeFees, canSeeBus]);
@@ -177,8 +178,8 @@ function BrightStepsHubInner() {
     { id: "staff", label: "Staff", navKey: "nav.staff", icon: Briefcase, category: "hr" },
     { id: "checkin", label: "Staff check-in", navKey: "nav.checkin", icon: CheckinIcon, category: "hr" },
     { id: "leave", label: "Leave requests", navKey: "nav.leave", icon: LeaveIcon, category: "hr" },
-    // Staff files (Myri, 20 Nov 2026): admin and HR see everyone; staff see "My file" (formal entries only).
-    { id: "stafffiles", label: "Staff files", navKey: isAdmin || isAccountant ? "nav.staffFiles" : "nav.myFile", icon: StaffFilesIcon, category: "hr", hidden: isStudent || isParent || isViewer },
+    // Staff files (Myri, 20 Nov 2026): Director and HR only. Staff must not see or know about them.
+    { id: "stafffiles", label: "Staff files", navKey: "nav.staffFiles", icon: StaffFilesIcon, category: "hr", hidden: !(isAdmin || isAccountant) },
     { id: "attendance", label: "Attendance", navKey: "nav.attendance", icon: CheckSquare, category: "core" },
     { id: "portfolio", label: "Portfolio", navKey: "nav.portfolio", icon: BookOpen, category: "core" },
     { id: "gradebook", label: "Gradebook", navKey: "nav.gradebook", icon: Percent, category: "classroom" },
@@ -330,7 +331,7 @@ function BrightStepsHubInner() {
       {tab === "bus" && canSeeBus && <BusTab office={busAccess.office} helper={busAccess.helper} />}
       {tab === "incidents" && <IncidentsTab profile={profile} />}
       {tab === "leave" && <LeaveTab profile={profile} />}
-      {tab === "stafffiles" && !isParent && !isStudent && !isViewer && <StaffFilesTab profile={profile} />}
+      {tab === "stafffiles" && (isAdmin || isAccountant) && <StaffFilesTab profile={profile} />}
       {tab === "weekly" && !isParent && !isStudent && !isSpecialist && <WeeklyUpdatesTab profile={profile} data={data} />}
       {tab === "daily" && staffDailyGrades(profile).length > 0 && <DailyLogTab profile={profile} />}
       {tab === "conferences" && meetingGrades(profile).length > 0 && <MeetingsTab profile={profile} />}

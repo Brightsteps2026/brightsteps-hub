@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarOff } from "lucide-react";
 import { supabase } from "./lib/supabaseClient";
 import { uploadAttachment, getAttachmentUrl } from "./lib/attachments";
+import { AbsenceExplanations, EmergencyPlansCard } from "./AbsenceExplanations";
 import { COLORS, TONES, card as cardToken, chip, chipOn, primaryBtn as primaryToken, ghostBtn, input, label, pill } from "./ui/tokens";
 
 export { CalendarOff as LeaveIcon };
@@ -163,6 +164,9 @@ function TeacherView({ profile }) {
       </div>
 
       {notice && <p style={{ ...card, padding: "10px 14px", fontSize: 14, color: TONES.ok.fg, background: TONES.ok.bg, borderColor: TONES.ok.bg }}>{notice}</p>}
+
+      <AbsenceExplanations profile={profile} />
+      <EmergencyPlansCard profile={profile} />
 
       {covers.length > 0 && (
         <div style={{ ...card, background: "#FBF3E4", borderColor: "#E8D2A6" }}>
