@@ -13,14 +13,20 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import LoginGate from "./LoginGate.jsx";
+import ApplyPage from "./ApplyPage.jsx";
 import { registerServiceWorker } from "./lib/push";
 
 registerServiceWorker();
 
+// Public admissions page, no login needed (20 Nov 2026).
+const isApply = window.location.pathname.replace(/\/+$/, "") === "/apply";
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <LoginGate>
-      <App />
-    </LoginGate>
+    {isApply ? <ApplyPage /> : (
+      <LoginGate>
+        <App />
+      </LoginGate>
+    )}
   </React.StrictMode>
 );

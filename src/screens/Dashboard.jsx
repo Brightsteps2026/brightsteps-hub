@@ -14,6 +14,7 @@ import { LinkedText } from "../ui/LinkedText";
 import EmojiField from "../ui/EmojiField";
 import { pending } from "../data/pending";
 import { FeesDashboardCard } from "../FeesTab";
+import { ReenrolmentCard } from "../Reenrolment";
 
 function Dashboard({ data, profile, persist, onNavigate }) {
   const { t, language } = useLanguage();
@@ -323,6 +324,7 @@ const saveLunchMenu = async () => {
           onOpen={(id) => { pending.scrollToWeekly = true; openChildProfile(id); }} />
       )}
       {isParent && myStudents.length > 0 && <ReportAbsenceCard students={myStudents} />}
+      {isParent && <ReenrolmentCard />}
       {isParent && <FeesDashboardCard />}
 
       {!isParent && <StaffToSignCard data={data} profile={profile} onNavigate={onNavigate} />}
