@@ -442,33 +442,46 @@ export function FamilyFeesView({ familyId }) {
   );
 }
 
-// PDF of the official receipt, when the office has attached one (20 Nov 2026).
+// PDF of the official receipt (20 Nov 2026): the office's attached PDF when there is one,
+// otherwise built on the spot from the receipt data, so every issued receipt can be printed.
 async function downloadReceiptPdf(receiptId) {
-  const { data, error } = await supabase.from("tuition_receipt_files").select("file_name, content_base64").eq("receipt_id", receiptId).maybeSingle();
-  if (error || !data) return false;
-  const bytes = Uint8Array.from(atob(data.content_base64), (c) => c.charCodeAt(0));
-  const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
-  const a = document.createElement("a");
-  a.href = url; a.download = data.file_name; a.target = "_blank"; a.rel = "noopener";
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
-  return true;
-}
-
-function useHasPdf(receiptId) {
-  const [has, setHas] = useState(false);
-  useEffect(() => {
-    supabase.from("tuition_receipt_files").select("receipt_id").eq("receipt_id", receiptId).maybeSingle().then(({ data }) => setHas(!!data));
-  }, [receiptId]);
-  return has;
+  const save = (blob, name) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = name; a.target = "_blank"; a.rel = "noopener";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  };
+  const { data: file } = await supabase.from("tuition_receipt_files").select("file_name, content_base64").eq("receipt_id", receiptId).maybeSingle();
+  if (file) {
+    const bytes = Uint8Array.from(atob(file.content_base64), (c) => c.charCodeAt(0));
+    return save(new Blob([bytes], { type: "application/pdf" }), file.file_name);
+  }
+  const { data: r } = await supabase.from("tuition_receipts").select("*").eq("id", receiptId).single();
+  if (!r) return alert("Receipt not found.");
+  const [st, fam, sch, kidsRes] = await Promise.all([
+    supabase.from("tuition_family_status").select("*").eq("family_id", r.family_id).maybeSingle(),
+    supabase.from("tuition_families").select("breakdown").eq("id", r.family_id).maybeSingle(),
+    supabase.from("tuition_schedule").select("*").eq("family_id", r.family_id),
+    supabase.from("tuition_family_students").select("students(full_name, grade)").eq("family_id", r.family_id)
+  ]);
+  let kids = (kidsRes.data || []).map((x) => x.students).filter(Boolean);
+  if (!kids.length) {
+    const { data } = await supabase.rpc("tuition_family_kids");
+    kids = (data || []).filter((x) => x.family_id === r.family_id);
+  }
+  const { buildReceiptPdf, receiptFileName } = await import("./lib/receiptPdf");
+  const family = st.data || { family_name: r.family_id };
+  const doc = buildReceiptPdf({ receipt: r, family, kids, schedule: sch.data || [], breakdown: fam.data?.breakdown || null });
+  save(doc.output("blob"), receiptFileName(r, family));
 }
 
 function ReceiptPdfButton({ receiptId, label }) {
-  const has = useHasPdf(receiptId);
-  if (!has) return null;
+  const [busy, setBusy] = useState(false);
   return (
-    <button onClick={() => downloadReceiptPdf(receiptId)} style={{ background: "none", border: `1px solid ${BURGUNDY}`, color: BURGUNDY, borderRadius: 999, padding: "6px 14px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", minHeight: 36, whiteSpace: "nowrap" }}>
-      {label}
+    <button disabled={busy} onClick={async () => { setBusy(true); try { await downloadReceiptPdf(receiptId); } finally { setBusy(false); } }}
+      style={{ background: "none", border: `1px solid ${BURGUNDY}`, color: BURGUNDY, borderRadius: 999, padding: "6px 14px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", minHeight: 36, whiteSpace: "nowrap" }}>
+      {busy ? "…" : label}
     </button>
   );
 }
