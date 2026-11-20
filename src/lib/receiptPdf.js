@@ -123,7 +123,8 @@ export function buildReceiptPdf({ receipt: r, family: f, kids = [], schedule = [
   sectionTitle("1. Payment received / Paiement reçu");
   const lines = [];
   if (Number(r.registration) > 0) lines.push([twoLine("Registration fee — non-refundable", "Frais d'inscription — non remboursables"), amount(r.registration)]);
-  if (Number(r.tuition) > 0) lines.push([twoLine(`Tuition${r.description ? ` — ${r.description}` : ""}`, `Scolarité${r.description ? ` — ${r.description}` : ""}`), amount(r.tuition)]);
+  const dFr = r.description ? r.description.replace(/instalment/gi, "versement").replace(/payment/gi, "versement") : "";
+  if (Number(r.tuition) > 0) lines.push([twoLine(`Tuition${r.description ? ` — ${r.description}` : ""}`, `Scolarité${dFr ? ` — ${dFr}` : ""}`), amount(r.tuition)]);
   if (Number(r.uniform) > 0) lines.push([twoLine("Uniform", "Uniforme"), amount(r.uniform)]);
   if (Number(r.canteen) > 0) lines.push([twoLine("Canteen", "Cantine"), amount(r.canteen)]);
   if (Number(r.other) > 0) lines.push([twoLine("Other", "Autre"), amount(r.other)]);
