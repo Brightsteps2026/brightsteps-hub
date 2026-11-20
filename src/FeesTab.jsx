@@ -100,6 +100,11 @@ export function useFeesAccess(profile) {
   const [access, setAccess] = useState({ office: false, family: false });
   useEffect(() => {
     let live = true;
+    // Accountant: sees all tuition, read only (Myri, 20 Nov 2026)
+    if (profile?.role === "accountant") {
+      setAccess({ office: true, family: false, readOnly: true });
+      return;
+    }
     if (!profile?.id || !["admin", "parent"].includes(profile.role)) {
       setAccess({ office: false, family: false });
       return;
@@ -118,8 +123,8 @@ export function useFeesAccess(profile) {
   return access;
 }
 
-export default function FeesTab({ office }) {
-  return office ? <OfficeFees /> : <ParentFees />;
+export default function FeesTab({ office, readOnly = false }) {
+  return office ? <OfficeFees readOnly={readOnly} /> : <ParentFees />;
 }
 
 // ---------------------------------------------------------------------------
@@ -236,7 +241,14 @@ export function FamilyFeesView({ familyId }) {
     (async () => {
       const [st, kids, sch, rec] = await Promise.all([
         supabase.from("tuition_family_status").select("*").eq("family_id", familyId).maybeSingle(),
-        supabase.from("tuition_family_students").select("student_id, students(full_name, grade)").eq("family_id", familyId),
+        supabase.from("tuition_family_students").select("student_id, students(full_name, grade)").eq("family_id", familyId)
+          .then(async (r) => {
+            if ((r.data || []).some((x) => !x.students)) { // accountant: names come from a safe function
+              const { data } = await supabase.rpc("tuition_family_kids");
+              return { data: (data || []).filter((x) => x.family_id === familyId).map((x) => ({ students: { full_name: x.full_name, grade: x.grade } })) };
+            }
+            return r;
+          }),
         supabase.from("tuition_schedule").select("*").eq("family_id", familyId).neq("status", "cancelled").order("due_date"),
         supabase.from("tuition_receipts").select("*").eq("family_id", familyId).neq("receipt_status", "cancelled").order("payment_date", { ascending: true, nullsFirst: false })
       ]);
@@ -493,7 +505,7 @@ const STANDING = {
 };
 const ORDER = ["past_due", "up_to_date", "paid_in_full", "scholarship", "withdrawn"];
 
-function OfficeFees() {
+function OfficeFees({ readOnly = false }) {
   const [rows, setRows] = useState(null);
   const [kids, setKids] = useState({});
   const [filter, setFilter] = useState("all");
@@ -505,11 +517,11 @@ function OfficeFees() {
   async function load() {
     const [st, fs] = await Promise.all([
       supabase.from("tuition_family_status").select("*"),
-      supabase.from("tuition_family_students").select("family_id, students(full_name)")
+      supabase.rpc("tuition_family_kids")
     ]);
     if (st.error) { setError(st.error.message); return; }
     const k = {};
-    (fs.data || []).forEach((x) => { (k[x.family_id] ||= []).push((x.students?.full_name || "").split(" ")[0]); });
+    (fs.data || []).forEach((x) => { (k[x.family_id] ||= []).push((x.full_name || "").split(" ")[0]); });
     setKids(k);
     setRows((st.data || []).sort((a, b) =>
       ORDER.indexOf(a.standing) - ORDER.indexOf(b.standing) || Number(b.past_due) - Number(a.past_due) || Number(b.balance) - Number(a.balance)));
@@ -546,11 +558,11 @@ function OfficeFees() {
     <div className="bsf-screen">
       <div className="bsf-hero" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <p className="bsf-eyebrow" style={{ display: "flex", alignItems: "center", gap: 6 }}><Lock size={12} /> Visible to you only</p>
+          <p className="bsf-eyebrow" style={{ display: "flex", alignItems: "center", gap: 6 }}><Lock size={12} /> {readOnly ? "Read only" : "Visible to you and the accountant"}</p>
           <h1>Tuition 2026–2027</h1>
           <p className="bsf-hero-sub">Registration + tuition only · as of {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
         </div>
-        <button className="bsf-btn" onClick={() => setRecording(true)} style={{ minHeight: 44 }}>Record a payment</button>
+        {!readOnly && <button className="bsf-btn" onClick={() => setRecording(true)} style={{ minHeight: 44 }}>Record a payment</button>}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 14 }}>
@@ -605,9 +617,11 @@ function OfficeFees() {
                       <button onClick={() => setPreview(r)} style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, background: "none", border: "none", color: BURGUNDY, cursor: "pointer", fontSize: 13, fontFamily: "inherit", padding: 0 }}>
                         <Eye size={16} /> Preview
                       </button>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: MUTED, minHeight: 44, cursor: "pointer" }}>
-                        <input type="checkbox" checked={!!r.shared_with_family} onChange={() => toggleShare(r)} style={{ width: 18, height: 18, accentColor: BURGUNDY }} /> Share
-                      </label>
+                      {readOnly
+                        ? <span style={{ fontSize: 12, color: MUTED }}>{r.shared_with_family ? "Shared" : "Not shared"}</span>
+                        : <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: MUTED, minHeight: 44, cursor: "pointer" }}>
+                            <input type="checkbox" checked={!!r.shared_with_family} onChange={() => toggleShare(r)} style={{ width: 18, height: 18, accentColor: BURGUNDY }} /> Share
+                          </label>}
                     </div>
                   </td>
                 </tr>
@@ -638,10 +652,10 @@ function OfficeFees() {
       )}
 
       {openFamily && !recording && (
-        <FamilyOffice fam={openFamily} onClose={() => setOpenFamily(null)} onChanged={load}
+        <FamilyOffice readOnly={readOnly} fam={openFamily} onClose={() => setOpenFamily(null)} onChanged={load}
           onRecord={() => setRecording({ family: openFamily.family_id })} onPreview={() => { setPreview(openFamily); setOpenFamily(null); }} />
       )}
-      {recording && <RecordPayment families={rows.filter((r) => r.standing !== "scholarship")} preset={recording.family || ""} onClose={() => setRecording(false)} onSaved={() => { setRecording(false); load(); }} />}
+      {recording && !readOnly && <RecordPayment families={rows.filter((r) => r.standing !== "scholarship")} preset={recording.family || ""} onClose={() => setRecording(false)} onSaved={() => { setRecording(false); load(); }} />}
     </div>
   );
 }
@@ -654,7 +668,7 @@ async function nextReceiptNo() {
 
 // Myriam's panel for one family: status, registration, every payment, and
 // "Issue receipt" for payments recorded without a receipt yet.
-function FamilyOffice({ fam, onClose, onChanged, onRecord, onPreview }) {
+function FamilyOffice({ fam, onClose, onChanged, onRecord, onPreview, readOnly = false }) {
   const [st, setSt] = useState(fam);
   const [rec, setRec] = useState(null);
   const [sch, setSch] = useState([]);
@@ -719,7 +733,7 @@ function FamilyOffice({ fam, onClose, onChanged, onRecord, onPreview }) {
             </div>
           )}
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-            <button className="bsf-btn" onClick={onRecord} style={{ minHeight: 44 }}>Record a payment</button>
+            {!readOnly && <button className="bsf-btn" onClick={onRecord} style={{ minHeight: 44 }}>Record a payment</button>}
             <button onClick={onPreview} style={{ minHeight: 44, background: "none", border: `1px solid ${LINE}`, borderRadius: 10, padding: "0 14px", cursor: "pointer", color: BURGUNDY, fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}><Eye size={16} /> Preview</button>
           </div>
         </div>
@@ -739,6 +753,7 @@ function FamilyOffice({ fam, onClose, onChanged, onRecord, onPreview }) {
                 </div>
                 {r.receipt_status === "issued"
                   ? <span style={{ display: "flex", gap: 6, alignItems: "center" }}><ReceiptPdfButton receiptId={r.id} label="PDF" /><span style={pill(GREEN_BG, GREEN)}>{r.receipt_no}</span></span>
+                  : readOnly ? <span style={pill(GOLD_BG, GOLD)}>No receipt yet</span>
                   : <button className="bsf-btn" onClick={() => startIssue(r)} style={{ minHeight: 40, whiteSpace: "nowrap" }}>Issue receipt</button>}
               </div>
               {issuing?.id === r.id && (

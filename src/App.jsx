@@ -98,7 +98,7 @@ function BrightStepsHubInner() {
   const LEARNING_ASSISTANT_ALLOWED_TABS = ["bus", "daily", "conferences", "weekly", "checkin", "leave", "gradebook", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "classes", "calendar", "timetable", "standards", "assignments", "updates", "resources"];
   // An accountant only ever needs billing, nothing about students' academic
   // records, behavior, or staff information.
-  const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "checkin", "leave", "stafffiles", "bus"]; // Billing tab removed 4 Nov 2026 (Myri)
+  const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "checkin", "leave", "stafffiles", "bus", "fees"]; // Billing tab removed 4 Nov 2026 (Myri)
   const RESTRICTED_TEACHER_TABS = ["bus", "daily", "conferences", "weekly", "checkin", "leave", "stafffiles", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "planning", "assignments", "timetable", "standards", "reports", "calendar", "incidents", "updates", "resources"];
   // Set per teacher by the admin in the database (profiles.limited_access).
   const isRestrictedTeacher = profile?.role === "teacher" && profile?.limited_access === true;
@@ -327,7 +327,7 @@ function BrightStepsHubInner() {
       {tab === "planning" && !isParent && !isLearningAssistant && <PlanningTab data={data} persist={persist} profile={profile} />}
       {tab === "calendar" && <CalendarTab data={data} persist={persist} profile={profile} />}
       {tab === "canteen" && <CanteenTab profile={profile} />}
-      {tab === "fees" && canSeeFees && <FeesTab office={feesAccess.office} />}
+      {tab === "fees" && canSeeFees && <FeesTab office={feesAccess.office} readOnly={!!feesAccess.readOnly} />}
       {tab === "bus" && canSeeBus && <BusTab office={busAccess.office} helper={busAccess.helper} />}
       {tab === "incidents" && <IncidentsTab profile={profile} />}
       {tab === "leave" && <LeaveTab profile={profile} />}
