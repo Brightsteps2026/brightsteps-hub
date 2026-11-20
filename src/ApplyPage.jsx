@@ -103,7 +103,7 @@ export default function ApplyPage() {
 
 function ApplyForm({ t, lang }) {
   const [info, setInfo] = useState(null);
-  const [kind, setKind] = useState("application");
+  const [kind, setKind] = useState(new URLSearchParams(window.location.search).get("visit") ? "visit" : "application");
   const [f, setF] = useState({ child_gender: "", source: "" });
   const [files, setFiles] = useState({});
   const [consent, setConsent] = useState(false);
