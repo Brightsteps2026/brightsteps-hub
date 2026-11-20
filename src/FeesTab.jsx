@@ -71,6 +71,7 @@ const T = {
   loading: { en: "Loading…", fr: "Chargement…" },
   none: { en: "Your school fees are not available on the Hub yet.", fr: "Vos frais de scolarité ne sont pas encore disponibles sur le Hub." },
   receipt: { en: "Receipt", fr: "Reçu" },
+  downloadPdf: { en: "Download the receipt (PDF)", fr: "Télécharger le reçu (PDF)" },
   date: { en: "Date", fr: "Date" },
   method: { en: "Method", fr: "Mode de paiement" },
   registration: { en: "Registration", fr: "Inscription" },
@@ -429,6 +430,37 @@ export function FamilyFeesView({ familyId }) {
   );
 }
 
+// PDF of the official receipt, when the office has attached one (20 Nov 2026).
+async function downloadReceiptPdf(receiptId) {
+  const { data, error } = await supabase.from("tuition_receipt_files").select("file_name, content_base64").eq("receipt_id", receiptId).maybeSingle();
+  if (error || !data) return false;
+  const bytes = Uint8Array.from(atob(data.content_base64), (c) => c.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = data.file_name; a.target = "_blank"; a.rel = "noopener";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  return true;
+}
+
+function useHasPdf(receiptId) {
+  const [has, setHas] = useState(false);
+  useEffect(() => {
+    supabase.from("tuition_receipt_files").select("receipt_id").eq("receipt_id", receiptId).maybeSingle().then(({ data }) => setHas(!!data));
+  }, [receiptId]);
+  return has;
+}
+
+function ReceiptPdfButton({ receiptId, label }) {
+  const has = useHasPdf(receiptId);
+  if (!has) return null;
+  return (
+    <button onClick={() => downloadReceiptPdf(receiptId)} style={{ background: "none", border: `1px solid ${BURGUNDY}`, color: BURGUNDY, borderRadius: 999, padding: "6px 14px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", minHeight: 36, whiteSpace: "nowrap" }}>
+      {label}
+    </button>
+  );
+}
+
 function ReceiptModal({ r, family, tr, day, onClose }) {
   const lines = [["registration", r.registration], ["tuition", r.tuition], ["uniform", r.uniform], ["canteen", r.canteen], ["other", r.other]].filter(([, v]) => v > 0);
   return (
@@ -444,6 +476,7 @@ function ReceiptModal({ r, family, tr, day, onClose }) {
         {r.method && <div style={row}><span style={{ color: MUTED }}>{tr("method")}</span><span>{r.method}</span></div>}
         {lines.map(([k, v]) => <div key={k} style={row}><span style={{ color: MUTED }}>{tr(k)}</span><span>{money(v)}</span></div>)}
         <div style={{ ...row, fontWeight: 700 }}><span>Total</span><span>{money(r.total)} FCFA</span></div>
+        <div style={{ marginTop: 12, textAlign: "right" }}><ReceiptPdfButton receiptId={r.id} label={tr("downloadPdf")} /></div>
       </div>
     </div>
   );
@@ -705,7 +738,7 @@ function FamilyOffice({ fam, onClose, onChanged, onRecord, onPreview }) {
                   </div>
                 </div>
                 {r.receipt_status === "issued"
-                  ? <span style={pill(GREEN_BG, GREEN)}>{r.receipt_no}</span>
+                  ? <span style={{ display: "flex", gap: 6, alignItems: "center" }}><ReceiptPdfButton receiptId={r.id} label="PDF" /><span style={pill(GREEN_BG, GREEN)}>{r.receipt_no}</span></span>
                   : <button className="bsf-btn" onClick={() => startIssue(r)} style={{ minHeight: 40, whiteSpace: "nowrap" }}>Issue receipt</button>}
               </div>
               {issuing?.id === r.id && (
