@@ -18,7 +18,7 @@ import { LeavingLetter, LeavingLetterEditor, letterDefaults } from "./LeavingLet
 //   Families: see published report cards of their own children, in English
 //   or French, and print them on A4.
 
-const ALL_GRADES = ["Pre-N", "PreK", "Kindergarten", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6", "Grade 7"];
+const ALL_GRADES = ["Pre-N", "PreK", "Kindergarten", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6", "Grade 7", "Grade 8"];
 const PRINCIPAL = "Myriam Aoussou";
 const MAX_HIGHLIGHTS = 3;
 // The school logo always appears, even if no logo was set in Settings.

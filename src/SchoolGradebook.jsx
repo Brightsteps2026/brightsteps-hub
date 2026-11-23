@@ -19,7 +19,7 @@ import { EY_GRADES, eyEnrichment } from "./data/earlyYears";
 //   assistants (and a teacher's assistant grades) can only view.
 
 const SCHOOL_YEAR = "2026-2027";
-const UPPER = ["Grade 3", "Grade 4", "Grade 5", "Grade 6", "Grade 7"];
+const UPPER = ["Grade 3", "Grade 4", "Grade 5", "Grade 6", "Grade 7", "Grade 8"];
 const EARLY = ["Pre-N", "PreK", "Kindergarten", "Grade 1", "Grade 2"];
 const ALL_GRADES = [...EARLY, ...UPPER];
 const SUBJECTS = ["English Language Arts", "Math", "French", "Unit of Inquiry", "Art", "Music", "Physical Education", "Swimming", "Technology"];

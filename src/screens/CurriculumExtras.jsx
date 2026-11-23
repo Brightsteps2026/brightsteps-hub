@@ -17,7 +17,7 @@ const CLASSES = [
   ["Pre-K and KG", "PreK_and_KG", ["PreK", "Kindergarten"]],
   ["Grade 1–2", "Grade_1-2", ["Grade 1", "Grade 2"]],
   ["Grade 3–4", "Grade_3-4", ["Grade 3", "Grade 4", "Grade 5"]],
-  ["Grade 6–7", "Grade_6-7", ["Grade 6", "Grade 7"]]
+  ["Grade 6–8", "Grade_6-7", ["Grade 6", "Grade 7", "Grade 8"]]
 ];
 const PROGRAMS = [
   ["Life Skills", "Life Skills", "BrightSteps_Life_Skills"]

@@ -9,7 +9,7 @@ import { supabase } from "../lib/supabaseClient";
 
 // Unit planner (staff screen, English only).
 // Four stages: Understand, Assess, Inquire, Reflect.
-// Grades 6 and 7 use global contexts and a statement of inquiry instead of themes.
+// Grades 6 to 8 use global contexts and a statement of inquiry instead of themes.
 // Older units keep every field they had; fields from the old planner that no
 // longer have a place are shown read-only under "From the earlier planner".
 
@@ -35,7 +35,7 @@ export const UNIT_SUBJECTS = [
   "PE & health", "SEL", "Life skills", "Whole school"
 ];
 
-const MIDDLE_GRADES = ["Grade 6", "Grade 7"];
+const MIDDLE_GRADES = ["Grade 6", "Grade 7", "Grade 8"];
 const OBSERVATION_GRADES = ["Pre-N", "PreK", "Kindergarten", "Grade 1", "Grade 2"];
 
 export const STATUS = {
@@ -518,7 +518,7 @@ export default function UnitPlanner({ plan, data, onSave, onClose, initialStage 
             <Chips options={GRADES.filter((g) => gradeOptions.includes(g) || (u.grades || []).includes(g))} selected={u.grades} onToggle={(g) => toggleIn("grades", g)} />
           </Group>
           {pin("grades")}
-          {middle && <p style={hint}>Grades 6–7 only: the form uses global contexts instead of themes.</p>}
+          {middle && <p style={hint}>Grades 6–8 only: the form uses global contexts instead of themes.</p>}
           <Field label="Unit title">
             <input value={u.title} onChange={(e) => set("title", e.target.value)} placeholder="e.g. Our bodies, our choices" />
           </Field>

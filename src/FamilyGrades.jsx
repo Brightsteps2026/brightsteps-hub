@@ -84,7 +84,7 @@ function letterFor(pct) {
 
 // Subjects a class has this year (before any result is shared).
 function baseSubjects(grade) {
-  if (grade === "Grade 6" || grade === "Grade 7") return ["English Language Arts", "Math", "French", "Science", "Humanities"];
+  if (grade === "Grade 6" || grade === "Grade 7" || grade === "Grade 8") return ["English Language Arts", "Math", "French", "Science", "Humanities"];
   if (grade === "Pre-N") return ["English Language Arts", "Math", "Unit of Inquiry"];
   return ["English Language Arts", "Math", "French", "Unit of Inquiry"];
 }

@@ -4,7 +4,7 @@
 const CORE_GRADES = [
   "Pre-N", "PreK", "Kindergarten",
   "Grade 1", "Grade 2", "Grade 3", "Grade 4",
-  "Grade 5", "Grade 6", "Grade 7"
+  "Grade 5", "Grade 6", "Grade 7", "Grade 8"
 ];
 
 let GRADES = [...CORE_GRADES];
@@ -215,7 +215,7 @@ const ACTIVITY_AREA_LABELS = {
 const SHORT_GRADE_LABEL = {
   "Pre-N": "Pre-N", "PreK": "PreK", "Kindergarten": "K",
   "Grade 1": "1", "Grade 2": "2", "Grade 3": "3", "Grade 4": "4",
-  "Grade 5": "5", "Grade 6": "6", "Grade 7": "7"
+  "Grade 5": "5", "Grade 6": "6", "Grade 7": "7", "Grade 8": "8"
 };
 
 const GENDERS = ["Female", "Male", "Prefer not to say"];

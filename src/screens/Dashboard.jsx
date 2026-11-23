@@ -500,7 +500,7 @@ const saveLunchMenu = async () => {
     <select value={annForm.audience} onChange={(e) => setAnnForm({ ...annForm, audience: e.target.value })} style={{ width: "100%", height: 34, marginBottom: 10 }}>
       <option value="school">Whole school</option>
       <option value="lower">Lower school (Pre-N to Grade 5)</option>
-      <option value="upper">Upper school (Grade 6 to Grade 7)</option>
+      <option value="upper">Upper school (Grade 6 to Grade 8)</option>
       {GRADES.map((g) => <option key={g} value={g}>{g} only</option>)}
     </select>
     <p style={{ fontSize: 12, color: "#6B7578", margin: "0 0 4px" }}>Title (English)</p>
