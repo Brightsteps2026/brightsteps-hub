@@ -81,8 +81,47 @@ const T = {
   undoSkip: { en: "Cancel", fr: "Annuler" },
   skipOpen: { en: "Not taking the bus?", fr: "Ne prend pas le car ?" },
   loading: { en: "Loading…", fr: "Chargement…" },
-  noBus: { en: "None of your children uses the school bus.", fr: "Aucun de vos enfants n'utilise le transport scolaire." }
+  noBus: { en: "None of your children uses the school bus.", fr: "Aucun de vos enfants n'utilise le transport scolaire." },
+  // Detailed live trip (Myri, 23 Nov 2026)
+  stWaiting: { en: "The bus has not left yet", fr: "Le car n'est pas encore parti" },
+  stComing: { en: "The bus is on its way", fr: "Le car est en route" },
+  stNear: { en: "The bus is about 5 minutes away", fr: "Le car arrive dans environ 5 minutes" },
+  stDoor: { en: "The bus is at your door", fr: "Le car est devant votre porte" },
+  stOnM: { en: "On the bus to school", fr: "En route vers l'école" },
+  stAtSchool: { en: "Arrived at school", fr: "Arrivé(e) à l'école" },
+  stLeftSchool: { en: "The bus has left school", fr: "Le car a quitté l'école" },
+  stOnA: { en: "On the bus home", fr: "En route vers la maison" },
+  stArriving: { en: "Arriving home", fr: "Arrive à la maison" },
+  stHome: { en: "Dropped off at home", fr: "Déposé(e) à la maison" },
+  stDone: { en: "Trip finished", fr: "Trajet terminé" },
+  toHome: { en: "Distance from your home", fr: "Distance de votre domicile" },
+  toSchool: { en: "Distance to school", fr: "Distance jusqu'à l'école" },
+  updated: { en: "Bus position", fr: "Position du car" },
+  secsAgo: { en: (n) => n < 60 ? `${n} s ago` : `${Math.round(n / 60)} min ago`, fr: (n) => n < 60 ? `il y a ${n} s` : `il y a ${Math.round(n / 60)} min` },
+  noSignal: { en: (m) => `No position from the bus for ${m} min. The map will update as soon as the bus phone is back online.`, fr: (m) => `Aucune position du car depuis ${m} min. La carte se mettra à jour dès que le téléphone du car sera de nouveau connecté.` },
+  timeline: { en: "Today's trip", fr: "Le trajet d'aujourd'hui" },
+  evStart: { en: "Bus left school", fr: "Le car a quitté l'école" },
+  evNear: { en: "About 5 minutes away", fr: "À environ 5 minutes" },
+  evDoor: { en: "Bus at your door", fr: "Car devant votre porte" },
+  evOnM: { en: (n) => `${n} picked up`, fr: (n) => `${n} est monté(e) dans le car` },
+  evOffM: { en: (n) => `${n} arrived at school`, fr: (n) => `${n} est arrivé(e) à l'école` },
+  evOnA: { en: (n) => `${n} on the bus`, fr: (n) => `${n} est dans le car` },
+  evNearA: { en: "About 5 minutes from home", fr: "À environ 5 minutes de la maison" },
+  evDoorA: { en: "Arriving at your home", fr: "Arrive chez vous" },
+  evOffA: { en: (n) => `${n} dropped off at home`, fr: (n) => `${n} est déposé(e) à la maison` },
+  nextPick: { en: "Pickup at your home", fr: "Ramassage à la maison" },
+  nextSchool: { en: "Arrival at school", fr: "Arrivée à l'école" },
+  nextHome: { en: "Drop-off at home", fr: "Dépose à la maison" },
+  mapHome: { en: "Home", fr: "Maison" }
 };
+
+// Where the bus drops the children at school (average of the morning drop-offs, 23 Nov 2026).
+const SCHOOL = { lat: 5.216884, lng: -3.768702 };
+function distKm(a, b) {
+  const r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+}
 
 function money(n) {
   return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
@@ -751,7 +790,7 @@ function BusFamily() {
                 </p>
               );
             })()}
-            <TodayTrips info={today.find((x) => x.student_id === r.student_id)} tr={tr} locale={locale} />
+            <TodayTrips info={today.find((x) => x.student_id === r.student_id)} home={r} tr={tr} locale={locale} />
 
             <div style={{ padding: "10px 0", borderTop: `1px solid ${COLORS.line}` }}>
               {groupSkips(skips.filter((k) => k.student_id === r.student_id)).map((k) => (
@@ -953,10 +992,14 @@ export function BusLiveBanner({ data, onOpen, style }) {
   );
 }
 
-// Parents: today's morning and afternoon trips for one child, with the live bus.
-function TodayTrips({ info, tr, locale }) {
+// Parents: today's trips for one child, with a detailed live view (Myri, 23 Nov 2026):
+// big status, live map (bus, home, school), distance, how fresh the position is, and a timeline.
+function TodayTrips({ info, home, tr, locale }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
   if (!info) return null;
   const t = (iso) => new Date(iso).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  const name = info.first_name || "";
   const line = (trip) => {
     const x = info.trips?.[trip] || {};
     const isM = trip === "morning";
@@ -973,18 +1016,106 @@ function TodayTrips({ info, tr, locale }) {
       </div>
     );
   };
-  const liveTrip = ["morning", "afternoon"].find((k) => info.trips?.[k]?.bus);
-  const lt = liveTrip ? info.trips[liveTrip] : null;
+
+  // The trip to show in detail: the live one, otherwise the latest one started today (not skipped).
+  const tripKey = ["morning", "afternoon"].find((k) => info.trips?.[k]?.live && !info.trips[k].skip)
+    || ["afternoon", "morning"].find((k) => info.trips?.[k]?.started && !info.trips[k].skip);
+  const x = tripKey ? info.trips[tripKey] : null;
+  const isM = tripKey === "morning";
+  const homePt = home?.home_lat != null && home?.home_lng != null ? { lat: Number(home.home_lat), lng: Number(home.home_lng) } : null;
+
+  let detail = null;
+  if (x) {
+    const st = isM
+      ? (x.off_at ? "stAtSchool" : x.on_at ? "stOnM" : x.door_at ? "stDoor" : x.near_at ? "stNear" : x.live ? "stComing" : "stDone")
+      : (x.off_at ? "stHome" : x.door_at ? "stArriving" : x.near_at ? "stNear" : x.on_at ? "stOnA" : x.live ? "stLeftSchool" : "stDone");
+    const tone = ["stNear", "stDoor", "stArriving"].includes(st) ? { bg: "#FFF1D6", line: "#E08A00", ink: "#7A4500" }
+      : ["stAtSchool", "stHome", "stDone"].includes(st) ? { bg: COLORS.okBg, line: COLORS.ok, ink: COLORS.ink }
+      : { bg: "#E6F0F7", line: "#3B6E8F", ink: "#1F4660" };
+    const sub = st === "stAtSchool" || st === "stHome" ? `${name} · ${t(x.off_at)}`
+      : st === "stOnM" || st === "stOnA" ? `${name} · ${tr("onBusAt")} ${t(x.on_at)}` : name;
+
+    // Distance: to the home before pickup (morning) or once on board (afternoon); to school otherwise.
+    const target = isM ? (x.on_at ? SCHOOL : homePt) : (x.on_at ? homePt : null);
+    const km = x.bus && target ? distKm(x.bus, target) : null;
+    const secs = x.bus?.at ? Math.max(0, Math.round((now - new Date(x.bus.at).getTime()) / 1000)) : null;
+    const lostMin = x.live && !x.bus && !x.off_at && x.last_at ? Math.round((now - new Date(x.last_at).getTime()) / 60000) : null;
+
+    const ev = [];
+    const add = (at, label) => { if (at) ev.push({ at, label }); };
+    add(x.started_at, tr("evStart"));
+    if (isM) {
+      add(x.near_at && x.near_at !== x.door_at ? x.near_at : null, tr("evNear"));
+      add(x.door_at, tr("evDoor"));
+      add(x.on_at, tr("evOnM")(name));
+      add(x.off_at, tr("evOffM")(name));
+    } else {
+      add(x.on_at, tr("evOnA")(name));
+      add(x.near_at && x.near_at !== x.door_at ? x.near_at : null, tr("evNearA"));
+      add(x.door_at, tr("evDoorA"));
+      add(x.off_at, tr("evOffA")(name));
+    }
+    ev.sort((a, b) => new Date(a.at) - new Date(b.at));
+    const next = x.live && !x.off_at ? (isM ? (x.on_at ? tr("nextSchool") : tr("nextPick")) : tr("nextHome")) : null;
+
+    const homes = [];
+    if (homePt) homes.push({ ...homePt, label: tr("mapHome") });
+    homes.push({ ...SCHOOL, label: "BrightSteps", school: true });
+
+    detail = (
+      <div style={{ marginTop: 10 }}>
+        <div role="status" style={{ background: tone.bg, border: `2px solid ${tone.line}`, borderRadius: 14, padding: "12px 14px", color: tone.ink }}>
+          <p style={{ margin: 0, fontSize: 20, fontWeight: 800, lineHeight: 1.2 }}>{tr(st)}</p>
+          <p style={{ margin: "3px 0 0", fontSize: 15 }}>{sub}</p>
+        </div>
+
+        {x.live && !x.off_at && (
+          <div style={{ marginTop: 10 }}>
+            {x.bus ? <BusMap bus={x.bus} path={x.path || []} homes={homes} height={340} /> : null}
+            {lostMin != null && (
+              <p style={{ ...pill("warn"), display: "block", whiteSpace: "normal", padding: "8px 12px", fontSize: 13, margin: "8px 0 0" }}>{tr("noSignal")(lostMin)}</p>
+            )}
+            {x.bus && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, marginTop: 8 }}>
+                {km != null && (
+                  <div style={{ background: COLORS.tint, borderRadius: 10, padding: "8px 10px" }}>
+                    <div style={{ fontSize: 12, color: COLORS.muted }}>{target === SCHOOL ? tr("toSchool") : tr("toHome")}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700 }}>{km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1).replace(".", locale === "fr-FR" ? "," : ".")} km`}</div>
+                  </div>
+                )}
+                <div style={{ background: COLORS.tint, borderRadius: 10, padding: "8px 10px" }}>
+                  <div style={{ fontSize: 12, color: COLORS.muted }}>{tr("updated")}</div>
+                  <div style={{ fontSize: 20, fontWeight: 700 }}>{tr("secsAgo")(secs)}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <p style={{ margin: "12px 0 6px", fontSize: 14, fontWeight: 600 }}>{tr("timeline")}</p>
+        <div style={{ display: "grid", gridTemplateColumns: "54px 1fr", rowGap: 6, fontSize: 14 }}>
+          {ev.map((e, i) => (
+            <div key={i} style={{ display: "contents" }}>
+              <span style={{ color: COLORS.muted }}>{t(e.at)}</span>
+              <span><span style={{ color: COLORS.ok, fontWeight: 700, marginRight: 6 }}>✓</span>{e.label}</span>
+            </div>
+          ))}
+          {next && (
+            <div style={{ display: "contents" }}>
+              <span style={{ color: COLORS.muted }}>…</span>
+              <span style={{ color: COLORS.muted }}>{next}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: "10px 0", borderTop: `1px solid ${COLORS.line}` }}>
       <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600 }}>{tr("today")}</p>
       {line("morning")}{line("afternoon")}
-      {lt && (
-        <div style={{ marginTop: 8 }}>
-          <p style={{ margin: "0 0 6px", fontSize: 13, color: COLORS.muted }}>{tr("followBus")} · {t(lt.bus.at)}</p>
-          <BusMap bus={lt.bus} path={lt.path || []} height={340} />
-        </div>
-      )}
+      {detail}
     </div>
   );
 }

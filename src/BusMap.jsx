@@ -53,8 +53,10 @@ export default function BusMap({ bus, path = [], homes = [], height = 260 }) {
     const pts = [];
     homes.forEach((h) => {
       if (h.lat == null || h.lng == null) return;
-      L.circleMarker([h.lat, h.lng], { radius: 6, color: "#3B6E8F", weight: 2, fillColor: h.done ? "#B9D3E3" : "#FFFFFF", fillOpacity: 1 })
-        .bindTooltip(h.label || "", { direction: "top" }).addTo(layer.current);
+      L.circleMarker([h.lat, h.lng], h.school
+        ? { radius: 9, color: BRAND, weight: 3, fillColor: "#FFFFFF", fillOpacity: 1 }
+        : { radius: 6, color: "#3B6E8F", weight: 2, fillColor: h.done ? "#B9D3E3" : "#FFFFFF", fillOpacity: 1 })
+        .bindTooltip(h.label || "", { direction: "top", permanent: !!(h.school || h.label === "Home" || h.label === "Maison") }).addTo(layer.current);
       pts.push([h.lat, h.lng]);
     });
     if (path.length > 1) {
