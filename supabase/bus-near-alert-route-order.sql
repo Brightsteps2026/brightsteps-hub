@@ -7,7 +7,7 @@
 -- Jeavis and Francesco to pick up first; the bus reached him at 07:19 (12 minutes, not 5).
 -- Mila and Madeem got it at 07:01 for a 07:38 pickup.
 --
--- New rule: the alert waits while an EARLIER child on the route (morning: pickup order;
+-- New rule: the alert waits while an EARLIER child (whose bus has not yet reached their door) on the route (morning: pickup order;
 -- afternoon: drop-off order) is still to be picked up / dropped off and lives more than 100 m
 -- away (Aria, the Mbangowah boys and Jayden are only 150–330 m apart but the bus takes several
 -- minutes per stop). Children in the same building (Jayden and Enola, Italia 2, 60 m) still get
@@ -32,7 +32,9 @@ returns boolean language sql stable security definer set search_path to 'public'
       and (
         (t.trip = 'morning'
           and not exists (select 1 from public.bus_events e where e.trip_id = t.id and e.student_id = o.student_id and e.kind = 'on')
-          and not exists (select 1 from public.bus_door_waits w where w.trip_id = t.id and w.student_id = o.student_id and w.left_at is not null))
+          and not exists (select 1 from public.bus_door_waits w where w.trip_id = t.id and w.student_id = o.student_id and w.left_at is not null)
+          -- once the bus is at the previous family's door, the next stop gets its alert (about 4-5 minutes)
+          and not exists (select 1 from public.bus_near_alerts a where a.trip_id = t.id and a.student_id = o.student_id and a.stage = 'door'))
         or
         (t.trip = 'afternoon'
           and exists (select 1 from public.bus_events e where e.trip_id = t.id and e.student_id = o.student_id and e.kind = 'on')
