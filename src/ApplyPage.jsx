@@ -8,7 +8,7 @@ import { uploadAttachment } from "./lib/attachments";
 // Step by step: Child · Family · Documents · Review. One language at a time (EN/FR switch).
 // ?lang=fr|en sets the language, ?visit=1 opens on visit booking, ?offer=<token> shows an offer.
 
-const GRADES = ["Pre-N", "PreK", "Kindergarten", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6", "Grade 7"];
+const GRADES = ["Pre-N", "PreK", "Kindergarten", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6", "Grade 7", "Grade 8"];
 const GRADE_LABEL = {
   en: { "Pre-N": "Pre-Nursery", PreK: "Pre-Kindergarten" },
   fr: { "Pre-N": "Pre-Nursery (petite section)", PreK: "Pre-Kindergarten (moyenne section)", Kindergarten: "Kindergarten (grande section)" }

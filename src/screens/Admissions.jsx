@@ -15,7 +15,7 @@ const row = { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" };
 const th = { textAlign: "left", padding: "6px 8px", fontSize: 12, color: COLORS.muted, borderBottom: `1px solid ${COLORS.line}`, whiteSpace: "nowrap" };
 const td = { padding: "6px 8px", fontSize: 13, borderBottom: `1px solid ${COLORS.line}` };
 const PUBLIC_URL = "https://hub.bischoolci.org/apply";
-const GRADES = ["Pre-N", "PreK", "Kindergarten", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6", "Grade 7"];
+const GRADES = ["Pre-N", "PreK", "Kindergarten", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6", "Grade 7", "Grade 8"];
 
 export const STAGES = [
   { id: "enquiry", label: "Enquiry", tone: "neutral" },
