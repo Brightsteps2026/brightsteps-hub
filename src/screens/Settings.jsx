@@ -52,9 +52,23 @@ function LogoUploadField({ logoUrl, onChange }) {
       setError("That image is too large. Please choose one under 3MB.");
       return;
     }
+    // Shrink the logo to at most 480 px before saving (Myri, 23 Nov 2026): a full-size
+    // logo made the school data four times heavier and slowed every save.
     const reader = new FileReader();
-    reader.onload = () => onChange(reader.result);
     reader.onerror = () => setError("Could not read that file. Please try again.");
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => setError("Could not read that image. Please try another file.");
+      img.onload = () => {
+        const k = Math.min(1, 480 / Math.max(img.width, img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.max(1, Math.round(img.width * k));
+        c.height = Math.max(1, Math.round(img.height * k));
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        onChange(c.toDataURL("image/png"));
+      };
+      img.src = reader.result;
+    };
     reader.readAsDataURL(file);
   };
 
