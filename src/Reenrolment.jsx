@@ -3,11 +3,11 @@ import { supabase } from "./lib/supabaseClient";
 import { useLanguage } from "./lib/i18n";
 import { COLORS, card, chip, chipOn, primaryBtn, input, pill } from "./ui/tokens";
 
-// Parent Dashboard card: re-enrolment for next school year (Myri, 20 Nov 2026).
+// Parent Dashboard card: re-enrollment for next school year (Myri, 20 Nov 2026).
 // Follows the EN/FR toggle (never both side by side).
 const TXT = {
   en: {
-    title: (y) => `Re-enrolment ${y}`,
+    title: (y) => `Re-enrollment ${y}`,
     intro: (y, d) => `Will your child return to BrightSteps in ${y}? Please answer for each child${d ? ` by ${d}` : ""}.`,
     next: "Next year",
     returning: "Yes, returning",

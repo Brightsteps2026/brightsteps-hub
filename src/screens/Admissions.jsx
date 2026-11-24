@@ -5,7 +5,7 @@ import { uid, todayStr } from "../lib/format";
 import { COLORS, card as cardToken, chip, chipOn, primaryBtn, ghostBtn, input, label, pill } from "../ui/tokens";
 
 // Admissions (rebuilt 20 Nov 2026): applications from the public page hub.bischoolci.org/apply,
-// seats per class, re-enrolment, visits, numbers. Staff screen, English only.
+// seats per class, re-enrollment, visits, numbers. Staff screen, English only.
 // Data now lives in Supabase tables (admission_*), no longer in the app_storage blob.
 
 const wrap = { padding: "16px 16px 90px", maxWidth: 960, margin: "0 auto" };
@@ -50,7 +50,7 @@ function AdmissionsTab({ data, persist }) {
         <button style={ghostBtn} onClick={() => { navigator.clipboard?.writeText(PUBLIC_URL); alert("Link copied: " + PUBLIC_URL); }}>Copy the public application link</button>
       </div>
       <div style={{ ...row, marginBottom: 14 }}>
-        {[["applications", "Applications"], ["seats", "Seats per class"], ["reenrol", "Re-enrolment"], ["visits", "Visits"], ["numbers", "Numbers"], ["settings", "Settings"]].map(([id, l]) => (
+        {[["applications", "Applications"], ["seats", "Seats per class"], ["reenrol", "Re-enrollment"], ["visits", "Visits"], ["numbers", "Numbers"], ["settings", "Settings"]].map(([id, l]) => (
           <button key={id} style={section === id ? chipOn : chip} onClick={() => setSection(id)}>{l}</button>
         ))}
       </div>
@@ -311,7 +311,7 @@ function Seats({ year }) {
   );
 }
 
-// ---------- Re-enrolment ----------
+// ---------- Re-enrollment ----------
 
 function Reenrol({ settings, reload }) {
   const [rows, setRows] = useState([]);
@@ -327,10 +327,10 @@ function Reenrol({ settings, reload }) {
     })();
   }, [settings.school_year]);
   async function openIt() {
-    if (!window.confirm("Open re-enrolment? Every parent gets a notification asking them to answer on their Dashboard.")) return;
+    if (!window.confirm("Open re-enrollment? Every parent gets a notification asking them to answer on their Dashboard.")) return;
     const { data, error } = await supabase.rpc("reenrol_open", { p_deadline: deadline || null });
     if (error) return alert(error.message);
-    alert(`Re-enrolment is open. ${data} parent accounts were notified.`);
+    alert(`Re-enrollment is open. ${data} parent accounts were notified.`);
     reload();
   }
   async function closeIt() {
@@ -343,12 +343,12 @@ function Reenrol({ settings, reload }) {
     <>
       <div style={{ ...card, ...row, justifyContent: "space-between" }}>
         <div>
-          <p style={{ margin: 0, fontWeight: 600 }}>{settings.reenrol_open ? "Re-enrolment is open" : "Re-enrolment is closed"}</p>
+          <p style={{ margin: 0, fontWeight: 600 }}>{settings.reenrol_open ? "Re-enrollment is open" : "Re-enrollment is closed"}</p>
           <p style={small}>{answered} of {rows.length} students answered · {n("returning")} returning · {n("unsure")} unsure · {n("leaving")} leaving</p>
         </div>
         <span style={row}>
           {!settings.reenrol_open && <><span style={small}>Answer by</span><input type="date" style={{ ...input, width: 160, minHeight: 36 }} value={deadline} onChange={(e) => setDeadline(e.target.value)} /><button style={primaryBtn} onClick={openIt}>Open and notify parents</button></>}
-          {settings.reenrol_open && <button style={ghostBtn} onClick={closeIt}>Close re-enrolment</button>}
+          {settings.reenrol_open && <button style={ghostBtn} onClick={closeIt}>Close re-enrollment</button>}
         </span>
       </div>
       <div style={{ ...card, padding: 0, overflowX: "auto" }}>

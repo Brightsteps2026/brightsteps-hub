@@ -81,7 +81,7 @@ ${withdrawn ? `<span class="badge">Withdrawn · last day ${esc(longDate(withdraw
 <table class="kv">
 ${row("Student ID", esc(s.studentIdNumber))}${row("Date of birth", esc(longDate(s.dob)))}${row("Gender", esc(s.gender))}
 ${row("Nationality", esc((s.nationalities || []).join(", ") || s.nationality))}${row(withdrawn ? "Class when withdrawn" : "Class", esc(s.grade))}
-${row("Enrolment date", s.enrollmentDate ? esc(longDate(s.enrollmentDate)) : "Not recorded")}${s.previousSchool ? row("Previous school", esc(s.previousSchool)) : ""}
+${row("Enrollment date", s.enrollmentDate ? esc(longDate(s.enrollmentDate)) : "Not recorded")}${s.previousSchool ? row("Previous school", esc(s.previousSchool)) : ""}
 ${s.homeAddress ? row("Home address", esc(s.homeAddress)) : ""}${row("Medical / allergies", medical ? esc(medical).replace(/&lt;br&gt;/g, "<br>") : "None recorded")}
 ${withdrawn?.note ? row("Reason for leaving", esc(withdrawn.note)) : ""}
 </table>

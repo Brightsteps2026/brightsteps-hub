@@ -54,7 +54,7 @@ function content(kind: string, a: any, slot: any) {
     },
     enrolled: {
       s: [a.child_first_name + " is enrolled at BrightSteps", a.child_first_name + " est inscrit(e) à BrightSteps"],
-      en: `<p>${child}'s enrolment for ${year} is complete. You will receive your BrightSteps Hub account before the start of the school year.</p>`,
+      en: `<p>${child}'s enrollment for ${year} is complete. You will receive your BrightSteps Hub account before the start of the school year.</p>`,
       fr: `<p>L'inscription de ${child} pour ${year} est terminée. Vous recevrez votre compte BrightSteps Hub avant la rentrée.</p>`
     }
   };
