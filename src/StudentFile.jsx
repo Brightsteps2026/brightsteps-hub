@@ -2,8 +2,8 @@
 // One file per student: the Director's and the homeroom teacher's entries (parent meetings,
 // academic, learning support, office notes, documents), with incidents (Incidents tab) and
 // behaviour notes (Behaviour) shown alongside. Seen by the Director (admin) and the student's
-// homeroom teacher only, never by parents. Teachers add entries; only the Director edits or
-// deletes. "Director only" entries are hidden from the homeroom teacher.
+// homeroom teacher only, never by parents. Teachers add entries; only admins edit or
+// delete. "Director only" entries are seen by Myriam alone (not other admins, not teachers).
 // Safeguarding concerns stay with the DSL and are not shown here. Staff screen, English only.
 
 import { useEffect, useMemo, useState } from "react";
@@ -77,6 +77,7 @@ export default function StudentFile({ student, data }) {
 
   const shown = filter === "all" ? items : items.filter((i) => i.kind === filter);
   const manage = !!file?.can_manage;
+  const director = !!file?.is_director;
 
   const startEdit = (e) => {
     setEditing(e.id);
@@ -95,7 +96,7 @@ export default function StudentFile({ student, data }) {
         path = up.path; name = up.name;
       }
       const row = { entry_date: form.date || todayIso(), kind: form.kind, title: form.title.trim(), details: form.details.trim() || null,
-        director_only: manage ? form.directorOnly : false, file_path: path, file_name: name };
+        director_only: director ? form.directorOnly : false, file_path: path, file_name: name };
       const res = editing
         ? await supabase.from("student_file_entries").update({ ...row, updated_at: new Date().toISOString() }).eq("id", editing)
         : await supabase.from("student_file_entries").insert({ ...row, student_id: file.student_id });
@@ -145,7 +146,7 @@ export default function StudentFile({ student, data }) {
           <span>{form.file ? form.file.name : form.keepName ? `Attached: ${form.keepName} (choose a file to replace it)` : "Attach a file (PDF, photo)"}</span>
           <input type="file" accept=".pdf,image/*,.doc,.docx" style={{ display: "none" }} onChange={(e) => setForm({ ...form, file: e.target.files?.[0] || null })} />
         </label>
-        {manage && (
+        {director && (
           <label style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: 10, borderRadius: 8, background: COLORS.tint, marginTop: 8, cursor: "pointer" }}>
             <input type="checkbox" checked={form.directorOnly} onChange={(e) => setForm({ ...form, directorOnly: e.target.checked })} style={{ width: 18, height: 18, margin: "1px 0 0" }} />
             <span><strong>Director only</strong><br /><span style={{ fontSize: 12, color: COLORS.muted }}>The homeroom teacher will not see this entry.</span></span>
