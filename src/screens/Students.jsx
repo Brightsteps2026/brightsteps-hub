@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, UserMinus, UserCheck, Flag, Printer } from "lucide-react";
+import { Plus, UserMinus, UserCheck, Flag, Printer, FolderOpen } from "lucide-react";
 import StudentPhotoField from "../StudentPhotoField";
 import { GRADES, behaviorGradesFor, GENDERS } from "../data/constants";
 import { COUNTRIES } from "../data/countries";
@@ -10,6 +10,7 @@ import { StudentMessages } from "./Messages";
 import { StudentBehavior } from "./Behavior";
 import { pending } from "../data/pending";
 import { WithdrawStudentModal, WithdrawnStudents, printStudentRecord, attendanceOf } from "../StudentRecords";
+import StudentFile, { useStudentFileAccess } from "../StudentFile";
 
 const emptyStudentForm = {
   firstName: "", middleName: "", lastName: "", grade: GRADES[0], dob: "", gender: "", nationalities: [],
@@ -171,6 +172,10 @@ function StudentsTab({ data, persist, profile }) {
   const myBehaviorGrades = behaviorGradesFor(profile);
   const [behaviorId, setBehaviorId] = useState(null);
   const behaviorStudent = visibleStudents.find((s) => s.id === behaviorId && myBehaviorGrades.includes(s.grade));
+  // Student file: the Director and the homeroom teacher only (24 Nov 2026).
+  const fileAccess = useStudentFileAccess(profile);
+  const [fileId, setFileId] = useState(null);
+  const fileStudent = visibleStudents.find((s) => s.id === fileId && fileAccess.includes(s.id));
 
   const openAdd = () => {
     setEditingId(null);
@@ -248,6 +253,9 @@ function StudentsTab({ data, persist, profile }) {
         <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); setFamilyViewId(s.id); }} aria-label="Family view"><UserCheck size={16} /></button>
         {myBehaviorGrades.includes(s.grade) && (
           <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); setBehaviorId(s.id); }} aria-label="Behaviour" title="Behaviour"><Flag size={16} /></button>
+        )}
+        {fileAccess.includes(s.id) && (
+          <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); setFileId(s.id); }} aria-label="Student file" title="Student file"><FolderOpen size={16} /></button>
         )}
         {isAdmin && <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); printStudentRecord({ student: s, attendance: attendanceOf(data, s.id), logoUrl: data?.settings?.branding?.logoUrl || "/logo.png" }); }} aria-label="Print student record" title="Print student record"><Printer size={16} /></button>}
         {isAdmin && <button className="bsf-iconbtn" onClick={(e) => { e.stopPropagation(); setWithdrawingId(s.id); }} aria-label="Withdraw" title="Withdraw student"><UserMinus size={16} /></button>}
@@ -445,6 +453,12 @@ function StudentsTab({ data, persist, profile }) {
       {behaviorStudent && (
         <Modal title={`${behaviorStudent.name} · Behaviour`} onClose={() => setBehaviorId(null)}>
           <StudentBehavior student={behaviorStudent} data={data} persist={persist} profile={profile} />
+        </Modal>
+      )}
+
+      {fileStudent && (
+        <Modal title={`${fileStudent.name} · Student file`} onClose={() => setFileId(null)}>
+          <StudentFile student={fileStudent} data={data} />
         </Modal>
       )}
 
