@@ -23,6 +23,13 @@ function termFor(dateStr) {
 const STAFF_MEAL_PRICE = 2500;
 // Monthly canteen must be paid before this day of the month.
 const CANTEEN_DUE_DAY = 5;
+// From the 25th (the day the canteen reminder goes to parents), the office
+// screens open on next month (Myri, Nov 2026).
+const NEW_MONTH_FROM_DAY = 25;
+function openMonthStart() {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth() + (d.getDate() >= NEW_MONTH_FROM_DAY ? 1 : 0), 1);
+}
 const STAFF_ROLES = ["admin", "teacher", "learning_assistant", "accountant"];
 
 const T = {
@@ -203,12 +210,12 @@ export default function CanteenTab({ profile }) {
   const [saving, setSaving] = useState(false);
 
   const [picked, setPicked] = useState(null);
-  const [passType, setPassType] = useState("day");
+  const [passType, setPassType] = useState(isParent ? "day" : "month");
   const [choice, setChoice] = useState("");
 
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(null);
-  const [staffDate, setStaffDate] = useState(toISO(new Date()));
+  const [staffDate, setStaffDate] = useState(isParent ? toISO(new Date()) : toISO(openMonthStart()));
   // Students who don't eat at school (office list only).
   const [noLunch, setNoLunch] = useState(new Set());
   const [showNoLunch, setShowNoLunch] = useState(false);
@@ -535,8 +542,76 @@ export default function CanteenTab({ profile }) {
   // In "Record a pass", month view: red tag once the chosen month is past the 5th.
   const listMonthOverdue = passType === "month" && monthIsOverdue(periodRange.start);
 
+  // Month card at the top: the month being worked on, with the month before folded to one line.
+  function pickOfficeType(t) {
+    setPassType(t);
+    if (t === "day") setStaffDate(toISO(new Date()));
+    if (t === "month") setStaffDate(toISO(openMonthStart()));
+  }
+  const viewFirst = passType === "month" ? periodRange.start : toISO(openMonthStart());
+  const viewD = parseISO(viewFirst);
+  const monthInfo = (d) => {
+    const first = toISO(new Date(d.getFullYear(), d.getMonth(), 1));
+    const last = toISO(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+    const eaters = students.filter((s) => !isNoLunch(s.id));
+    const paid = eaters.filter((s) => passes.some((p) => p.student_id === s.id && coversWholeMonth(p, first, last))).length;
+    return { first, name: d.toLocaleDateString("en-GB", { month: "long", year: "numeric" }), paid, toPay: eaters.length - paid };
+  };
+  const viewMonth = monthInfo(viewD);
+  const prevMonth = monthInfo(new Date(viewD.getFullYear(), viewD.getMonth() - 1, 1));
+  const prevClosed = prevMonth.first < toISO(openMonthStart());
+  const dueLabel = `${CANTEEN_DUE_DAY} ${viewD.toLocaleDateString("en-GB", { month: "long" })}`;
+  const viewNote =
+    viewFirst > curFirst
+      ? `New month · payment due by ${dueLabel}`
+      : viewFirst < curFirst
+      ? "Closed"
+      : monthIsOverdue(viewFirst)
+      ? `Payment was due by ${dueLabel}`
+      : `Payment due by ${dueLabel}`;
+  const goMonth = (n) => {
+    setPassType("month");
+    setStaffDate(toISO(new Date(viewD.getFullYear(), viewD.getMonth() + n, 1)));
+    setSelected(null);
+    setStatus("");
+  };
+
   return (
     <div style={{ padding: "16px 16px 90px" }}>
+      {canEdit && (
+        <>
+          <div
+            onClick={() => goMonth(-1)}
+            title={`Open ${prevMonth.name}`}
+            style={{ ...card, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", fontSize: 14, color: COLORS.muted }}
+          >
+            <span><span style={{ color: COLORS.ok }}>✓ </span>{prevMonth.name}{prevClosed ? " · closed" : ""} · {prevMonth.paid} paid</span>
+            <span style={{ fontSize: 12 }}>Open</span>
+          </div>
+          <div style={{ ...card, border: `2px solid ${COLORS.brand}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <button onClick={() => goMonth(-1)} style={chip} aria-label="Previous month">‹</button>
+              <p style={{ margin: 0, fontSize: 17, fontWeight: 600, color: COLORS.brand }}>{viewMonth.name}</p>
+              <button onClick={() => goMonth(1)} style={chip} aria-label="Next month">›</button>
+            </div>
+            <p style={{ margin: "4px 0 12px", fontSize: 13, color: COLORS.muted, textAlign: "center" }}>{viewNote}</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div style={{ background: COLORS.okBg, borderRadius: 10, padding: 10 }}>
+                <p style={{ margin: 0, fontSize: 12, color: COLORS.ok }}>Paid</p>
+                <p style={{ margin: 0, fontSize: 22, fontWeight: 600, color: COLORS.ok }}>{viewMonth.paid}</p>
+              </div>
+              <div style={{ background: viewMonth.toPay ? COLORS.badBg : "#F4EFEF", borderRadius: 10, padding: 10 }}>
+                <p style={{ margin: 0, fontSize: 12, color: viewMonth.toPay ? COLORS.bad : COLORS.muted }}>To pay</p>
+                <p style={{ margin: 0, fontSize: 22, fontWeight: 600, color: viewMonth.toPay ? COLORS.bad : COLORS.muted }}>{viewMonth.toPay}</p>
+              </div>
+            </div>
+            <p style={{ margin: "10px 0 0", fontSize: 12, color: COLORS.muted }}>
+              Students who eat at school. Record payments in "Record a pass" below.
+            </p>
+          </div>
+        </>
+      )}
+
       {role === "admin" && (
       <div style={card}>
         <p style={{ margin: "0 0 2px", fontSize: 15, fontWeight: 600 }}>Kitchen count for tomorrow</p>
@@ -625,7 +700,7 @@ export default function CanteenTab({ profile }) {
 
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 13, color: COLORS.muted }}>
             {OFFICE_PASS_TYPES.map((t) => (
-              <button key={t} onClick={() => setPassType(t)} style={{ ...(passType === t ? chipOn : chip), padding: "4px 10px" }}>
+              <button key={t} onClick={() => pickOfficeType(t)} style={{ ...(passType === t ? chipOn : chip), padding: "4px 10px" }}>
                 {tr(t)}
               </button>
             ))}
@@ -732,7 +807,7 @@ export default function CanteenTab({ profile }) {
 
               <div style={{ display: "flex", gap: 7, marginBottom: 12, flexWrap: "wrap" }}>
                 {OFFICE_PASS_TYPES.map((t) => (
-                  <button key={t} onClick={() => setPassType(t)} style={passType === t ? chipOn : chip}>
+                  <button key={t} onClick={() => pickOfficeType(t)} style={passType === t ? chipOn : chip}>
                     {tr(t)} · {money(PRICES[t])} FCFA
                   </button>
                 ))}
@@ -789,10 +864,7 @@ export default function CanteenTab({ profile }) {
 
 // Staff: every pass that falls in the chosen month, paid or not.
 function PassesList({ passes, students }) {
-  const [monthStart, setMonthStart] = useState(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1);
-  });
+  const [monthStart, setMonthStart] = useState(() => openMonthStart());
   const [kind, setKind] = useState("all");
 
   const first = toISO(monthStart);
