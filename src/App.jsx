@@ -108,6 +108,13 @@ function BrightStepsHubInner() {
   // Pre-N through Grade 2: reflections only. Grade 3 and up: can also see (not edit)
   // their own attendance and grades.
   const STUDENT_ALLOWED_TABS = isUpperStudent ? ["portfolio", "attendance", "gradebook", "assignments", "assessment", "messages"] : ["portfolio"];
+  // Suspended for unpaid fees (27 Nov 2026): the database stops sending that child's
+  // grades, reports, portfolio, attendance, etc. If every child is suspended, the
+  // family keeps only Dashboard, My child (messages), School fees, Calendar,
+  // Communication and Resources.
+  const suspendedKids = isParent ? (data.students || []).filter((s) => s.feeSuspended) : [];
+  const allSuspended = isParent && suspendedKids.length > 0 && suspendedKids.length === (data.students || []).length;
+  const SUSPENDED_HIDDEN_TABS = ["attendance", "portfolio", "assessment", "assignments", "timetable", "canteen", "bus", "reports"];
   const unreadThreads = useUnreadThreads(profile, data);
   // School fees: only Myriam (office) and parents whose family account she has shared.
   const feesAccess = useFeesAccess(profile);
@@ -128,6 +135,7 @@ function BrightStepsHubInner() {
 
   useEffect(() => {
     if (isParent && PARENT_HIDDEN_TABS.includes(tab)) setTab("dashboard");
+    if (allSuspended && SUSPENDED_HIDDEN_TABS.includes(tab)) setTab("dashboard");
     if (!isAdmin && !isViewer && ADMIN_ONLY_TABS.includes(tab)) setTab("dashboard");
     if (tab === "billing") setTab("dashboard"); // Billing tab removed 4 Nov 2026
     if (tab === "weekly" && isSpecialist) setTab("dashboard");
@@ -142,7 +150,7 @@ function BrightStepsHubInner() {
     if (tab === "stafffiles" && !isAdmin && !isAccountant) setTab("dashboard");
     if (tab === "fees" && !canSeeFees) setTab("dashboard");
     if (tab === "bus" && !canSeeBus) setTab("dashboard");
-  }, [isParent, isAdmin, isLearningAssistant, isAccountant, isStudent, tab, profile, canSeeFees, canSeeBus]);
+  }, [isParent, isAdmin, isLearningAssistant, isAccountant, isStudent, tab, profile, canSeeFees, canSeeBus, allSuspended]);
 
   if (loadError) {
     return (
@@ -208,6 +216,7 @@ function BrightStepsHubInner() {
     // Staff use one Assessment tab (gradebook inside); upper students keep their own Gradebook view.
     .filter((s) => s.id !== "gradebook" || isStudent)
     .filter((s) => !isParent || !PARENT_HIDDEN_TABS.includes(s.id))
+    .filter((s) => !allSuspended || !SUSPENDED_HIDDEN_TABS.includes(s.id))
     .filter((s) => isAdmin || isViewer || !ADMIN_ONLY_TABS.includes(s.id))
     .filter((s) => s.id !== "fees" || canSeeFees)
     .filter((s) => s.id !== "bus" || canSeeBus)
@@ -223,6 +232,8 @@ function BrightStepsHubInner() {
     ? ACCOUNTANT_ALLOWED_TABS
     : !isAdmin && staffDailyGrades(profile).length > 0
     ? ["dashboard", "daily", "attendance", "portfolio"] // Pre-N staff log the day from the bottom bar
+    : allSuspended
+    ? ["dashboard", "students", "fees"]
     : ["dashboard", "attendance", "portfolio", "assessment"];
   const bottomTabs = primaryIds.map((id) => allSections.find((s) => s.id === id)).filter(Boolean);
   if (isStudent && isUpperStudent) {
@@ -301,7 +312,8 @@ function BrightStepsHubInner() {
       </div>
 
       <TabErrorBoundary key={tab} language={language}>
-      {isParent && busAccess.family && tab !== "bus" && <BusLiveBanner onOpen={() => goTo("bus")} style={{ padding: "12px 16px 0", maxWidth: 960, marginLeft: "auto", marginRight: "auto" }} />}
+      {suspendedKids.length > 0 && <FeeSuspendedBanner kids={suspendedKids} language={language} canSeeFees={canSeeFees} onFees={() => goTo("fees")} />}
+      {isParent && busAccess.family && tab !== "bus" && !allSuspended && <BusLiveBanner onOpen={() => goTo("bus")} style={{ padding: "12px 16px 0", maxWidth: 960, marginLeft: "auto", marginRight: "auto" }} />}
       {tab === "dashboard" && !isParent && !isStudent && <CheckinBanner profile={profile} onOpen={() => goTo("checkin")} />}
       {tab === "dashboard" && <Dashboard data={data} profile={profile} persist={persist} onNavigate={goTo} />}
       {tab === "students" && (isParent ? <ParentStudentView data={data} persist={persist} profile={profile} /> : <StudentsTab data={data} persist={persist} profile={profile} />)}
@@ -389,6 +401,28 @@ function BrightStepsHubInner() {
           </button>
         )}
       </nav>
+    </div>
+  );
+}
+
+// Shown to a parent whose child is suspended for unpaid fees (27 Nov 2026).
+function FeeSuspendedBanner({ kids, language, canSeeFees, onFees }) {
+  const fr = language === "fr";
+  const names = kids.map((k) => k.firstName || (k.name || "").split(" ")[0]).filter(Boolean);
+  const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} ${fr ? "et" : "and"} ${names[names.length - 1]}` : names[0] || "";
+  return (
+    <div style={{ padding: "12px 16px 0", maxWidth: 960, margin: "0 auto" }}>
+      <div role="status" style={{ background: "#FCE8E8", color: "#8E2626", borderRadius: 14, padding: "14px 16px", fontSize: 14, lineHeight: 1.5 }}>
+        <strong style={{ display: "block", marginBottom: 4 }}>{fr ? "Accès au Hub limité" : "Hub access limited"}</strong>
+        {fr
+          ? `L'accès au Hub est limité pour ${list} tant que les frais de scolarité sont en retard. Vous pouvez toujours consulter vos frais, imprimer vos reçus et écrire à l'école. L'accès complet est rétabli dès que le paiement est enregistré.`
+          : `Hub access is limited for ${list} while school fees are overdue. You can still view your fees, print your receipts and message the school. Full access returns as soon as the payment is recorded.`}
+        {canSeeFees && (
+          <div style={{ marginTop: 10 }}>
+            <button className="bsf-btn" onClick={onFees} style={{ minHeight: 40 }}>{fr ? "Voir mes frais de scolarité" : "View my school fees"}</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

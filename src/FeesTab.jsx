@@ -673,6 +673,59 @@ function OfficeFees({ readOnly = false }) {
   );
 }
 
+// Suspend a child's Hub access for unpaid fees (Myri, 27 Nov 2026).
+// The parent keeps School fees, receipts, messages and announcements; grades,
+// reports, portfolio, attendance, assignments, the diary and the bus are hidden
+// by the database. Lifted automatically once the family is no longer past due.
+function HubAccess({ familyId, pastDue, readOnly, onChanged }) {
+  const [kids, setKids] = useState(null);
+  const [busy, setBusy] = useState(null);
+  const [msg, setMsg] = useState("");
+  async function load() {
+    const { data, error } = await supabase.from("tuition_family_students")
+      .select("student_id, students(id, full_name, grade, fee_suspended_on)").eq("family_id", familyId);
+    if (error) { setMsg(error.message); setKids([]); return; }
+    setKids((data || []).map((x) => x.students).filter(Boolean));
+  }
+  useEffect(() => { load(); }, [familyId]);
+  async function toggle(k) {
+    const on = !k.fee_suspended_on;
+    if (on && !window.confirm(`Limit Hub access for ${k.full_name}? The parents will keep School fees, receipts and messages only.`)) return;
+    setBusy(k.id); setMsg("");
+    const { error } = await supabase.rpc("set_fee_suspension", { p_student: k.id, p_on: on, p_note: on ? "Unpaid tuition" : null });
+    setBusy(null);
+    if (error) { setMsg(error.message); return; }
+    load(); onChanged && onChanged();
+  }
+  if (!kids || kids.length === 0) return null;
+  const short = (iso) => parseISO(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return (
+    <div style={card}>
+      <h3 style={{ margin: "0 0 4px", fontSize: 15 }}>Hub access</h3>
+      <p style={{ margin: "0 0 6px", fontSize: 12, color: MUTED, lineHeight: 1.5 }}>
+        Limited access: the parents keep School fees, receipts, messages and announcements only. It is lifted automatically once the family is no longer past due.
+      </p>
+      {kids.map((k) => (
+        <div key={k.id} style={{ ...row, fontSize: 14 }}>
+          <div>
+            <strong>{k.full_name}</strong>
+            <div style={{ fontSize: 12, color: MUTED }}>{k.grade}{k.fee_suspended_on ? ` · limited since ${short(k.fee_suspended_on)}` : ""}</div>
+          </div>
+          {readOnly
+            ? <span style={k.fee_suspended_on ? pill(RED_BG, RED) : pill(GREEN_BG, GREEN)}>{k.fee_suspended_on ? "Limited" : "Full access"}</span>
+            : <button onClick={() => toggle(k)} disabled={busy === k.id}
+                style={{ minHeight: 40, padding: "0 14px", borderRadius: 10, cursor: "pointer", fontFamily: "inherit", fontSize: 13, whiteSpace: "nowrap",
+                  background: k.fee_suspended_on ? "#FFFFFF" : (pastDue ? RED : "#FFFFFF"), color: k.fee_suspended_on ? GREEN : (pastDue ? "#FFFFFF" : RED),
+                  border: `1px solid ${k.fee_suspended_on ? GREEN : RED}` }}>
+                {busy === k.id ? "…" : k.fee_suspended_on ? "Restore full access" : "Limit access"}
+              </button>}
+        </div>
+      ))}
+      {msg && <p style={{ color: RED, fontSize: 13, margin: "8px 0 0" }}>{msg}</p>}
+    </div>
+  );
+}
+
 async function nextReceiptNo() {
   const { data } = await supabase.from("tuition_receipts").select("receipt_no").like("receipt_no", "BIS-2026-%");
   const max = Math.max(0, ...(data || []).map((x) => parseInt(String(x.receipt_no).split("-")[2], 10) || 0));
@@ -750,6 +803,8 @@ function FamilyOffice({ fam, onClose, onChanged, onRecord, onPreview, readOnly =
             <button onClick={onPreview} style={{ minHeight: 44, background: "none", border: `1px solid ${LINE}`, borderRadius: 10, padding: "0 14px", cursor: "pointer", color: BURGUNDY, fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}><Eye size={16} /> Preview</button>
           </div>
         </div>
+
+        <HubAccess familyId={fam.family_id} pastDue={st.standing === "past_due"} readOnly={readOnly} onChanged={onChanged} />
 
         <div style={card}>
           <h3 style={{ margin: "0 0 6px", fontSize: 15 }}>Payments and receipts</h3>
