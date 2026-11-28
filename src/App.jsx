@@ -234,8 +234,6 @@ function BrightStepsHubInner() {
     ? STUDENT_ALLOWED_TABS.filter((id) => id !== "messages")
     : isAccountant
     ? ACCOUNTANT_ALLOWED_TABS
-    : !isAdmin && staffDailyGrades(profile).length > 0
-    ? ["dashboard", "daily", "attendance", canInbox ? "messages" : "portfolio"] // Pre-N staff log the day from the bottom bar
     : allSuspended
     ? ["dashboard", "students", "fees"]
     : isParent || !canInbox
