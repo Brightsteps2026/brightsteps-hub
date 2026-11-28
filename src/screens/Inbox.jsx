@@ -32,7 +32,6 @@ function InboxTab({ data, profile }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(null); // { studentId, thread }
   const [picking, setPicking] = useState(false);
@@ -77,24 +76,28 @@ function InboxTab({ data, profile }) {
 
   const list = rows
     .filter((r) => byId[r.student_id])
-    .filter((r) => filter === "all" || (filter === "unread" ? r.unread > 0 : r.thread === filter))
     .filter((r) => {
       const q = search.trim().toLowerCase();
       if (!q) return true;
       return (byId[r.student_id].name || "").toLowerCase().includes(q) || (r.last_author_name || "").toLowerCase().includes(q);
     })
-    .sort((a, b) => (b.unread > 0) - (a.unread > 0) || new Date(b.last_at) - new Date(a.last_at));
+    .sort((a, b) => new Date(b.last_at) - new Date(a.last_at));
+
+  // Sorted for you (Myri, 28 Nov 2026), no filters to tap:
+  // first the conversations where a family wrote last and you can answer,
+  // then the rest by type.
+  const canAnswer = (r) => role !== "learning_assistant" && (r.thread === "office" || r.thread === "director" ? isDirector : true);
+  const waiting = list.filter((r) => (r.last_author_role === "parent" || r.last_author_role === "student") && canAnswer(r));
+  const rest = list.filter((r) => !waiting.includes(r));
+  const sections = [
+    { key: "waiting", title: "Waiting for a reply", rows: waiting },
+    { key: "director", title: "Director · private", rows: rest.filter((r) => r.thread === "director") },
+    { key: "office", title: "School office", rows: rest.filter((r) => r.thread === "office") },
+    { key: "family", title: "Parents and teachers", rows: rest.filter((r) => r.thread === "family") },
+    { key: "student", title: "Students", rows: rest.filter((r) => r.thread === "student") }
+  ].filter((sec) => sec.rows.length > 0);
 
   const unreadTotal = rows.filter((r) => byId[r.student_id]).reduce((n, r) => n + (r.unread || 0), 0);
-  const present = new Set(rows.map((r) => r.thread));
-  const filters = [
-    ["all", "All"],
-    ["unread", unreadTotal > 0 ? `Unread ${unreadTotal}` : "Unread"],
-    ["family", "Parents"],
-    ...(present.has("student") ? [["student", "Student"]] : []),
-    ...(role === "admin" ? [["office", "Office"]] : []),
-    ...(isDirector ? [["director", "Director"]] : [])
-  ];
 
   // ---- One conversation, full screen ----
   if (open && byId[open.studentId]) {
@@ -154,19 +157,19 @@ function InboxTab({ data, profile }) {
           </div>
         )}
 
-        <div className="bsf-chiprow" style={{ marginBottom: 6 }}>
-          {filters.map(([k, label]) => (
-            <button key={k} className={`bsf-chip ${filter === k ? "active" : ""}`} onClick={() => setFilter(k)}>{label}</button>
-          ))}
-        </div>
 
         {loading && <p className="bsf-empty">Loading…</p>}
         {!loading && error && <p className="bsf-empty">{error}</p>}
         {!loading && !error && list.length === 0 && (
-          <p className="bsf-empty">{filter === "unread" ? "You're all caught up." : search ? "No conversation matches your search." : "No conversations yet."}</p>
+          <p className="bsf-empty">{search ? "No conversation matches your search." : "No conversations yet."}</p>
         )}
 
-        {list.map((r) => {
+        {sections.map((sec) => (
+          <div key={sec.key} style={{ marginTop: 14 }}>
+            <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: sec.key === "waiting" ? "#801524" : "#6B7578" }}>
+              {sec.title} · {sec.rows.length}
+            </p>
+        {sec.rows.map((r) => {
           const s = byId[r.student_id];
           const fromFamily = r.last_author_role === "parent" || r.last_author_role === "student";
           const sub = `${THREAD_NAMES[r.thread] || r.thread} · ${fromFamily ? `from ${r.last_author_name}` : `${r.last_author_name} replied`}`;
@@ -198,6 +201,8 @@ function InboxTab({ data, profile }) {
             </button>
           );
         })}
+          </div>
+        ))}
       </section>
     </div>
   );

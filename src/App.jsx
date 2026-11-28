@@ -229,15 +229,18 @@ function BrightStepsHubInner() {
     .filter((s) => !isRestrictedTeacher || RESTRICTED_TEACHER_TABS.includes(s.id))
     .filter((s) => !isStudent || STUDENT_ALLOWED_TABS.includes(s.id));
 
+  const canInbox = !isParent && !isStudent && !isAccountant && !isViewer;
   const primaryIds = isStudent
     ? STUDENT_ALLOWED_TABS.filter((id) => id !== "messages")
     : isAccountant
     ? ACCOUNTANT_ALLOWED_TABS
     : !isAdmin && staffDailyGrades(profile).length > 0
-    ? ["dashboard", "daily", "attendance", "portfolio"] // Pre-N staff log the day from the bottom bar
+    ? ["dashboard", "daily", "attendance", canInbox ? "messages" : "portfolio"] // Pre-N staff log the day from the bottom bar
     : allSuspended
     ? ["dashboard", "students", "fees"]
-    : ["dashboard", "attendance", "portfolio", "assessment"];
+    : isParent || !canInbox
+    ? ["dashboard", "attendance", "portfolio", "assessment"]
+    : ["dashboard", "attendance", "messages", "assessment"]; // Messages replaces Portfolio for staff (Myri, 28 Nov 2026)
   const bottomTabs = primaryIds.map((id) => allSections.find((s) => s.id === id)).filter(Boolean);
   if (isStudent && isUpperStudent) {
     bottomTabs.push({ id: "messages", label: "Messages", icon: Megaphone });
@@ -393,8 +396,13 @@ function BrightStepsHubInner() {
 
       <nav className="bsf-tabbar">
         {bottomTabs.map(({ id, navKey, label, icon: Icon }) => (
-          <button key={id} className={`bsf-tab ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>
+          <button key={id} className={`bsf-tab ${tab === id ? "active" : ""}`} onClick={() => setTab(id)} style={{ position: "relative" }}>
             <Icon size={19} />
+            {id === "messages" && !isStudent && unreadMessageCount > 0 && (
+              <span style={{ position: "absolute", top: 2, left: "calc(50% + 6px)", background: "#801524", color: "#fff", borderRadius: 100, fontSize: 10, lineHeight: "16px", minWidth: 16, height: 16, padding: "0 4px", fontWeight: 600, textAlign: "center" }}>
+                {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
+              </span>
+            )}
             {navKey ? t(navKey) : label}
           </button>
         ))}
