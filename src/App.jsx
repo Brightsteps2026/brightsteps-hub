@@ -240,7 +240,7 @@ function BrightStepsHubInner() {
     ? ["dashboard", "students", "fees"]
     : isParent || !canInbox
     ? ["dashboard", "attendance", "portfolio", "assessment"]
-    : ["dashboard", "attendance", "messages", "assessment"]; // Messages replaces Portfolio for staff (Myri, 28 Nov 2026)
+    : ["dashboard", "students", "attendance", "messages"]; // Staff bottom bar (Myri, 28 Nov 2026): Portfolio and Assessment move to the menu
   const bottomTabs = primaryIds.map((id) => allSections.find((s) => s.id === id)).filter(Boolean);
   if (isStudent && isUpperStudent) {
     bottomTabs.push({ id: "messages", label: "Messages", icon: Megaphone });
