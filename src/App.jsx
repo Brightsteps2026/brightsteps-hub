@@ -237,7 +237,7 @@ function BrightStepsHubInner() {
     : allSuspended
     ? ["dashboard", "students", "fees"]
     : isParent
-    ? ["dashboard", "attendance", "messages"] // Parents (Myri, 28 Nov 2026): Dashboard, Attendance, Messages, More
+    ? ["dashboard", "attendance", "portfolio", "messages"] // Parents (Myri, 28 Nov 2026): 5 buttons like staff, with More
     : !canInbox
     ? ["dashboard", "attendance", "portfolio", "assessment"]
     : ["dashboard", "students", "attendance", "messages"]; // Staff bottom bar (Myri, 28 Nov 2026): Portfolio and Assessment move to the menu
