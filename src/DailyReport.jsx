@@ -198,13 +198,13 @@ export default function DailyLogTab({ profile }) {
     supabase.from("students").select("id, full_name, first_name, legacy_id, no_photos").is("withdrawn_on", null).eq("grade", grade).order("first_name").then(({ data }) => setRoster(data || []));
   }, [grade]);
 
-  if (!grades.length) return <p style={{ ...card, color: COLORS.muted }}>The Pre-N Diary is for Pre-N staff. No Pre-N class is assigned to you.</p>;
+  if (!grades.length) return <p style={{ ...card, color: COLORS.muted }}>The Pre-N Learning Journal is for Pre-N staff. No Pre-N class is assigned to you.</p>;
 
   return (
     <div style={{ maxWidth: 760, margin: "0 auto" }}>
       <div style={{ ...card, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", justifyContent: "space-between" }}>
         <div>
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase", color: COLORS.brand }}>Pre-N Diary</p>
+          <p style={{ margin: 0, fontSize: 12, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase", color: COLORS.brand }}>Pre-N Learning Journal</p>
           <h1 style={{ margin: "4px 0 0", fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 600 }}>
             {section === "today" ? (day === today() ? "Today" : dayTitle(day)) : section === "stories" ? "Learning stories" : "Class posts"}
           </h1>
@@ -257,7 +257,7 @@ function ClassDay({ grade, day, profile }) {
       supabase.from("daily_class_days").select("*").eq("grade", grade).eq("day", day).maybeSingle()
     ]);
     const err = st.error || ph.error || su.error || cd.error;
-    if (err) setError("Could not load the diary. Check your connection and try again.");
+    if (err) setError("Could not load the Learning Journal. Check your connection and try again.");
     setStudents(st.data || []);
     setPhotos(ph.data || []);
     setRows(Object.fromEntries((su.data || []).map((r) => [r.student_id, r])));
@@ -309,7 +309,7 @@ function ClassDay({ grade, day, profile }) {
   const send = async () => {
     const ready = students.filter((s) => filled(rows[s.id]) && !rows[s.id].sent_at).length;
     if (!ready) { setError("Fill in at least one child first."); return; }
-    if (!window.confirm(`Send today's diary to ${ready} ${ready === 1 ? "family" : "families"}?`)) return;
+    if (!window.confirm(`Send today's Learning Journal to ${ready} ${ready === 1 ? "family" : "families"}?`)) return;
     setSending(true);
     const { data: n, error: e } = await supabase.rpc("daily_send", { p_grade: grade, p_day: day });
     setSending(false);
@@ -587,14 +587,14 @@ function PhotoConsent({ students, onSaved }) {
 // ======================================================================================
 
 const F = {
-  en: { title: "Pre-N diary", tabToday: "Today", tabStories: "Learning stories", tabNews: "Class news", prev: "‹ Previous day", next: "Next ›", today: "Today",
+  en: { title: "Learning Journal", tabToday: "Today", tabStories: "Learning stories", tabNews: "Class news", prev: "‹ Previous day", next: "Next ›", today: "Today",
         mood: "Mood", lunch: "Lunch", rest: "Rest", todayWe: "Today we", note: (who) => `Note from ${who}`, noteTeam: "Note from the team",
         send: "Please bring tomorrow", seen: "Seen", seenDone: "Thank you, the team can see you have read it.", photos: "Photos",
-        absent: "Absent today.", pending: "The team will share today's diary at the end of the day.", nothing: "Nothing was shared on this day." },
-  fr: { title: "Journal Pre-N", tabToday: "Aujourd'hui", tabStories: "Histoires d'apprentissage", tabNews: "Vie de la classe", prev: "‹ Jour précédent", next: "Suivant ›", today: "Aujourd'hui",
+        absent: "Absent today.", pending: "The team will share today's Learning Journal at the end of the day.", nothing: "Nothing was shared on this day." },
+  fr: { title: "Journal d'apprentissage", tabToday: "Aujourd'hui", tabStories: "Histoires d'apprentissage", tabNews: "Vie de la classe", prev: "‹ Jour précédent", next: "Suivant ›", today: "Aujourd'hui",
         mood: "Humeur", lunch: "Déjeuner", rest: "Sieste", todayWe: "Aujourd'hui, nous avons", note: (who) => `Mot de ${who}`, noteTeam: "Mot de l'équipe",
         send: "Merci d'apporter demain", seen: "Vu", seenDone: "Merci, l'équipe voit que vous l'avez lu.", photos: "Photos",
-        absent: "Absent(e) aujourd'hui.", pending: "L'équipe partagera le journal du jour en fin de journée.", nothing: "Rien n'a été partagé ce jour-là." }
+        absent: "Absent(e) aujourd'hui.", pending: "L'équipe partagera le journal d'apprentissage du jour en fin de journée.", nothing: "Rien n'a été partagé ce jour-là." }
 };
 
 export function DailyReportFamily({ student, language = "en" }) {

@@ -54,7 +54,7 @@ const translations = {
   "nav.billing": { en: "Billing", fr: "Facturation" },
   "nav.updates": { en: "Family Updates", fr: "Infos aux familles" },
   "nav.weekly": { en: "Weekly updates", fr: "Points hebdomadaires" },
-  "nav.daily": { en: "Pre-N Diary", fr: "Journal Pre-N" },
+  "nav.daily": { en: "Pre-N Learning Journal", fr: "Journal d'apprentissage Pre-N" },
   "nav.conferences": { en: "Conferences", fr: "Conférences" },
   "nav.more": { en: "More", fr: "Plus" },
   "nav.allSections": { en: "Explore", fr: "Explorer" },
