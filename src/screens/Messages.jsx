@@ -262,7 +262,7 @@ function StudentMessages({ student, initialThread = null }) {
         <div style={{ background: "#FCFAF4", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", marginBottom: 10, fontSize: 13, lineHeight: 1.5, color: "var(--ink)" }}>
           {thread === "director" ? (
             <>
-              <strong>{fr ? "Privé, pour Miss Myriam, Directrice." : "Private to Miss Myriam, Director."}</strong>
+              <strong>{fr ? "Privé : seule la Directrice, Miss Myriam, voit ce message. Les enseignants ne le voient pas." : "Private: only the Director, Miss Myriam, sees this message. Teachers don't see it."}</strong>
               <span style={{ display: "block", color: "var(--muted, #6B7578)" }}>
                 {fr
                   ? "Pour une inquiétude, le bien-être de votre enfant ou toute question confidentielle. Pour les frais, la cantine, le transport ou les documents, écrivez à l'Administration."
