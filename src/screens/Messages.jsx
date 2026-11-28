@@ -12,6 +12,19 @@ import { GRADES } from "../data/constants";
 //   "student": a Grade 3+ student and teachers. Parents never see it.
 // Staff switch between the two for Grade 3+ students. The database decides who
 // may read and write each thread, and stamps who sent each message.
+// Nov 2026: parents can also write to
+//   "office":   the School office. The Director replies; other admins read only.
+//   "director": the Director only (private, not even other admins).
+// Teachers never see these two (see supabase/messages-office-director.sql).
+
+// Myriam Aoussou, Director (same id as public.hub_director_id()).
+const DIRECTOR_ID = "c7938eac-08fb-4ac9-933d-0cb24d27082b";
+
+const THREAD_LABELS = {
+  en: { family: "Teachers", office: "School office", director: "Director" },
+  fr: { family: "Enseignants", office: "Administration", director: "Directrice" }
+};
+const STAFF_THREAD_LABELS = { family: "Parents", student: "Student", office: "Office", director: "Director" };
 
 const MESSAGE_ROLE_LABELS = {
   en: { parent: "parent", student: "student", teacher: "teacher", admin: "school", learning_assistant: "assistant" },
@@ -137,15 +150,24 @@ function StudentMessages({ student }) {
   const [sendError, setSendError] = useState("");
   const [staffThread, setStaffThread] = useState("family");
   const [pickedThread, setPickedThread] = useState(false);
-  const thread = isStudentUser ? "student" : isParentUser ? "family" : (hasStudentThread ? staffThread : "family");
-  const canPost = role !== "viewer" && role !== "learning_assistant" && role !== "accountant";
+  const isAdminUser = role === "admin";
+  const isDirector = profile?.id === DIRECTOR_ID;
+  // The threads this person can switch between.
+  const threadChoices = isStudentUser ? ["student"]
+    : isParentUser ? ["family", "office", "director"]
+    : isAdminUser ? ["family", ...(hasStudentThread ? ["student"] : []), "office", ...(isDirector ? ["director"] : [])]
+    : hasStudentThread ? ["family", "student"] : ["family"];
+  const thread = threadChoices.includes(staffThread) ? staffThread : threadChoices[0];
+  const canPost = role !== "viewer" && role !== "learning_assistant" && role !== "accountant"
+    && (thread === "office" || thread === "director" ? (isParentUser || isDirector) : true);
   const { messages, setMessages, loading, error } = useThreadMessages(student.id, thread);
   const unreadOf = (k) => unread[`${student.id}:${k}`] || 0;
 
-  // Staff: open the student's thread first when only that one has something new.
+  // Open the thread that has something new, when the current one has nothing new.
   useEffect(() => {
-    if (pickedThread || !isStaffUser || !hasStudentThread) return;
-    if (unreadOf("student") > 0 && unreadOf("family") === 0) setStaffThread("student");
+    if (pickedThread || threadChoices.length < 2 || unreadOf(thread) > 0) return;
+    const withNew = threadChoices.find((k) => unreadOf(k) > 0);
+    if (withNew) setStaffThread(withNew);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unread, student.id]);
   useEffect(() => { setPickedThread(false); setStaffThread("family"); setSendError(""); }, [student.id]);
@@ -174,8 +196,8 @@ function StudentMessages({ student }) {
     setMessageText("");
     setMessages((list) => (list.some((m) => m.id === row.id) ? list : [...list, toMessage(row)]));
     messagesChanged();
-    // Email only for the parents' thread.
-    if (thread === "family") {
+    // Email for the parents' threads (not the student's own thread).
+    if (thread !== "student") {
       supabase.functions
         .invoke("notify-message", { body: { studentId: student.id, senderRole: role || "", senderName: (profile && profile.full_name) || "Someone", messageId: row.id } })
         .catch((err) => console.error("notify-message failed", err));
@@ -204,7 +226,11 @@ function StudentMessages({ student }) {
   const intro = isStudentUser
     ? "A private thread between you and your teachers."
     : isParentUser
-      ? (fr ? `Échanges privés entre les parents et les enseignants au sujet de ${student.name}.` : `A private thread between parents and teachers about ${student.name}.`)
+      ? (fr ? `À qui souhaitez-vous écrire au sujet de ${student.name} ?` : `Who would you like to write to about ${student.name}?`)
+      : thread === "office"
+        ? `Parents of ${student.name} and the School office. ${isDirector ? "Teachers don't see it." : "You can read it; only Miss Myriam replies."}`
+      : thread === "director"
+        ? `Private between ${student.name}'s parents and you. Nobody else sees it.`
       : isAssistantUser
         ? `The parents' thread about ${student.name}. You can read it; only teachers reply.`
       : thread === "student"
@@ -219,16 +245,40 @@ function StudentMessages({ student }) {
           <p className="bsf-muted">{intro}</p>
         </div>
       </div>
-      {isStaffUser && hasStudentThread && (
+      {threadChoices.length > 1 && (
         <div className="bsf-chiprow" style={{ marginBottom: 10 }}>
-          {["family", "student"].map((k) => {
+          {threadChoices.map((k) => {
             const n = unreadOf(k);
+            const label = isParentUser ? THREAD_LABELS[fr ? "fr" : "en"][k] : STAFF_THREAD_LABELS[k];
             return (
               <button key={k} className={`bsf-chip ${thread === k ? "active" : ""}`} onClick={() => { setPickedThread(true); setStaffThread(k); }}>
-                {k === "family" ? "Parents" : "Student"}{n > 0 ? ` (${n})` : ""}
+                {label}{n > 0 ? ` (${n})` : ""}
               </button>
             );
           })}
+        </div>
+      )}
+      {isParentUser && thread !== "family" && (
+        <div style={{ background: "#FCFAF4", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", marginBottom: 10, fontSize: 13, lineHeight: 1.5, color: "var(--ink)" }}>
+          {thread === "director" ? (
+            <>
+              <strong>{fr ? "Privé, pour Miss Myriam, Directrice." : "Private to Miss Myriam, Director."}</strong>
+              <span style={{ display: "block", color: "var(--muted, #6B7578)" }}>
+                {fr
+                  ? "Pour une inquiétude, le bien-être de votre enfant ou toute question confidentielle. Pour les frais, la cantine, le transport ou les documents, écrivez à l'Administration."
+                  : "For concerns, your child's wellbeing or anything confidential. For fees, canteen, transport or documents, please write to the School office."}
+              </span>
+            </>
+          ) : (
+            <>
+              <strong>{fr ? "Pour les questions pratiques." : "For everyday questions."}</strong>
+              <span style={{ display: "block", color: "var(--muted, #6B7578)" }}>
+                {fr
+                  ? "Frais de scolarité, cantine, transport, documents, absences et rendez-vous. Les enseignants ne voient pas ces messages."
+                  : "Fees, canteen, transport, documents, absences and appointments. Teachers don't see these messages."}
+              </span>
+            </>
+          )}
         </div>
       )}
       <div className="bsf-chatthread">
@@ -251,7 +301,7 @@ function StudentMessages({ student }) {
                 <div className="bsf-chatbubble">
                   {!isMine && <div className="bsf-chatauthor">{m.author}{m.role ? ` · ${roleLabel(m.role)}` : ""}</div>}
                   <p>{fr && m.textFr ? m.textFr : m.text}</p>
-                  {(role === "admin" || (isMine && (isStaffUser || m.authorId === profile?.id))) && (
+                  {((role === "admin" && canPost) || (isMine && (isStaffUser || m.authorId === profile?.id))) && (
                     <button className="bsf-chatremove" onClick={() => removeMessage(m.id)} aria-label={fr ? "Supprimer le message" : "Remove message"}>
                       <X size={12} />
                     </button>

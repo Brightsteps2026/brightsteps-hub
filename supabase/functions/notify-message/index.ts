@@ -10,6 +10,8 @@
 //     Hub send an email "from" someone else.
 //   * The child's grade comes from the students table (not the shared data).
 //   * Parents get the email in English, then French.
+//   * Nov 2026: also the "office" and "director" threads. A parent's message there
+//     is emailed to the Director only; the Director's reply to the child's parents.
 //
 // Deploy in Supabase > Edge Functions, name notify-message (replace the code).
 // Keep "Verify JWT" ON. Uses the RESEND_API_KEY secret, like the other emails.
@@ -84,7 +86,7 @@ Deno.serve(async (req) => {
       .eq("id", messageId).maybeSingle();
     if (!msg || msg.deleted_at) return json({ error: "Message not found" }, 404);
     if (msg.author_id !== who.user.id) return json({ error: "Not your message" }, 403);
-    if (msg.thread !== "family") return json({ sent: [] });
+    if (!["family", "office", "director"].includes(msg.thread)) return json({ sent: [] });
     // Only for a message just sent (stops an old message being used to re-send emails).
     if (Date.now() - new Date(msg.created_at).getTime() > 10 * 60 * 1000) return json({ sent: [] });
 
@@ -93,7 +95,12 @@ Deno.serve(async (req) => {
     const grade = stu?.grade || null;
 
     let recipients: { id: string; email: string | null; full_name: string | null; role: string }[] = [];
-    if (fromFamily) {
+    if (fromFamily && (msg.thread === "office" || msg.thread === "director")) {
+      // To the Director only.
+      const { data: dirId } = await admin.rpc("hub_director_id");
+      const { data: dir } = await admin.from("profiles").select("id, email, full_name, role").eq("id", dirId).maybeSingle();
+      recipients = dir ? [dir] : [];
+    } else if (fromFamily) {
       // To staff: teachers and assistants of the child's grade, plus admins.
       const { data: staff } = await admin.from("profiles")
         .select("id, email, full_name, role, grades_assigned")
