@@ -23,7 +23,7 @@ import { ParentStudentView } from "./screens/ParentStudentView";
 import { StudentMessages, useUnreadNoticeCount, useUnreadThreads, NotificationBell } from "./screens/Messages";
 import { resyncPush } from "./lib/push";
 import { StudentsTab } from "./screens/Students";
-import { InboxTab } from "./screens/Inbox";
+import { InboxTab, ParentMessagesTab } from "./screens/Inbox";
 import { ClassesTab } from "./screens/Classes";
 import { PortfolioTab } from "./screens/Portfolio";
 import { PlanningTab } from "./screens/Planning";
@@ -184,7 +184,7 @@ function BrightStepsHubInner() {
     { id: "dashboard", label: "Dashboard", navKey: "nav.dashboard", icon: LayoutDashboard, category: "core" },
     { id: "students", label: "Students", navKey: "nav.students", icon: Users, category: "classroom" },
     // Staff Messages inbox (Myri, 28 Nov 2026). Parents keep messages on their child's page.
-    { id: "messages", label: "Messages", navKey: "nav.messages", icon: MessageSquare, category: "core", hidden: isParent || isStudent || isAccountant || isViewer },
+    { id: "messages", label: "Messages", navKey: "nav.messages", icon: MessageSquare, category: "core", hidden: isStudent || isAccountant || isViewer }, // parents too from 28 Nov 2026
     { id: "classes", label: "Classes", navKey: "nav.classes", icon: UserCheck, category: "classroom" },
     { id: "staff", label: "Staff", navKey: "nav.staff", icon: Briefcase, category: "hr" },
     { id: "checkin", label: "Staff check-in", navKey: "nav.checkin", icon: CheckinIcon, category: "hr" },
@@ -229,14 +229,16 @@ function BrightStepsHubInner() {
     .filter((s) => !isRestrictedTeacher || RESTRICTED_TEACHER_TABS.includes(s.id))
     .filter((s) => !isStudent || STUDENT_ALLOWED_TABS.includes(s.id));
 
-  const canInbox = !isParent && !isStudent && !isAccountant && !isViewer;
+  const canInbox = !isStudent && !isAccountant && !isViewer;
   const primaryIds = isStudent
     ? STUDENT_ALLOWED_TABS.filter((id) => id !== "messages")
     : isAccountant
     ? ACCOUNTANT_ALLOWED_TABS
     : allSuspended
     ? ["dashboard", "students", "fees"]
-    : isParent || !canInbox
+    : isParent
+    ? ["dashboard", "attendance", "messages"] // Parents (Myri, 28 Nov 2026): Dashboard, Attendance, Messages, More
+    : !canInbox
     ? ["dashboard", "attendance", "portfolio", "assessment"]
     : ["dashboard", "students", "attendance", "messages"]; // Staff bottom bar (Myri, 28 Nov 2026): Portfolio and Assessment move to the menu
   const bottomTabs = primaryIds.map((id) => allSections.find((s) => s.id === id)).filter(Boolean);
@@ -294,8 +296,7 @@ function BrightStepsHubInner() {
               onOpenThread={isLearningAssistant || isAccountant ? null : (studentId) => {
                 if (isStudent) { goTo("messages"); return; }
                 pending.messageStudentId = studentId;
-                if (isParent) pending.childProfileId = studentId;
-                goTo(isParent ? "students" : "messages");
+                goTo("messages");
                 window.dispatchEvent(new CustomEvent("bs-open-thread", { detail: studentId }));
               }}
               onOpenNotice={noticeTarget}
@@ -326,6 +327,7 @@ function BrightStepsHubInner() {
       {tab === "attendance" && <AttendanceTab data={data} persist={persist} profile={profile} />}
       {tab === "portfolio" && <PortfolioTab data={data} persist={persist} profile={profile} />}
       {tab === "messages" && !isStudent && !isParent && !isAccountant && <InboxTab data={data} profile={profile} />}
+      {tab === "messages" && isParent && <ParentMessagesTab data={data} profile={profile} />}
       {tab === "messages" && isStudent && myLinkedStudent && (
         <div className="bsf-screen">
           <div className="bsf-hero">

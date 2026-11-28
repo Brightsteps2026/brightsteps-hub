@@ -3,6 +3,7 @@ import { ArrowLeft, Plus, Search } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { pending } from "../data/pending";
 import { StudentMessages } from "./Messages";
+import { useLanguage } from "../lib/i18n";
 
 // Staff Messages inbox (Myri, 28 Nov 2026): every conversation in one list,
 // newest first, instead of opening each student's profile. Tap a row to open
@@ -208,4 +209,72 @@ function InboxTab({ data, profile }) {
   );
 }
 
-export { InboxTab };
+// Parents' Messages tab (Myri, 28 Nov 2026): replaces the messages at the bottom
+// of the child's page. One child at a time; for each child, the parent chooses
+// Teachers, School office or Director (inside StudentMessages).
+function ParentMessagesTab({ data, profile }) {
+  const { language } = useLanguage();
+  const fr = language === "fr";
+  const linked = profile?.student_ids || [];
+  const kids = (data?.students || []).filter((s) => linked.includes(s.id));
+  const [childId, setChildId] = useState(() => {
+    const id = pending.messageStudentId;
+    pending.messageStudentId = null;
+    return id && linked.includes(id) ? id : null;
+  });
+  const [unread, setUnread] = useState({});
+
+  useEffect(() => {
+    const onOpen = (e) => { pending.messageStudentId = null; if (linked.includes(e.detail)) setChildId(e.detail); };
+    window.addEventListener("bs-open-thread", onOpen);
+    return () => window.removeEventListener("bs-open-thread", onOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linked.join(",")]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const { data: rows, error } = await supabase.rpc("my_unread_messages");
+      if (cancelled || error) return;
+      const m = {};
+      (rows || []).forEach((r) => { m[r.student_id] = (m[r.student_id] || 0) + r.unread; });
+      setUnread(m);
+    };
+    load();
+    const id = setInterval(() => { if (!document.hidden) load(); }, POLL_MS);
+    window.addEventListener("bs-messages-changed", load);
+    return () => { cancelled = true; clearInterval(id); window.removeEventListener("bs-messages-changed", load); };
+  }, []);
+
+  // Open the child with something new first, otherwise the first child.
+  const active = kids.find((k) => k.id === childId) || kids.find((k) => unread[k.id] > 0) || kids[0];
+  const total = Object.values(unread).reduce((n, x) => n + x, 0);
+
+  return (
+    <div className="bsf-screen">
+      <div className="bsf-hero">
+        <p className="bsf-eyebrow">Messages</p>
+        <h1>{total > 0
+          ? (fr ? `${total} message${total > 1 ? "s" : ""} non lu${total > 1 ? "s" : ""}` : `${total} unread message${total > 1 ? "s" : ""}`)
+          : (fr ? "Écrire à l'école" : "Write to the school")}</h1>
+      </div>
+      {kids.length === 0 && <p className="bsf-empty">{fr ? "Aucun enfant lié à votre compte." : "No child is linked to your account."}</p>}
+      {kids.length > 1 && (
+        <div className="bsf-chiprow" style={{ marginBottom: 12 }}>
+          {kids.map((k) => (
+            <button key={k.id} className={`bsf-chip ${active && active.id === k.id ? "active" : ""}`} onClick={() => setChildId(k.id)}>
+              {(k.name || "").split(" ")[0]}{unread[k.id] > 0 ? ` (${unread[k.id]})` : ""}
+            </button>
+          ))}
+        </div>
+      )}
+      {active && (
+        <section className="bsf-card">
+          <StudentMessages key={active.id} student={active} data={data} />
+        </section>
+      )}
+    </div>
+  );
+}
+
+export { InboxTab, ParentMessagesTab };

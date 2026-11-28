@@ -426,9 +426,7 @@ function ParentStudentView({ data, persist, profile }) {
             ))}
           </section>
 
-          <section className="bsf-card" id="bs-child-messages">
-            <StudentMessages student={activeStudent} data={data} persist={persist} />
-          </section>
+          {/* Messages moved to their own Messages tab (Myri, 28 Nov 2026). */}
         </>
       )}
     </div>
