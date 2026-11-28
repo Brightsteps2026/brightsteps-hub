@@ -129,3 +129,28 @@ end $fn$;
 select 'director' as what, full_name as detail from public.profiles where id = public.hub_director_id()
 union all
 select 'thread rule', pg_get_constraintdef(oid) from pg_constraint where conname = 'hub_messages_thread_check';
+
+-- 8. Staff Messages inbox (28 Nov 2026): one row per conversation, newest first ---------------
+create or replace function public.my_message_threads()
+returns table(student_id text, thread text, last_body text, last_author_name text, last_author_role text, last_at timestamptz, unread integer)
+language sql stable security definer set search_path = public as $fn$
+  with mine as (
+    select m.* from public.hub_messages m
+    where m.deleted_at is null and public.hub_msg_can_read(m.student_id, m.thread)
+  ), latest as (
+    select distinct on (student_id, thread) student_id, thread, body, author_name, author_role, created_at
+    from mine order by student_id, thread, created_at desc
+  )
+  select l.student_id, l.thread, left(l.body, 140), l.author_name, l.author_role, l.created_at,
+    (select count(*)::int from mine x
+       left join public.hub_message_reads r on r.user_id = auth.uid() and r.student_id = x.student_id and r.thread = x.thread
+      where x.student_id = l.student_id and x.thread = l.thread
+        and x.created_at > coalesce(r.last_read, 'epoch'::timestamptz)
+        and public.hub_my_role() in ('admin', 'teacher')
+        and x.author_role in ('parent', 'student'))
+  from latest l
+  where public.hub_my_role() in ('admin', 'teacher', 'learning_assistant')
+  order by l.created_at desc
+$fn$;
+revoke all on function public.my_message_threads() from public, anon;
+grant execute on function public.my_message_threads() to authenticated;

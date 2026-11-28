@@ -6,6 +6,7 @@ const translations = {
   // Navigation
   "nav.dashboard": { en: "Dashboard", fr: "Tableau de bord" },
   "nav.students": { en: "Students", fr: "Élèves" },
+  "nav.messages": { en: "Messages", fr: "Messages" },
   "nav.classes": { en: "Classes", fr: "Classes" },
   "nav.staff": { en: "Staff", fr: "Personnel" },
   "nav.attendance": { en: "Attendance", fr: "Présences" },

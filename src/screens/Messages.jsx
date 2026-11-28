@@ -132,7 +132,7 @@ function useThreadMessages(studentId, thread) {
   return { messages, setMessages, loading, error, reload: load };
 }
 
-function StudentMessages({ student }) {
+function StudentMessages({ student, initialThread = null }) {
   const { profile } = useAuth();
   const { language } = useLanguage();
   const fr = language === "fr";
@@ -148,8 +148,8 @@ function StudentMessages({ student }) {
   const [messageText, setMessageText] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
-  const [staffThread, setStaffThread] = useState("family");
-  const [pickedThread, setPickedThread] = useState(false);
+  const [staffThread, setStaffThread] = useState(initialThread || "family");
+  const [pickedThread, setPickedThread] = useState(!!initialThread);
   const isAdminUser = role === "admin";
   const isDirector = profile?.id === DIRECTOR_ID;
   // The threads this person can switch between.
@@ -170,7 +170,7 @@ function StudentMessages({ student }) {
     if (withNew) setStaffThread(withNew);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unread, student.id]);
-  useEffect(() => { setPickedThread(false); setStaffThread("family"); setSendError(""); }, [student.id]);
+  useEffect(() => { setPickedThread(!!initialThread); setStaffThread(initialThread || "family"); setSendError(""); }, [student.id, initialThread]);
 
   // Mark the thread as read when it is opened and whenever new messages arrive.
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Percent, Briefcase, FolderOpen, Award, LogOut, Utensils, Bus, Banknote, NotebookPen, Clock3, Target, Baby, Handshake } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, ClipboardList, Megaphone, CheckSquare, ClipboardCheck, Settings as SettingsIcon, Calendar as CalendarIcon, UserCheck, Menu as MenuIcon, UserPlus, FileText, FileCheck, Percent, Briefcase, FolderOpen, Award, LogOut, Utensils, Bus, Banknote, NotebookPen, Clock3, Target, Baby, Handshake, MessageSquare } from "lucide-react";
 import { useAuth } from "./LoginGate";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
 import CanteenTab from "./CanteenTab";
@@ -23,6 +23,7 @@ import { ParentStudentView } from "./screens/ParentStudentView";
 import { StudentMessages, useUnreadNoticeCount, useUnreadThreads, NotificationBell } from "./screens/Messages";
 import { resyncPush } from "./lib/push";
 import { StudentsTab } from "./screens/Students";
+import { InboxTab } from "./screens/Inbox";
 import { ClassesTab } from "./screens/Classes";
 import { PortfolioTab } from "./screens/Portfolio";
 import { PlanningTab } from "./screens/Planning";
@@ -95,11 +96,11 @@ function BrightStepsHubInner() {
   const ADMIN_ONLY_TABS = ["accreditation","staff","admissions"];
   // A learning assistant supports specific grades day to day; they don't need
   // enrollment, staffing, or school-wide admin tools, just the classroom-facing ones.
-  const LEARNING_ASSISTANT_ALLOWED_TABS = ["bus", "daily", "conferences", "weekly", "checkin", "leave", "gradebook", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "classes", "calendar", "timetable", "standards", "assignments", "updates", "resources"];
+  const LEARNING_ASSISTANT_ALLOWED_TABS = ["messages", "bus", "daily", "conferences", "weekly", "checkin", "leave", "gradebook", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "classes", "calendar", "timetable", "standards", "assignments", "updates", "resources"];
   // An accountant only ever needs billing, nothing about students' academic
   // records, behavior, or staff information.
   const ACCOUNTANT_ALLOWED_TABS = ["dashboard", "checkin", "leave", "stafffiles", "bus", "fees"]; // Billing tab removed 4 Nov 2026 (Myri)
-  const RESTRICTED_TEACHER_TABS = ["bus", "daily", "conferences", "weekly", "checkin", "leave", "stafffiles", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "planning", "assignments", "timetable", "standards", "reports", "calendar", "incidents", "updates", "resources"];
+  const RESTRICTED_TEACHER_TABS = ["messages", "bus", "daily", "conferences", "weekly", "checkin", "leave", "stafffiles", "dashboard", "students", "canteen", "attendance", "portfolio", "assessment", "planning", "assignments", "timetable", "standards", "reports", "calendar", "incidents", "updates", "resources"];
   // Set per teacher by the admin in the database (profiles.limited_access).
   const isRestrictedTeacher = profile?.role === "teacher" && profile?.limited_access === true;
   // Specialist teachers (swimming, PE, music...) don't write weekly updates (Myri, 4 Nov 2026).
@@ -182,6 +183,8 @@ function BrightStepsHubInner() {
   const allSectionsRaw = [
     { id: "dashboard", label: "Dashboard", navKey: "nav.dashboard", icon: LayoutDashboard, category: "core" },
     { id: "students", label: "Students", navKey: "nav.students", icon: Users, category: "classroom" },
+    // Staff Messages inbox (Myri, 28 Nov 2026). Parents keep messages on their child's page.
+    { id: "messages", label: "Messages", navKey: "nav.messages", icon: MessageSquare, category: "core", hidden: isParent || isStudent || isAccountant || isViewer },
     { id: "classes", label: "Classes", navKey: "nav.classes", icon: UserCheck, category: "classroom" },
     { id: "staff", label: "Staff", navKey: "nav.staff", icon: Briefcase, category: "hr" },
     { id: "checkin", label: "Staff check-in", navKey: "nav.checkin", icon: CheckinIcon, category: "hr" },
@@ -291,7 +294,7 @@ function BrightStepsHubInner() {
                 if (isStudent) { goTo("messages"); return; }
                 pending.messageStudentId = studentId;
                 if (isParent) pending.childProfileId = studentId;
-                goTo("students");
+                goTo(isParent ? "students" : "messages");
                 window.dispatchEvent(new CustomEvent("bs-open-thread", { detail: studentId }));
               }}
               onOpenNotice={noticeTarget}
@@ -321,6 +324,7 @@ function BrightStepsHubInner() {
       {tab === "staff" && !isParent && !isLearningAssistant && <StaffTab data={data} persist={persist} />}
       {tab === "attendance" && <AttendanceTab data={data} persist={persist} profile={profile} />}
       {tab === "portfolio" && <PortfolioTab data={data} persist={persist} profile={profile} />}
+      {tab === "messages" && !isStudent && !isParent && !isAccountant && <InboxTab data={data} profile={profile} />}
       {tab === "messages" && isStudent && myLinkedStudent && (
         <div className="bsf-screen">
           <div className="bsf-hero">

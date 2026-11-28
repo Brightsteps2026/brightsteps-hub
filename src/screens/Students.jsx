@@ -432,13 +432,6 @@ function StudentsTab({ data, persist, profile }) {
             <textarea rows={2} value={form.homeAddress} onChange={(e) => setForm({ ...form, homeAddress: e.target.value })} />
           </Field>
 
-          {editingId && editingStudent && (
-            <>
-              <hr className="bsf-divider" />
-              <StudentMessages student={editingStudent} data={data} persist={persist} />
-            </>
-          )}
-
           <button className="bsf-btn bsf-btn-block" onClick={saveStudent}>{editingId ? "Save changes" : "Save student"}</button>
           {formError && <p className="bsf-formerror">{formError}</p>}
         </Modal>
