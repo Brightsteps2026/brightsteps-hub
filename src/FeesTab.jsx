@@ -5,7 +5,7 @@ import { useLanguage } from "./lib/i18n";
 
 // School fees (tuition + registration), Nov 2026.
 // Who sees what is decided by the database, not by this screen:
-//   * Miss Myriam (the "office", table tuition_office) sees every family.
+//   * Ms Myriam (the "office", table tuition_office) sees every family.
 //   * A parent sees only their own family, and only once Myriam ticks "Share".
 //   * Nobody else (accountant, viewer, other admin, teachers) gets any row back.
 
@@ -52,8 +52,8 @@ const T = {
   preparing: { en: "receipt being prepared", fr: "reçu en préparation" },
   view: { en: "View", fr: "Voir" },
   notIncluded: {
-    en: "Uniforms, canteen and transport are not included. Questions about your account? Message Miss Myriam from the Messages tab.",
-    fr: "Les uniformes, la cantine et le transport ne sont pas inclus. Une question ? Écrivez à Miss Myriam depuis l'onglet Messages."
+    en: "Uniforms, canteen and transport are not included. Questions about your account? Message Ms Myriam from the Messages tab.",
+    fr: "Les uniformes, la cantine et le transport ne sont pas inclus. Une question ? Écrivez à Ms Myriam depuis l'onglet Messages."
   },
   scholarship: { en: "Scholarship", fr: "Bourse" },
   scholarshipName: { en: "BrightSteps Family Scholarship", fr: "Bourse familiale BrightSteps" },

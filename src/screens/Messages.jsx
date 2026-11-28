@@ -228,7 +228,7 @@ function StudentMessages({ student, initialThread = null }) {
     : isParentUser
       ? (fr ? `À qui souhaitez-vous écrire au sujet de ${student.name} ?` : `Who would you like to write to about ${student.name}?`)
       : thread === "office"
-        ? `Parents of ${student.name} and the School office. ${isDirector ? "Teachers don't see it." : "You can read it; only Miss Myriam replies."}`
+        ? `Parents of ${student.name} and the School office. ${isDirector ? "Teachers don't see it." : "You can read it; only Ms Myriam replies."}`
       : thread === "director"
         ? `Private between ${student.name}'s parents and you. Nobody else sees it.`
       : isAssistantUser
@@ -262,7 +262,7 @@ function StudentMessages({ student, initialThread = null }) {
         <div style={{ background: "#FCFAF4", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", marginBottom: 10, fontSize: 13, lineHeight: 1.5, color: "var(--ink)" }}>
           {thread === "director" ? (
             <>
-              <strong>{fr ? "Privé : seule la Directrice, Miss Myriam, voit ce message. Les enseignants ne le voient pas." : "Private: only the Director, Miss Myriam, sees this message. Teachers don't see it."}</strong>
+              <strong>{fr ? "Privé : seule la Directrice, Ms Myriam, voit ce message. Les enseignants ne le voient pas." : "Private: only the Director, Ms Myriam, sees this message. Teachers don't see it."}</strong>
               <span style={{ display: "block", color: "var(--muted, #6B7578)" }}>
                 {fr
                   ? "Pour une inquiétude, le bien-être de votre enfant ou toute question confidentielle. Pour les frais, la cantine, le transport ou les documents, écrivez à l'Administration."
